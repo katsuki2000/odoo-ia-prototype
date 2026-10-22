@@ -35,17 +35,3 @@ def technical_groups_among(G: nx.DiGraph, group_xmlids: List[str]) -> List[Techn
                 grp_name = attrs.get("name", "") or get_group_display_name(G, clean_xmlid)
                 found.append(TechnicalGroup(clean_xmlid, setting_field, grp_name))
     return found
-
-
-def format_technical_group_note(technical_groups: List[TechnicalGroup]) -> str:
-    described = ", ".join(
-        f"'{group.name}' [{group.xmlid}] (paramètre: '{group.setting_field}', xml_id: {group.xmlid})" if group.name
-        else f"{group.xmlid} (paramètre: '{group.setting_field}', xml_id: {group.xmlid})"
-        for group in technical_groups
-    )
-    return (
-        f"NOTE DE CONFIGURATION: Les groupes {described} sont des paramètres activables "
-        "dans la configuration du module, pas des rôles attribués individuellement ; "
-        "la condition porte sur l'utilisateur désigné par l'expression qui appelle has_group. "
-        "Nommer ce paramètre par son libellé exact entre guillemets, sans le traduire ni le reformuler."
-    )

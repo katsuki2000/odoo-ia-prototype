@@ -5,9 +5,18 @@ import { Component, useState, useRef, onPatched, onMounted } from "@odoo/owl";
 import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ConnectionAbortedError } from "@web/core/network/rpc_service";
-
-const SYSTRAY_INITIAL_CONTENT = "Bonjour ! Posez votre question ou interrogez-moi sur le document actif.";
-const CANCELLED_CONTENT = "Question annulée.";
+import {
+    cancelledContent,
+    communicationErrorLabel,
+    connectionErrorLabel,
+    evidenceLabel,
+    exchangeCountLabel,
+    loadHistoryErrorLabel,
+    loadSessionErrorLabel,
+    routeLabel,
+    senderLabel,
+    systrayInitialContent,
+} from "@miro_ai/js/miro_ai_labels";
 
 /**
  * True when an rpc() promise was interrupted by promise.abort() (cf.
@@ -178,7 +187,7 @@ export class MiroAiSystray extends Component {
             loading: false,
             inputQuestion: "",
             sessionId: "systray_session_" + Date.now(),
-            messages: [createMessage(1, "bot", SYSTRAY_INITIAL_CONTENT)],
+            messages: [createMessage(1, "bot", systrayInitialContent())],
             nextMsgId: 2,
             sourceMode: null,
             showHistory: false,
@@ -201,8 +210,20 @@ export class MiroAiSystray extends Component {
         return formatSessionDate(isoString);
     }
 
+    getSenderLabel(msg) {
+        return senderLabel(msg.sender);
+    }
+
+    getExchangeCountLabel(count) {
+        return exchangeCountLabel(count);
+    }
+
+    getEvidenceLabel(count) {
+        return evidenceLabel(count);
+    }
+
     startNewConversation() {
-        this.state.messages = [createMessage(1, "bot", SYSTRAY_INITIAL_CONTENT)];
+        this.state.messages = [createMessage(1, "bot", systrayInitialContent())];
         this.state.nextMsgId = 2;
         this.state.sessionId = "systray_session_" + Date.now();
         this.state.showHistory = false;
@@ -221,8 +242,8 @@ export class MiroAiSystray extends Component {
             const sessions = await this.rpc("/miro_ai/sessions", {});
             this.state.sessions = sessions || [];
         } catch (error) {
-            console.error("Erreur chargement historique MIRO AI Systray:", error);
-            this.notification.add("Impossible de charger l'historique des conversations.", { type: "danger" });
+            console.error("MIRO AI Systray: loading the history failed:", error);
+            this.notification.add(loadHistoryErrorLabel(), { type: "danger" });
         } finally {
             this.state.loadingSessions = false;
         }
@@ -243,8 +264,8 @@ export class MiroAiSystray extends Component {
             this.state.sessionId = sessionId;
             this.state.showHistory = false;
         } catch (error) {
-            console.error("Erreur chargement session MIRO AI Systray:", error);
-            this.notification.add("Impossible de charger cette conversation.", { type: "danger" });
+            console.error("MIRO AI Systray: loading the session failed:", error);
+            this.notification.add(loadSessionErrorLabel(), { type: "danger" });
         } finally {
             this.state.loading = false;
         }
@@ -276,13 +297,7 @@ export class MiroAiSystray extends Component {
     }
 
     getRouteLabel(route) {
-        switch (route) {
-            case "code_intelligence": return "Code Intelligence";
-            case "donnees_erp": return "Données ERP";
-            case "documentaire": return "Documentaire";
-            case "hybride": return "Hybride";
-            default: return route || "Général";
-        }
+        return routeLabel(route);
     }
 
     getConfidencePercent(confidence) {
@@ -344,21 +359,21 @@ export class MiroAiSystray extends Component {
                     this.state.sessionId = response.session_id;
                 }
             } else {
-                throw new Error("Réponse vide de l'assistant.");
+                throw new Error("Empty answer from the assistant.");
             }
         } catch (error) {
             if (isRequestCancelled(error)) {
-                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", CANCELLED_CONTENT, {
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", cancelledContent(), {
                     cancelled: true,
                 }));
             } else {
-                console.error("Erreur MIRO AI Systray:", error);
-                const errMsg = "Erreur de communication avec l'assistant MIRO AI.";
+                console.error("MIRO AI Systray error:", error);
+                const errMsg = communicationErrorLabel();
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
                     confidence: 0.0,
                     evidence_status: "ERROR",
                 }));
-                this.notification.add("Erreur de connexion MIRO AI.", { type: "danger" });
+                this.notification.add(connectionErrorLabel(), { type: "danger" });
             }
         } finally {
             this.pendingRequest = null;

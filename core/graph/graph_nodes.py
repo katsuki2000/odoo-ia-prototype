@@ -2,7 +2,6 @@
 
 import logging
 
-from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, SourceReference, source_display_title
 from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
@@ -35,7 +34,7 @@ def retrieve(state: RAGState) -> dict:
     try:
         chromaManager, bm25Index = get_retriever()
         chunks = search_retrieve(query=state['question'], top_k=10,
-            chroma_manager=chromaManager, bm25_index=bm25Index, use_reranker=USE_RERANKER)
+            chroma_manager=chromaManager, bm25_index=bm25Index)
     except Exception as error:
         logger.error('Document retrieval failed (%s)', type(error).__name__)
         chunks = []

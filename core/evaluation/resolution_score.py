@@ -1,4 +1,4 @@
-"""Verdict d'exactitude d'une resolution de sujet contre les modeles attendus d'une question de banque."""
+"""Exactness verdict of a subject resolution against the expected models of a bank question."""
 
 EXACT = "exact"
 WRONG = "faux"

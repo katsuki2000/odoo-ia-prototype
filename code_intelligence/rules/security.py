@@ -29,8 +29,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.exception_conditions: List[str] = []
         self.exception_guard_fields: List[str] = []
         self.exception_linenos: List[int] = []
-        # Mandat "method name tracking" (todo/contexte.txt section 972 item
-        # 1 / decision post-975): the enclosing method's real name at the
+        # The enclosing method's real name at the
         # point each exception is raised, mirroring required_group_methods'
         # existing use of _current_method_name() for has_group() calls.
         # Lets a caller match the question's action verb (e.g. "supprimer")
@@ -42,10 +41,8 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.required_group_methods: List[str] = []
         self.required_group_linenos: List[int] = []
         self.required_group_is_gating: List[bool] = []
-        # todo/contexte.txt, session "SecurityLockASTVisitor BoolOp/Or gap"
-        # (PUR-Q1 rejeu, purchase.order._approval_allowed): required_group_
-        # is_gating only distinguishes if/raise gates from message-selection-
-        # only ifs (section 825) -- it has no concept of a bare `return (A or
+        # required_group_is_gating only distinguishes if/raise gates from message-selection-
+        # only ifs -- it has no concept of a bare `return (A or
         # B or has_group(...))` boolean expression, which is neither. When a
         # has_group()/user_has_groups() call is one disjunct of an `or` whose
         # OTHER disjuncts are unrelated to any group check, the group is NOT
@@ -60,7 +57,6 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self._if_test_stack: List[ast.expr] = []
         self._function_stack: List[str] = []
         self._local_var_defs: List[Dict[str, ast.expr]] = []
-        # section 825 (ACC-Q2, account.move._check_fiscalyear_lock_date):
         # gating_stack[-1] is True iff the innermost enclosing `if` we are
         # currently inside has a Raise(ValidationError/UserError/...) node
         # somewhere in ITS OWN body/orelse -- i.e. this `if`'s condition
@@ -253,7 +249,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         if isinstance(node, ast.Name):
             # raise UserError(message) where `message` was built a few lines
             # above, as in account.move::_check_fiscalyear_lock_date. Without
-            # this the whole lock disappears from the analysis (contexte 816).
+            # this the whole lock disappears from the analysis.
             local_map = self._local_var_defs[-1] if self._local_var_defs else {}
             assigned = local_map.get(node.id)
             if assigned is not None and not isinstance(assigned, ast.Name):
@@ -287,7 +283,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             # e.g. 'account.group_account_manager,base.group_system', with
             # optional '!' negation prefixes -- a distinct Odoo idiom from
             # has_group(single_xmlid) that the extractor previously missed
-            # entirely (todo/contexte.txt 816, account.move lock date case).
+            # entirely.
             # Folded into the same required_groups/has_group format: for the
             # grounding contract (access_guards.py::_extract_required_groups,
             # security_evidence.py's 'Groupe(s) ... (has_group):' line) both
@@ -462,7 +458,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 result.required_group_methods.append("")
                 result.required_group_linenos.append(0)
                 # Regex fallback has no AST/control-flow information to
-                # determine gating (section 825) -- default to True (the
+                # determine gating -- default to True (the
                 # pre-825 behavior) rather than assert a claim we can't verify.
                 result.required_group_is_gating.append(True)
                 # Same reasoning for the BoolOp/Or alternative-conditions

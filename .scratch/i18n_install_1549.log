@@ -1,0 +1,14 @@
+2026-10-22 21:39:28,423 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_asset_loan', defaulting to LGPL-3 
+2026-10-22 21:39:28,429 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_automation_traps', defaulting to LGPL-3 
+2026-10-22 21:39:28,438 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_credit_note_approval', defaulting to LGPL-3 
+2026-10-22 21:39:28,444 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_credit_note_approval_regional', defaulting to LGPL-3 
+2026-10-22 21:39:28,450 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_credit_note_approval_vip', defaulting to LGPL-3 
+2026-10-22 21:39:28,457 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_credit_note_visibility_rules', defaulting to LGPL-3 
+2026-10-22 21:39:28,461 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_deep_inheritance_security', defaulting to LGPL-3 
+2026-10-22 21:39:28,467 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_expense_reimbursement_indirect', defaulting to LGPL-3 
+2026-10-22 21:39:28,474 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_expense_risk_alert', defaulting to LGPL-3 
+2026-10-22 21:39:28,480 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_expense_risk_base', defaulting to LGPL-3 
+2026-10-22 21:39:28,485 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_expense_risk_score', defaulting to LGPL-3 
+2026-10-22 21:39:28,492 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_hr_leave_workflow', defaulting to LGPL-3 
+2026-10-22 21:39:28,497 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'custom_purchase_request', defaulting to LGPL-3 
+2026-10-22 21:39:28,623 35094 WARNING i18n_tmp_1549 odoo.modules.module: Missing `license` key in manifest for 'estate', defaulting to LGPL-3 

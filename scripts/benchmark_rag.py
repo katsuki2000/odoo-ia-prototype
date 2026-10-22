@@ -99,7 +99,7 @@ BENCHMARK_CASES = [
 
 def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
     print("\n" + "=" * 80)
-    print(f"🚀 LANCEMENT DU BENCHMARK RAG ({'Retrieval seul' if retrieval_only else 'Complet avec Génération'})")
+    print(f"LANCEMENT DU BENCHMARK RAG ({'Retrieval seul' if retrieval_only else 'Complet avec Génération'})")
     print("=" * 80 + "\n")
 
     generate_fn = None
@@ -108,7 +108,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
             from document_rag.generate_node import generate
             generate_fn = generate
         except Exception as e:
-            print(f"⚠️  Impossible d'importer generate_node ({e}). Passage en mode retrieval seul.\n")
+            print(f"Impossible d'importer generate_node ({e}). Passage en mode retrieval seul.\n")
             retrieval_only = True
 
     results = []
@@ -163,7 +163,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
                 gen_ok = exp_fact.lower() in ans_text.lower()
 
         # Statut global
-        status = "✅ PASS" if (retrieval_ok and (gen_ok is None or gen_ok)) else "❌ FAIL"
+        status = "PASS" if (retrieval_ok and (gen_ok is None or gen_ok)) else "FAIL"
 
         results.append({
             "id": cid,
@@ -183,13 +183,13 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
         # Affichage résultat unitaire
         rank_txt = f"rang {source_rank}/{len(retrieved_sources)}" if source_rank else ("sans objet" if exp_src is None else f"ABSENTE du top {top_k}")
         print(f"       -> Sources trouvées : {retrieved_sources} | source attendue : {rank_txt}")
-        if ans_text and (status != "✅ PASS" or exp_src is None):
+        if ans_text and (status != "PASS" or exp_src is None):
             print(f"       -> Réponse générée  : {ans_text.replace(chr(10), ' ')[:600]}")
         print(f"       -> Temps retrieval  : {retrieval_duration * 1000:.1f} ms | Résultat : {status}\n")
 
     # Rapport synthétique
     print("=" * 80)
-    print("📊 SYNTHÈSE DES RÉSULTATS DU BENCHMARK")
+    print("SYNTHÈSE DES RÉSULTATS DU BENCHMARK")
     print("=" * 80)
     print(f"{'ID':<10} | {'Format':<6} | {'Retrieval':<10} | {'Rang':<5} | {'Génération':<10} | {'Statut':<8} | Source attendue")
     print("-" * 80)
@@ -200,7 +200,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
         rank = "-" if r["source_rank"] is None else str(r["source_rank"])
         print(f"{r['id']:<10} | {r['format']:<6} | {r_ok:<10} | {rank:<5} | {g_ok:<10} | {r['status']:<8} | {src_name}")
 
-    nb_ok = sum(1 for r in results if r["status"] == "✅ PASS")
+    nb_ok = sum(1 for r in results if r["status"] == "PASS")
     retrieval_accuracy = (sum(1 for r in results if r["retrieval_ok"]) / len(results)) * 100
     avg_latency = (total_retrieval_time / len(results)) * 1000
 

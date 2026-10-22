@@ -43,6 +43,7 @@ def search_system(query: str, model: str = '', module: str = '', limit: int = 8)
         modelScope = ''
     roots = _allowed_source_roots()
     objects = find_instance_candidates(graph, query, model=modelScope, limit=limit)
+    candidateModels = [c['model'] for c in objects.get('candidates', []) if c.get('model')]
     sources = search_source_fragments(
         graph,
         roots,
@@ -51,6 +52,7 @@ def search_system(query: str, model: str = '', module: str = '', limit: int = 8)
         module=module,
         limit=limit,
         limits=limits,
+        candidate_models=candidateModels,
     )
     objectRows = list(objects['candidates'])
     sourceRows = list(sources['candidates'])

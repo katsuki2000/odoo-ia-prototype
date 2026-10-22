@@ -4,7 +4,6 @@
     "description": "Bloc P3.1 -- banc de 50 questions CI (10 modules OCA reels x 5 questions), gabarit standardise par capacite. Selection des modules issue de scripts/categorize_oca_modules.py (stratification structurelle, pas de choix a la main sur des noms familiers -- voir todo/contexte.txt section 520). Chaque question est ancree dans du code reel lu directement sur le disque (tests/oca_sample), pas inventee.",
     "date_created": "2026-09-03",
     "total_questions": 50,
-    "requires_setting": "OCA_SAMPLE_ADDONS_PATH",
     "gabarit": {
       "Q1": "Securite -- ACL + Record Rules combines",
       "Q2": "Workflow -- ce qui autorise/bloque une transition ou une action",

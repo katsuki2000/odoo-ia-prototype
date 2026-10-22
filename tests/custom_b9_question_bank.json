@@ -75,7 +75,12 @@
       "question": "Un utilisateur de la même société, membre à la fois du groupe régional et du groupe national, peut-il voir un avoir de 80 000€ ?",
       "business_question": "Un utilisateur de la même société, membre à la fois du groupe « Avoirs - Visibilite Regionale » et du groupe « Avoirs - Visibilite Nationale », peut-il voir un avoir de 80 000€ ?",
       "reference_answer": "Oui. Les regles de groupes se combinent en OU : « Avoirs - visibilite nationale » (domaine 1=1) leve le plafond de 50000 de la regle regionale ; la regle globale de cantonnement societe s'ajoute en ET et est satisfaite (meme societe).",
-      "verification": "odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml ; marqueur de scripts/check_bloc9_02 : rule_avoir_visibilite_nationale"
+      "verification": "odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml ; marqueur de scripts/check_bloc9_02 : rule_avoir_visibilite_nationale",
+      "security_principals": {
+        "regional_et_national": {
+          "group_xmlids": ["custom_credit_note_visibility_rules.group_avoir_regional", "custom_credit_note_visibility_rules.group_avoir_national"]
+        }
+      }
     },
     {
       "id": "CNV-Q2",
@@ -87,7 +92,12 @@
       "question": "Un utilisateur de la même société, qui n'appartient à AUCUN des deux groupes (ni régional, ni national), peut-il voir ce même avoir de 80 000€ ?",
       "business_question": "Un utilisateur de la même société, qui n'appartient à AUCUN des groupes « Avoirs - Visibilite Regionale » et « Avoirs - Visibilite Nationale », peut-il voir ce même avoir de 80 000€ ?",
       "reference_answer": "Oui, s'il est de la meme societe : sans groupe regional ni national, aucune regle de groupe ne lui est appliquee ; seule la regle globale « cantonnement societe » (rule_avoir_multi_societe) filtre. Le plafond de 50000 ne concerne que les membres du groupe regional (resultat contre-intuitif a faire expliquer).",
-      "verification": "odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml ; marqueur de scripts/check_bloc9_02 : rule_avoir_multi_societe"
+      "verification": "odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml ; marqueur de scripts/check_bloc9_02 : rule_avoir_multi_societe",
+      "security_principals": {
+        "sans_groupe_avoir": {
+          "group_xmlids": []
+        }
+      }
     },
     {
       "id": "HRL-Q1",

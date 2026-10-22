@@ -54,7 +54,7 @@ def _marker_present(marker, text: str) -> bool:
     `marker` may be a single string, or a list/tuple of alternative
     phrasings -- any one alternative present counts as a match. Used to
     accept the project's xml_id citation convention (deterministic_tools.py
-    Bug 1 fix, todo/contexte.txt section 490) as equivalent to a rule's
+    Bug 1 fix) as equivalent to a rule's
     human-readable display name: confirmed live across 2 reruns
     (2026-09-07) that the synthesis LLM consistently and correctly cites
     rules by 'xml_id: module.identifier' per the system prompt's own
@@ -65,7 +65,7 @@ def _marker_present(marker, text: str) -> bool:
         return any(_marker_present(alt, text) for alt in marker)
     return _fold_accents(marker.lower()) in _fold_accents(text.lower())
 
-# Bug B2(a),  section 99 (2026-08-21): both questions
+# Bug B2(a) (2026-08-21): both questions
 # reformulated to state explicitly that the requester is in the SAME
 # company as the record. Before this change, neither question said
 # anything about company at all, so _extract_company_context(question)
@@ -74,8 +74,7 @@ def _marker_present(marker, text: str) -> bool:
 # (['|', (move_type != out_refund), (company_id == user.company_id.id)])
 # stayed structurally indeterminate for both 02a and 02b: Faux/Inconnu OR
 # Inconnu(company_id) = Inconnu in Kleene logic, since company_id is never
-# resolved. This is not a routing or synthesis bug (see section 99's full
-# Kleene recomputation) -- it is these two questions never supplying a
+# resolved. This is not a routing or synthesis bug -- it is these two questions never supplying a
 # piece of context their own ground-truth rule structurally requires.
 # Adding "même société" lets _COMPANY_SAME_PATTERN resolve company_id, so
 # the global rule's second OR-leaf becomes True -- True OR anything = True
@@ -229,7 +228,7 @@ def check_e2e_full_pipeline(group_map):
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale,  section 78). Generalized to all 8
+    the full rationale). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")

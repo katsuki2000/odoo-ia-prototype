@@ -26,8 +26,8 @@ class _Client:
 
 
 def _get(client, base_url="http://aaa.example/v1", **kw):
-    return fp.get_inference_fingerprint(provider="local", base_url=base_url, model="qwen3:8b",
-                                        embedding_backend="local_server", embedding_model="bge-m3", client=client, **kw)
+    return fp.get_inference_fingerprint(base_url=base_url, model="qwen3:8b",
+                                        embedding_model="bge-m3", client=client, **kw)
 
 
 def test_id_is_stable_across_endpoint_and_time():
@@ -85,7 +85,7 @@ def _ollama_http(version="0.40.6", digest="d1", ctx=32768, quant="Q4_K_M"):
 
 
 def _get_ollama(http_get, base_url="http://aaa.example/v1"):
-    return fp.get_inference_fingerprint(provider="ollama", base_url=base_url, model="qwen3:8b", embedding_backend="local_server",
+    return fp.get_inference_fingerprint(base_url=base_url, model="qwen3:8b",
                                         embedding_model="bge-m3", client=_Client(), http_get=http_get)
 
 

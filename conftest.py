@@ -1,6 +1,6 @@
 """Shared test setup.
 
-Embeddings go through the inference server (EMBEDDING_BACKEND=local_server); tests marked
+Embeddings go through the Ollama server; tests marked
 embedding_server are skipped when it cannot be reached. The Odoo runtime is never contacted
 except by tests marked integration.
 """
@@ -20,10 +20,10 @@ os.environ["CI_MAX_HOPS"] = "20"
 def _embedding_server_error():
     """Return the failure of one real embedding call, or None when the server answers."""
     from config import settings
-    from document_rag.vectorstore.embedding_functions import LocalServerEmbeddingFunction
+    from document_rag.vectorstore.embedding_functions import OllamaEmbeddingFunction
 
     try:
-        LocalServerEmbeddingFunction(
+        OllamaEmbeddingFunction(
             base_url=settings.EMBEDDING_BASE_URL,
             model=settings.EMBEDDING_MODEL,
             api_key=settings.EMBEDDING_API_KEY,
@@ -48,10 +48,9 @@ def pytest_collection_modifyitems(items):
 
 
 @pytest.fixture(autouse=True)
-def _pin_embedding_backend(monkeypatch):
+def _disable_semantic_retrieval(monkeypatch):
     if os.environ.get("USE_REMOTE_EMBEDDINGS", "").lower() == "true":
         return
-    monkeypatch.setenv("EMBEDDING_BACKEND", "local_server")
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
 

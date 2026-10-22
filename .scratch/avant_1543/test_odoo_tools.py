@@ -1,0 +1,125 @@
+"""
+miro-rag/tests/test_odoo_tools.py
+
+Comprehensive tests for Odoo LangChain tools and date_utils.
+Validates read-only enforcement, whitelist protection, and accurate date parsing.
+"""
+
+import pytest
+from erp_data.tools.sales import get_total_sales
+from erp_data.tools.inventory import (
+    get_product_stock,
+    get_order_status,
+    list_out_of_stock_products,
+)
+from erp_data.tools.accounting import get_total_invoices, get_period_revenue
+from erp_data.tools.crm import search_partner, get_recent_tickets
+from erp_data._odoo_helpers import connector
+from erp_data.date_utils import parse_period
+from erp_data.odoo_connector import OdooConnectorError
+
+# -----------------------------------------------------------------------------
+# Test Utilities (date_utils)
+# -----------------------------------------------------------------------------
+def test_parse_period_valid():
+    """Verify parse_period handles common French expressions correctly."""
+    # We test relative expressions dynamically or check they don't crash
+    res_ce_mois = parse_period("ce mois")
+    assert res_ce_mois is not None
+    assert len(res_ce_mois) == 2
+    
+    res_q1 = parse_period("Q1 2026")
+    assert res_q1 == ("2026-01-01", "2026-03-31")
+    
+    res_year = parse_period("2024")
+    assert res_year == ("2024-01-01", "2024-12-31")
+    
+    res_invalid = parse_period("n'importe quoi")
+    assert res_invalid is None
+
+# -----------------------------------------------------------------------------
+# Integration Tests for LangChain Tools
+# -----------------------------------------------------------------------------
+@pytest.mark.integration
+class TestOdooTools:
+    
+    @pytest.mark.usefixtures("admin_requester_identity")
+    def test_obtenir_total_ventes(self):
+        """Test sales aggregation tool."""
+        res = get_total_sales.invoke({'client': 'Rakoto', 'periode': 'cette annee'})
+        assert isinstance(res, str)
+        # Assuming either a number or a fallback message
+        assert "Ar" in res or "Aucune vente" in res
+
+    def test_obtenir_stock_produit(self):
+        """Test stock quantity tool."""
+        res = get_product_stock.invoke({'produit': 'Laptop'})
+        assert isinstance(res, str)
+        assert "stock" in res.lower()
+
+    @pytest.mark.usefixtures("admin_requester_identity")
+    def test_obtenir_statut_commande(self):
+        """Test order status tool."""
+        # 'S00001' might not exist in all environments, but it should return a safe string
+        res = get_order_status.invoke({'reference': 'S00001'})
+        assert isinstance(res, str)
+        assert "statut" in res or "n'existe pas" in res
+
+    @pytest.mark.usefixtures("admin_requester_identity")
+    def test_obtenir_total_factures(self):
+        """Test invoice aggregation tool."""
+        res = get_total_invoices.invoke({'client': 'Rakoto', 'statut': 'impayé'})
+        assert isinstance(res, str)
+        assert "Ar" in res or "Aucune facture" in res
+
+    @pytest.mark.usefixtures("admin_requester_identity")
+    def test_rechercher_client(self):
+        """Test client search tool."""
+        res = search_partner.invoke({'nom': 'Rakoto'})
+        assert isinstance(res, str)
+        assert "trouvé" in res or "Aucun client" in res
+
+    def test_obtenir_tickets_recents(self):
+        """Test support tickets tool."""
+        res = get_recent_tickets.invoke({'client': 'Rakoto', 'limite': 2})
+        assert isinstance(res, str)
+        assert "ticket" in res.lower()
+
+    @pytest.mark.usefixtures("admin_requester_identity")
+    def test_lister_produits_en_rupture(self):
+        """Test out of stock tool."""
+        res = list_out_of_stock_products.invoke({})
+        assert isinstance(res, str)
+        assert "produit" in res.lower()
+
+    def test_obtenir_ca_periode(self):
+        """Test revenue tool."""
+        res = get_period_revenue.invoke({'periode': '2024'})
+        assert isinstance(res, str)
+        assert "chiffre d'affaires" in res.lower() or "ca" in res.lower()
+
+# -----------------------------------------------------------------------------
+# Security & Enforcement Tests
+# -----------------------------------------------------------------------------
+@pytest.mark.integration
+def test_read_only_enforcement():
+    """Verify that writing/creating is impossible via our connector methods."""
+    # The connector only exposes search_read, read_group, fields_get.
+    # It does not have a write() or create() method.
+    assert not hasattr(connector, 'write')
+    assert not hasattr(connector, 'create')
+    assert not hasattr(connector, 'unlink')
+
+@pytest.mark.integration
+def test_optional_model_allowlist_enforcement(monkeypatch):
+    """Deployment-specific allowlists remain available as an optional restriction."""
+    from erp_data.odoo_connector import OdooConnector
+
+    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "res.partner")
+    restricted = OdooConnector(
+        url="http://odoo.invalid",
+        db="test",
+        password="unused",
+    )
+    with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
+        restricted.search_read(1, "x_custom.record", [], [])

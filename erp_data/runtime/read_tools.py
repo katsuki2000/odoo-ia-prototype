@@ -33,11 +33,9 @@ _connector: Optional[OdooConnector] = None
 
 def _get_connector() -> OdooConnector:
     global _connector
-    if _connector is not None:
-        return _connector
-    from erp_data._odoo_helpers import connector as shared
-
-    return shared
+    if _connector is None:
+        _connector = OdooConnector()
+    return _connector
 
 
 def set_connector_for_tests(connector: Optional[OdooConnector]) -> None:

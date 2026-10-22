@@ -75,3 +75,35 @@ def test_limits_are_validated_and_report_incomplete_search(tmp_path):
     )
     assert result['coverage']['budget_exhausted']
     assert not result['complete_scan']
+
+
+def test_candidate_models_prioritize_matching_files(tmp_path):
+    first_path = tmp_path / 'a_other.py'
+    second_path = tmp_path / 'z_target.py'
+    first_path.write_text('def validate():\n    return False\n', encoding='utf-8')
+    second_path.write_text('def validate():\n    return True\n', encoding='utf-8')
+
+    graph = nx.DiGraph()
+    graph.add_node('source:demo:a_other.py', node_type='SourceFile', filepath=str(first_path),
+                   module='demo', scope_models=['other.model'])
+    graph.add_node('source:demo:z_target.py', node_type='SourceFile', filepath=str(second_path),
+                   module='demo', scope_models=['target.model'])
+
+    # Without candidate models, alphabetical ordering gives a_other.py first
+    default_result = search_source_fragments(graph, [tmp_path], 'validate', limit=1)
+    assert default_result['candidates'][0]['filepath'] == str(first_path)
+
+    # With candidate models, z_target.py is prioritized
+    prioritized = search_source_fragments(
+        graph, [tmp_path], 'validate', limit=1, candidate_models=['target.model'],
+    )
+    assert prioritized['candidates'][0]['filepath'] == str(second_path)
+
+
+def test_token_boundary_prevents_substring_false_positives(tmp_path):
+    path = tmp_path / 'case.py'
+    path.write_text('description = "unrelated field"\n', encoding='utf-8')
+    graph = _graph_for(path)
+
+    result = search_source_fragments(graph, [tmp_path], 'validation des regles')
+    assert result['candidates'] == []

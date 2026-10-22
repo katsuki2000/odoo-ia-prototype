@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CORE_ADDONS_PATH: ${{ github.workspace }}/../odoo-17.0/addons
-      OCA_SAMPLE_ADDONS_PATH: ${{ github.workspace }}/tests/oca_sample
     steps:
       - uses: actions/checkout@v3
 

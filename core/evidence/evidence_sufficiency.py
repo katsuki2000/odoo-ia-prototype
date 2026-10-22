@@ -1,38 +1,13 @@
-"""
-core/evidence_sufficiency.py
+"""Post-analysis evidence sufficiency signal for the code_intelligence_agent branch.
 
-Bloc P1 reorientation (todo/contexte.txt section 405): post-analysis
-evidence sufficiency signal for the code_intelligence_agent branch.
+Distinct from core/evidence_check.py::check_evidence(), the PRE-analysis check of whether the
+business concept could be resolved (surfaced as state["evidence_status"]); hence the separate
+names EvidenceSufficiencyStatus / "ci_evidence_sufficiency".
 
-Deliberately distinct from core/evidence_check.py::check_evidence(), which
-is a PRE-analysis check of whether business_resolver could resolve the
-business concept (RESOLU / NON_RESOLU), gating the internal
-[BUSINESS TERM RESOLVER] pre-dispatch inside code_intelligence_agent. That
-existing check_evidence() output is already surfaced as
-state["evidence_status"] / AssistantResponse.evidence_status -- this module
-deliberately does NOT reuse that name (EvidenceSufficiencyStatus /
-"ci_evidence_sufficiency" instead) to avoid silently shadowing an existing,
-already-wired field with a different value space.
-
-This module answers a different question, asked AFTER
-code_intelligence_agent has actually run its tools and synthesized an
-answer: is the answer itself grounded in evidence sufficient to stand on
-its own, or should a RAG documentary fallback take over (or complete it) --
-the CI-first, RAG-as-last-resort model documented in architecture.md and
-confirmed as the target design in todo/contexte.txt section 405?
-
-Explicit three-way distinction (Stagiaire mandate, todo/contexte.txt
-section 405 reply): "outil exécuté" != "preuve pertinente trouvée" !=
-"réponse suffisamment étayée". A tool call returning a bare "not found"
-result is execution without relevant evidence; relevant evidence that the
-engine itself flags as unresolved/ambiguous is not the same as a
-confidently grounded answer. These are tracked as three separate checks
-below rather than collapsed into a single tool_observations-non-empty test.
-
-Tranche 1 scope only: new, isolated code, independently testable,
-deterministic (no LLM call, PoC-stage instruction). NOT wired into
-core/graph.py's StateGraph yet -- that wiring (the conditional edge routing
-to a RAG fallback node whenever status != SUFFICIENT) is Tranche 2.
+Asked AFTER the agent ran its tools and synthesized an answer: is the answer grounded enough to
+stand alone, or should the documentary RAG fallback take over (CI first, RAG as last resort,
+see architecture.md)? Three separate checks: tool executed != relevant evidence found !=
+sufficiently grounded answer. Deterministic only (no LLM call).
 """
 
 from dataclasses import dataclass, field
@@ -43,86 +18,33 @@ from code_intelligence.rules.common import NOT_FOUND_MARKER
 
 
 class EvidenceSufficiencyStatus(str, Enum):
-    """Post-analysis verdict on code_intelligence_agent's own output for a
-    single turn.
+    """Post-analysis verdict on code_intelligence_agent's own output for one turn.
 
-    CONFLICTING was originally kept in the contract but deliberately NOT
-    produced (Stagiaire correction, todo/contexte.txt section 405 reply):
-    an indeterminate/unresolved verdict (missing context field, dynamic
-    getattr/eval dispatch) is an UNDETERMINED state, not a genuine
-    contradiction between two valid findings -- collapsing the two would
-    give CONFLICTING an overly broad meaning. That distinction still holds
-    (see assess_evidence_sufficiency's step 4 below, unchanged: an
-    indeterminate marker still maps to INSUFFICIENT, never CONFLICTING).
-
-    H3 wired (todo/plan.md, todo/contexte.txt section 418+): a REAL
-    two-facts-disagree signal is now produced when TWO OR MORE resolved
-    models each compute their own legitimate can_view_amount_v2 verdict for
-    the same turn with DIFFERING outcomes
-    (code_intelligence/ci_helpers.py::_detect_can_view_amount_model_conflict)
-    -- as opposed to a single model's verdict that the LLM's own prose
-    merely misstated, which stays a synthesis-inversion bug, already
-    corrected in place by _correct_can_view_amount_contradictions /
-    _answer_denies_other_overrides before final_answer reaches this
-    function, and deliberately still OUT of scope for CONFLICTING (an
-    already-corrected synthesis slip is not "two valid findings
-    disagreeing"). This is deliberately the FIRST and narrowest possible
-    real-contradiction signal, not a general-purpose detector -- other
-    genuine cross-source disagreements (e.g. across different composite
-    tools rather than across resolved models of the same tool) remain
-    undetected and fall through to SUFFICIENT/INSUFFICIENT as before.
+    CONFLICTING is produced only for a real two-facts-disagree signal: two or more resolved
+    models give DIFFERING can_view_amount_v2 verdicts in the same turn
+    (ci_helpers.py::_detect_can_view_amount_model_conflict). An indeterminate verdict (missing
+    context field, dynamic dispatch) is UNDETERMINED, not a contradiction, and maps to
+    INSUFFICIENT. A single verdict the LLM misstated is a synthesis slip, corrected in place
+    before this function runs. Other cross-source disagreements are not detected.
     """
     SUFFICIENT = "sufficient"
     INSUFFICIENT = "insufficient"
     CONFLICTING = "conflicting"
 
 
-# Known canned refusal strings already emitted verbatim by
-# code_intelligence/ci_agent_node.py when the agent has nothing at all to
-# go on for the WHOLE turn (as opposed to a single tool observation --
-# see _NON_EVIDENCE_OBSERVATION_MARKERS below for that finer-grained case).
-# Matched by substring rather than re-derived independently: these ARE the
-# agent's own explicit "I have nothing" statements.
+# Canned refusal strings the agent emits when it has nothing at all for the WHOLE turn.
 _NO_DATA_MARKER = "Je n'ai pas de données disponibles dans le graphe de connaissances"
 _OUT_OF_SCOPE_MODEL_MARKER = "n'est pas present dans le corpus indexe par cet outil"
 
-# Markers the agent/deterministic engine itself already emits when relevant
-# evidence WAS found but the resulting verdict is explicitly unresolved or
-# undetermined -- dispatch_guards.py::_build_dynamic_uncertainty_answer and
-# ci_helpers.py::_format_can_view_amount_fact's indeterminate branch. Both
-# describe an UNDETERMINED state (a needed context field is unknown, or the
-# code path depends on a runtime value static analysis cannot follow) --
-# NOT two valid findings actively disagreeing with each other. Mapped to
-# INSUFFICIENT below, not CONFLICTING (see EvidenceSufficiencyStatus
-# docstring for why).
+# Markers of a relevant but explicitly undetermined verdict (see EvidenceSufficiencyStatus).
 _DYNAMIC_UNCERTAINTY_MARKER = "Je ne peux pas conclure avec certitude"
 _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 
-# Substrings marking a SINGLE tool observation as a negative/no-finding
-# result -- the tool executed but found nothing relevant to answer with,
-# as opposed to a genuine (possibly negative) deterministic finding such as
-# "No workflow state transition could be derived from the indexed code"
-# (describe_workflow's own QueryStatus.EMPTY wording, LOW confidence) or "No _sql_constraints ... detected [Confiance: ÉLEVÉE]"
-# (analyze_data_constraints) -- both of those ARE real, citable facts (a
-# confirmed absence), not a failed lookup, and are deliberately NOT included
-# here.
-#
-# NOT_FOUND_MARKER is imported from deterministic/common.py (its own existing
-# single source of truth for "model/field not found in graph", already used
-# verbatim by 6 of the 9 composite tools: who_has_access_to,
-# evaluate_record_rules, field_change_impact, button_execution_path,
-# trace_full_inheritance, describe_workflow) rather than re-defined here --
-# same F-08 duplication lesson the rest of this codebase already follows
-# (see e.g. find_model_source_filepaths's own docstring in ci_agent_tools.py).
-# Marks a single tool observation as a captured execution exception (the
-# ReAct loop's `except Exception as te:` in code_intelligence/ci_agent_node.py,
-# f"Error executing {tool_name}: {str(te)}") rather than a clean tool run
-# that legitimately found nothing. Named separately from
-# _NON_EVIDENCE_OBSERVATION_MARKERS (which still includes it below) so
-# _has_execution_failure() below has a single, non-duplicated source of
-# truth for this one marker (F-08 duplication lesson) -- a tool crash and a
-# clean not-found result are both "non-evidence" for the relevance check,
-# but only the former is an execution failure for has_execution_failure.
+# Substrings marking a SINGLE tool observation as a failed lookup. Confirmed absences such as
+# "No workflow state transition could be derived" are real facts and are NOT listed.
+# NOT_FOUND_MARKER is the shared "not found in graph" marker from rules/common.py.
+# _EXECUTION_ERROR_MARKER marks a captured tool exception (ci_agent_node.py); kept separate so
+# _has_execution_failure() shares its single definition.
 _EXECUTION_ERROR_MARKER = "Error executing"
 
 _NON_EVIDENCE_OBSERVATION_MARKERS = [
@@ -137,11 +59,7 @@ _NON_EVIDENCE_OBSERVATION_MARKERS = [
 
 @dataclass
 class EvidenceSufficiencyResult:
-    """Verdict plus a short, ordered trail of the reason(s) it was reached,
-    and the relevant/total observation counts that drove the classification
-    -- kept human-readable so it can be logged or surfaced in the
-    investigation plan / verification widget without re-deriving an
-    explanation later."""
+    """Verdict, ordered reasons, and the observation counts that drove the classification."""
     status: EvidenceSufficiencyStatus
     reasons: List[str] = field(default_factory=list)
     relevant_observation_count: int = 0
@@ -167,16 +85,10 @@ def _is_relevant_observation(observation: str) -> bool:
 
 
 def _has_execution_failure(tool_observations: List[str]) -> bool:
-    """True if at least one observation this turn is a captured ReAct-loop
-    execution exception (code_intelligence/ci_agent_node.py's
-    `except Exception as te:` -> f"Error executing {tool_name}: {str(te)}"),
-    as opposed to a clean tool run that legitimately found nothing.
+    """True if at least one observation this turn is a captured tool execution exception.
 
-    Computed independently of and before the priority branches below: it
-    must be able to hold regardless of the final status (e.g. SUFFICIENT
-    when some observations failed but others still produced relevant
-    evidence, INSUFFICIENT when every observation failed) -- see
-    todo/contexte.txt section 486.
+    Computed independently of the final status: it can hold with SUFFICIENT (other observations
+    still produced evidence) or INSUFFICIENT.
     """
     return any(_EXECUTION_ERROR_MARKER in o for o in tool_observations)
 
@@ -187,58 +99,19 @@ def assess_evidence_sufficiency(
     final_answer: str,
     conflict_reason: "Optional[str]" = None,
 ) -> EvidenceSufficiencyResult:
-    """
-    Post-analysis assessment of code_intelligence_agent's own output for a
-    single turn, evaluated in this priority order (first match wins):
+    """Assess one turn's output; first match wins:
 
-      1. The agent emitted one of its own turn-level canned "I have
-         nothing" answers (no-data fallback, unindexed model decline) ->
-         INSUFFICIENT. This is "no tool produced anything usable at all",
-         independent of what individual observations contain.
-      2. No tool ever executed this turn (hop_count == 0 / no observations)
-         -> INSUFFICIENT. A defensive guard distinct from (1): catches any
-         future code path reaching synthesis without a tool call, even
-         without one of the two known canned strings.
-      3. Tool(s) executed, but EVERY observation reads as a "not found" /
-         execution-error / empty result (_is_relevant_observation) ->
-         INSUFFICIENT. This is the "outil exécuté != preuve pertinente
-         trouvée" case: tools ran, nothing relevant came back.
-      4. At least one relevant observation was found, but the agent's own
-         deterministic engine or static-analysis guardrail flags the
-         resulting verdict as unresolved/undetermined (dynamic-dispatch
-         uncertainty, indeterminate can_view_amount_v2 fact) ->
-         INSUFFICIENT. This is "preuve pertinente trouvée != réponse
-         suffisamment étayée": real evidence exists, but it does not
-         resolve to a confident answer -- an UNDETERMINED state (missing
-         context, a runtime-dependent branch), not a contradiction between
-         two valid findings, so it does NOT map to CONFLICTING (see
-         EvidenceSufficiencyStatus docstring). This still wins over (5)
-         below even when a caller also passed a conflict_reason: an
-         undetermined verdict is a stronger/prior signal than a cross-model
-         disagreement, not a peer to arbitrate against.
-      5. `conflict_reason` was passed (non-None/non-empty) by the caller ->
-         CONFLICTING. H3 (todo/plan.md, todo/contexte.txt section 418+):
-         callers compute this via a real deterministic detector -- today,
-         code_intelligence/ci_helpers.py::_detect_can_view_amount_model_conflict,
-         which fires only when two or more resolved models produced
-         DIFFERING can_view_amount_v2 verdicts this turn. This function
-         itself never derives conflict_reason -- it only trusts and reports
-         what the caller already deterministically established, the same
-         discipline as every other check above (substring/marker matches
-         against strings already computed elsewhere, never a second,
-         independently-drifting re-derivation).
-      6. Otherwise -> SUFFICIENT: at least one relevant observation was
-         gathered, the final answer carries no unresolved/undetermined
-         marker, and no conflict was reported.
+      1. A turn-level canned "nothing" answer (no data, model not indexed) -> INSUFFICIENT.
+      2. No tool executed (hop_count == 0 / no observations) -> INSUFFICIENT.
+      3. Every observation is a not-found / execution-error / empty result -> INSUFFICIENT.
+      4. Relevant evidence, but the final answer carries an unresolved/undetermined marker ->
+         INSUFFICIENT. Wins over 5: an undetermined verdict is not a conflict.
+      5. `conflict_reason` supplied by the caller -> CONFLICTING. The caller derives it
+         deterministically (today: ci_helpers.py::_detect_can_view_amount_model_conflict);
+         this function only reports it.
+      6. Otherwise SUFFICIENT.
 
-    Deterministic only (no LLM call, PoC-stage instruction): every check
-    above is a substring/marker match or a trusted caller-supplied flag,
-    never a re-derivation of meaning via a second, independently-drifting
-    heuristic.
-
-    Never raises: plain data classification over already-computed fields,
-    same contract as core/evidence_check.py::check_evidence() (takes
-    finished inputs, never touches the graph/LLM itself).
+    Deterministic and never raises: substring/marker matches and a trusted caller flag only.
     """
     reasons: List[str] = []
     total = len(tool_observations)

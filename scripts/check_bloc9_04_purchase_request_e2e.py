@@ -25,11 +25,11 @@ TARGET_MODEL = "custom.purchase.request"
 # substring, same defensive stance as _AMOUNT_PATTERN in rag/graph.py.
 _THRESHOLD_RE = re.compile(r"10\s?000")
 
-# gap (2026-08-26, section 183/186): the previous version of this
+# gap (2026-08-26): the previous version of this
 # script only ever checked for the PRESENCE of the group xmlid and the
 # threshold marker, never that the answer correctly states the group is
 # INSUFFICIENT above that threshold -- so it would have passed even on
-# the exact wrong answer diagnosed in section 178 ("l'autorite requise
+# the exact wrong answer previously observed ("l'autorite requise
 # est donc les utilisateurs appartenant au groupe
 # purchase.group_purchase_manager"), which directly contradicts the
 # ground truth ("Le groupe purchase_manager ne suffit pas >10000E. Seuls
@@ -215,7 +215,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale,  section 78). Generalized to all 8
+    the full rationale). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")

@@ -35,19 +35,12 @@ def test_every_item_has_the_runner_fields(bank):
     assert all(required <= item.keys() for item in _questions(bank))
 
 
-def test_banks_are_discovered_and_ids_are_unique(monkeypatch):
-    monkeypatch.setattr(runner.settings, "OCA_SAMPLE_ADDONS_PATH", "/any", raising=False)
+def test_banks_are_discovered_and_ids_are_unique():
     questions, meta = runner.load_questions()
     ids = [q["id"] for q in questions]
     assert len(ids) == len(set(ids))
     assert {"native_n1", "custom_b9", "oca_p3_1"} <= {q["bank"] for q in questions}
     assert "custom_asset_loan" in meta["modules_covered"]
-
-
-def test_bank_with_unmet_requirement_is_skipped(monkeypatch):
-    monkeypatch.setattr(runner.settings, "OCA_SAMPLE_ADDONS_PATH", None, raising=False)
-    questions, _ = runner.load_questions()
-    assert "oca_p3_1" not in {q["bank"] for q in questions}
 
 
 def test_filters_select_by_id_module_and_bank():

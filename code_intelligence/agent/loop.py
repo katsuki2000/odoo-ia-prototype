@@ -23,7 +23,7 @@ from core.guardrails import (
     OUT_OF_SCOPE_ANSWER, is_massive_extraction_request,
     is_out_of_scope, is_prompt_injection,
 )
-from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
+from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit, with_no_think
 from core.state import RAGState
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ def run_react_loop(ctx, llm, history):
         reminder = ''
         if getattr(ctx.G, 'graph', {}).get('generation_mode') == 'runtime_metadata':
             reminder += '\nThis graph is an explicitly scoped runtime snapshot. Use inspect_runtime_model for dated metadata and source reads for behavior. Views/buttons are declarations, not requester-effective visibility. Do not infer missing workflows, call chains or access verdicts from this reduced graph.'
-        return [SystemMessage(content=system + '\n' + reminder), *state['messages']]
+        return [SystemMessage(content=with_no_think(system + ('\n' + reminder if reminder else ''))), *state['messages']]
 
     agent = create_react_agent(model=selectModel, tools=tools, prompt=prepareMessages)
     try:

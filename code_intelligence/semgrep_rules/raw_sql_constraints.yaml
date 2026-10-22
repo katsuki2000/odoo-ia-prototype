@@ -14,7 +14,7 @@ rules:
       that motivated this rule: account.move's 'name' uniqueness is
       enforced this way (account_move_unique_name index), not by its
       _sql_constraints entry (deliberately an empty SQL string) nor by
-      any @api.constrains method -- see todo/contexte.txt section 811/812.
+      any @api.constrains method.
     patterns:
       - pattern: $CR.execute($SQL)
       - metavariable-regex:

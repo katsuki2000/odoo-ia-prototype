@@ -101,10 +101,10 @@ db_host = localhost
 db_port = 5432
 db_user = odoo
 db_password = odoo
-addons_path = addons,/home/user/odoo-ia-prototype/odoo_addons
+addons_path = addons,<path-to-this-repository>/odoo_addons
 ```
 
-*(Adjust `/home/user/` to match your actual home directory path if different).*
+*(Replace `<path-to-this-repository>` with the absolute path where you cloned this repository.)*
 
 ### Step 7 : Verify the custom Odoo modules
 
@@ -283,11 +283,9 @@ Every variable below has its default in `config/settings.py` (or `config/google_
 | `<TARGET>_OLLAMA_HOST` | Yes | none | Ollama server address, read with the prefix of the target (`AWS_` or `KAGGLE_`) |
 | `<TARGET>_OLLAMA_MODEL` | No | `qwen3:14b` | Chat model served by Ollama (e.g. `gpt-oss:20b`) |
 | `<TARGET>_LLM_BASE_URL` / `<TARGET>_LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
-| `EMBEDDING_BACKEND` | No | `local_server` | Backend name of the private embedding endpoint (Ollama through its OpenAI-compatible API) |
 | `<TARGET>_EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
 | `<TARGET>_EMBEDDING_MODEL` | No | `bge-m3:latest` | Embedding model served by the configured endpoint |
 | `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `true` | Adds instance-label semantic candidates to bounded LLM arbitration |
-| `RESOLVER_SEMANTIC_EMBEDDING_BACKEND` | No | `EMBEDDING_BACKEND` | Optional embedding backend override for business-term retrieval |
 | `RESOLVER_SEMANTIC_EMBEDDING_MODEL` | No | `EMBEDDING_MODEL` | Optional embedding model override for business-term retrieval |
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |

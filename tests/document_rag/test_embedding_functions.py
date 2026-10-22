@@ -1,42 +1,38 @@
-"""Unit tests for embedding functions and provider resolution."""
+"""Unit tests for the Ollama embedding client and its resolver."""
 
 from unittest.mock import patch, MagicMock
 import pytest
 
 from document_rag.vectorstore.embedding_functions import (
-    LocalServerEmbeddingFunction,
+    OllamaEmbeddingFunction,
     resolve_embedding_function,
 )
 
 
-def test_resolve_embedding_function_local_server_returns_instance():
-    """Verify that local_server returns LocalServerEmbeddingFunction."""
+def test_resolve_embedding_function_returns_the_configured_server():
     with patch("config.settings.EMBEDDING_BASE_URL", "http://localhost:11434/v1"), \
          patch("config.settings.EMBEDDING_MODEL", "all-minilm:latest"), \
          patch("config.settings.EMBEDDING_API_KEY", "ollama"):
-        fn = resolve_embedding_function(backend="local_server")
-        assert isinstance(fn, LocalServerEmbeddingFunction)
+        fn = resolve_embedding_function()
+        assert isinstance(fn, OllamaEmbeddingFunction)
         assert fn.model == "all-minilm:latest"
         assert fn.endpoint == "http://localhost:11434/v1/embeddings"
 
 
-def test_resolve_embedding_function_ollama_and_openai_synonyms():
-    """Verify synonyms 'ollama' and 'openai_compatible' return LocalServerEmbeddingFunction."""
-    for backend in ("ollama", "openai_compatible", "vllm"):
-        fn = resolve_embedding_function(backend=backend)
-        assert isinstance(fn, LocalServerEmbeddingFunction)
+def test_resolve_embedding_function_explicit_model_wins():
+    with patch("config.settings.EMBEDDING_BASE_URL", "http://localhost:11434/v1"):
+        assert resolve_embedding_function(embedding_model="bge-m3").model == "bge-m3"
 
 
-def test_resolve_embedding_function_unknown_raises():
-    """Verify unknown embedding backend raises ValueError."""
-    for backend in ("local_light", "local", "tei", "invalid_backend"):
-        with pytest.raises(ValueError, match="Unknown EMBEDDING_BACKEND"):
-            resolve_embedding_function(backend=backend)
+def test_resolve_embedding_function_without_server_raises():
+    with patch("config.settings.EMBEDDING_BASE_URL", ""):
+        with pytest.raises(ValueError, match="No inference server configured"):
+            resolve_embedding_function()
 
 
-def test_local_server_embedding_function_openai_format():
-    """Verify LocalServerEmbeddingFunction correctly parses OpenAI standard response."""
-    fn = LocalServerEmbeddingFunction(
+def test_ollama_embedding_function_openai_format():
+    """Verify OllamaEmbeddingFunction correctly parses OpenAI standard response."""
+    fn = OllamaEmbeddingFunction(
         base_url="http://localhost:8000/v1",
         model="bge-small-en-v1.5",
         api_key="test-key",
@@ -58,9 +54,9 @@ def test_local_server_embedding_function_openai_format():
         assert list(results[1]) == [0.4, 0.5, 0.6]
 
 
-def test_local_server_embedding_function_ollama_native_format():
-    """Verify LocalServerEmbeddingFunction correctly parses Ollama native response."""
-    fn = LocalServerEmbeddingFunction(
+def test_ollama_embedding_function_ollama_native_format():
+    """Verify OllamaEmbeddingFunction correctly parses Ollama native response."""
+    fn = OllamaEmbeddingFunction(
         base_url="http://localhost:11434",
         model="bge-m3:latest",
         api_key="ollama",
@@ -85,14 +81,14 @@ def _ok_response(embeddings):
     return resp
 
 
-def _local_server_fn(**kwargs):
-    return LocalServerEmbeddingFunction(base_url="http://localhost:8000/v1", model="bge-m3", **kwargs)
+def _ollama_fn(**kwargs):
+    return OllamaEmbeddingFunction(base_url="http://localhost:8000/v1", model="bge-m3", **kwargs)
 
 
-def test_local_server_retries_on_connection_error_then_succeeds():
+def test_ollama_retries_on_connection_error_then_succeeds():
     """Une coupure de connexion isolee est relancee, sans exception pour l'appelant."""
     import requests
-    fn = _local_server_fn()
+    fn = _ollama_fn()
     with patch("document_rag.vectorstore.embedding_functions.time.sleep") as mock_sleep, \
          patch("requests.post") as mock_post:
         mock_post.side_effect = [
@@ -105,10 +101,10 @@ def test_local_server_retries_on_connection_error_then_succeeds():
     assert list(results[0]) == [0.1, 0.2]
 
 
-def test_local_server_raises_after_max_retries():
+def test_ollama_raises_after_max_retries():
     """Apres max_retries echecs, l'erreur d'origine est relevee (jamais masquee)."""
     import requests
-    fn = _local_server_fn(max_retries=3)
+    fn = _ollama_fn(max_retries=3)
     with patch("document_rag.vectorstore.embedding_functions.time.sleep"), \
          patch("requests.post") as mock_post:
         mock_post.side_effect = requests.exceptions.Timeout("read timed out")
@@ -117,10 +113,10 @@ def test_local_server_raises_after_max_retries():
     assert mock_post.call_count == 3
 
 
-def test_local_server_does_not_retry_http_errors():
+def test_ollama_does_not_retry_http_errors():
     """Une erreur HTTP (ex. 404 modele absent) n'est pas relancee."""
     import requests
-    fn = _local_server_fn()
+    fn = _ollama_fn()
     with patch("document_rag.vectorstore.embedding_functions.time.sleep") as mock_sleep, \
          patch("requests.post") as mock_post:
         resp = MagicMock()
@@ -132,9 +128,9 @@ def test_local_server_does_not_retry_http_errors():
     mock_sleep.assert_not_called()
 
 
-def test_local_server_batches_and_preserves_order():
+def test_ollama_batches_and_preserves_order():
     """40 textes avec batch_size=16 donnent 3 appels (16, 16, 8), ordre conserve."""
-    fn = _local_server_fn(batch_size=16)
+    fn = _ollama_fn(batch_size=16)
     texts = [f"doc {i}" for i in range(40)]
 
     def fake_post(url, json=None, headers=None, timeout=None):
@@ -147,9 +143,9 @@ def test_local_server_batches_and_preserves_order():
     assert [r[0] for r in results] == [float(i) for i in range(40)]
 
 
-def test_local_server_timeout_configurable_by_env(monkeypatch):
+def test_ollama_timeout_configurable_by_env(monkeypatch):
     monkeypatch.setenv("EMBEDDING_TIMEOUT", "120")
-    assert _local_server_fn().timeout == 120.0
+    assert _ollama_fn().timeout == 120.0
     monkeypatch.delenv("EMBEDDING_TIMEOUT")
-    assert _local_server_fn().timeout == 30.0
-    assert _local_server_fn(timeout=5).timeout == 5.0
+    assert _ollama_fn().timeout == 30.0
+    assert _ollama_fn(timeout=5).timeout == 5.0

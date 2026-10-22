@@ -29,7 +29,7 @@ def default_environment() -> BuildEnvironment:
         odoo_conf=settings.EVAL_ODOO_CONF,
         core_addons=settings.CORE_ADDONS_PATH,
         custom_addons=settings.CUSTOM_ADDONS_PATH,
-        oca_root=settings.OCA_SAMPLE_ADDONS_PATH,
+        oca_root=settings.EVAL_OCA_ADDONS_PATH,
         db_prefix=settings.EVAL_DB_PREFIX,
         output_dir=Path(settings.EVAL_INSTANCES_DIR),
     )

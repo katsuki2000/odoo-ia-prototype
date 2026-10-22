@@ -35,9 +35,8 @@ def test_score_answer_recall_is_none_without_reachable_reference_identifiers():
     assert score.identifier_recall is None
 
 
-def test_model_spec_parse_splits_known_provider_only():
-    assert ModelSpec.parse("ollama:gpt-oss:20b") == ModelSpec(model="gpt-oss:20b", provider="ollama")
-    assert ModelSpec.parse("qwen3:14b") == ModelSpec(model="qwen3:14b")
+def test_model_spec_keeps_the_ollama_tag_whole():
+    assert ModelSpec.parse("gpt-oss:20b") == ModelSpec(model="gpt-oss:20b")
 
 
 def test_generate_answer_appends_no_think_only_for_qwen3(monkeypatch):

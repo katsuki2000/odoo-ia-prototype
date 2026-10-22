@@ -496,7 +496,7 @@ def parse_menuitems_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, 
 
     menuitems: List[OdooMenuItemRecord] = []
 
-    # Section 1199: Odoo takes the enclosing <menuitem> as parent when the
+    # Odoo takes the enclosing <menuitem> as parent when the
     # `parent` attribute is absent (nested menus, e.g. account_menuitem.xml).
     enclosing_of = {child: node for node in root.iter() for child in node}
 

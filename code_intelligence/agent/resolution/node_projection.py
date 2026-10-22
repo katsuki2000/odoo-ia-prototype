@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Sequence
-
 from .node_cards import CARD_NODE_TYPES, object_ref_of
 
 _CHILD_OF_MODEL = frozenset({"Field", "Method", "Button"})
@@ -49,19 +47,3 @@ class ModelProjector:
         if object_ref.startswith("model:"):
             return (object_ref,)
         return self._models_of.get(object_ref, ())
-
-
-def project_candidates(candidates: Sequence[str], projector: ModelProjector) -> list[str]:
-    """Models of the candidates in rank order, each model kept at its best rank."""
-    return list(dict.fromkeys(model for ref in candidates for model in projector(ref)))
-
-
-def top_models(candidates: Sequence[str], projector: ModelProjector, limit: int) -> list[str]:
-    """First `limit` distinct models of the candidates in rank order."""
-    models: dict[str, None] = {}
-    for ref in candidates:
-        for model in projector(ref):
-            models.setdefault(model)
-        if len(models) >= limit:
-            break
-    return list(models)[:limit]

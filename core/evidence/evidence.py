@@ -98,7 +98,7 @@ class Evidence(BaseModel):
             "company_id, read_at, execution_identity. Additional keys "
             "(record_ids, model, date_from, date_to, ...) are allowed when "
             "a tool has a real need for them, and must be documented where "
-            "they are introduced (todo/contexte.txt section 428)."
+            "they are introduced."
         ),
     )
 

@@ -218,7 +218,7 @@ class OwnershipAndRetirementTests(unittest.TestCase):
         owned = Mock(return_value=('chroma', 'bm25'))
         search = Mock(return_value=[{'document': 'actual'}])
         ns = load('core/graph/graph_nodes.py', {'retrieve'}, {
-            'get_retriever': owned, 'search_retrieve': search, 'USE_RERANKER': False})
+            'get_retriever': owned, 'search_retrieve': search})
         fakeGraph = ModuleType('core.graph.graph')
         fakeGraph.get_retriever = Mock(side_effect=AssertionError('compatibility target used'))
         with patch.dict('sys.modules', {fakeGraph.__name__: fakeGraph}):

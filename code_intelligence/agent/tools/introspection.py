@@ -147,15 +147,11 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
 
 def _allowed_source_roots() -> list:
     from code_intelligence.agent.tools.helpers import get_graph_ref
-    from config.settings import (
-        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
-        OCA_SAMPLE_ADDONS_PATH,
-    )
+    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS
     graph = get_graph_ref()
     graphRoots = graph.graph.get("addon_roots_ordered", ()) if graph is not None else ()
     configured = (
-        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS,
-        OCA_SAMPLE_ADDONS_PATH, *graphRoots,
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS, *graphRoots,
     )
     return [Path(root).resolve() for root in dict.fromkeys(configured) if root and Path(root).exists()]
 
@@ -180,14 +176,11 @@ def read_precise_source_code(
         path = Path("/" + filepath_str)
     if not path.exists():
         import re
-        from config.settings import (
-            _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS, OCA_SAMPLE_ADDONS_PATH,
-        )
+        from config.settings import _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS
         candidates = [
             *(Path(custom_root) / filepath_str
               for custom_root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS)) if custom_root),
             Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
-            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
             _ROOT / filepath_str,
         ]
         matched = next((c for c in candidates if c and c.exists()), None)
@@ -219,7 +212,6 @@ def read_precise_source_code(
                 corpus_roots = [p for p in [
                     Path(CORE_ADDONS_PATH) if CORE_ADDONS_PATH else None,
                     *(Path(custom_root) for custom_root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS)) if custom_root),
-                    Path(OCA_SAMPLE_ADDONS_PATH) if OCA_SAMPLE_ADDONS_PATH else None,
                 ] if p and p.exists()]
                 norm = filepath_str.lstrip("/").replace("\\", "/")
                 parts = norm.split("/")

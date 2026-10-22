@@ -238,25 +238,6 @@ def _is_supported_source(path: Path) -> bool:
     return is_supported_document(path)
 
 
-def run_forever(watched_paths: Iterable[str | Path] | None = None) -> None:
-    watcher = IngestionWatcher(watched_paths=watched_paths)
-    should_stop = False
-
-    def _handle_signal(signum: int, _frame: Any) -> None:
-        nonlocal should_stop
-        logger.info("Received signal %s, stopping watcher", signum)
-        should_stop = True
-        watcher.stop()
-
-    signal.signal(signal.SIGINT, _handle_signal)
-    signal.signal(signal.SIGTERM, _handle_signal)
-
-    watcher.start()
-    logger.info("Ingestion watcher started")
-    while not should_stop:
-        signal.pause()
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Watch docs and update ChromaDB")
     parser.add_argument(

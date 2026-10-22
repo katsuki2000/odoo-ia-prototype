@@ -76,7 +76,6 @@ def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypat
 
 def test_configured_retrieval_is_enabled_when_variable_is_unset(monkeypatch):
     monkeypatch.delenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", raising=False)
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: FakeEmbeddingFunction(),
@@ -146,7 +145,6 @@ def test_retrieval_status_is_error_when_provider_raises(monkeypatch):
 
 def test_retrieval_status_is_error_when_no_provider_is_configured(monkeypatch):
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: None,
@@ -247,14 +245,13 @@ def test_embedding_function_receives_no_forced_model_when_unset(monkeypatch):
     captured = {}
     monkeypatch.delenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", raising=False)
     monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **kwargs: captured.update(kwargs) or FakeEmbeddingFunction(),
     )
 
     assert isinstance(build_semantic_embedding_function(), FakeEmbeddingFunction)
-    assert captured == {"backend": "local_server", "embedding_model": None}
+    assert captured == {"embedding_model": None}
 
 
 def test_resolver_model_override_wins_over_global_embedding_model(monkeypatch):

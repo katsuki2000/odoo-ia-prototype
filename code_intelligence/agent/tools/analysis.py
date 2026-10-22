@@ -105,11 +105,11 @@ def analyze_security_locks(model_name: str) -> str:
     record_evidence(all_evidence)
     if not summaries:
         return f"No security analysis results for model '{model_name}'."
-    # Section 824: multi-block water-filling instead of a flat join, so the
+    # multi-block water-filling instead of a flat join, so the
     # native/most-relevant file (often sorted last by
     # _sort_filepaths_custom_first) is not silently dropped by a downstream
     # head-truncation once several files' summaries combined exceed the
-    # per-tool observation cap (section 820, account.move).
+    # per-tool observation cap.
     return assemble_security_lock_blocks(summaries, PER_TOOL_OBSERVATION_CAPS["analyze_security_locks"])
 
 

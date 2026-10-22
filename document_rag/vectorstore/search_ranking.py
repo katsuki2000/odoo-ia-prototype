@@ -1,17 +1,10 @@
 """
-Ranking and Fusion Module — Reciprocal Rank Fusion (RRF) & Cross-Encoder Re-ranking.
+Ranking and Fusion Module — Reciprocal Rank Fusion (RRF).
 """
 
 from __future__ import annotations
 
-import logging
-import sys
 from typing import Any
-
-logger = logging.getLogger(__name__)
-
-_cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-_cross_encoder_instance = None
 
 
 def reciprocal_rank_fusion(
@@ -58,49 +51,3 @@ def reciprocal_rank_fusion(
 
     fused.sort(key=lambda x: x["rrf_score"], reverse=True)
     return fused
-
-
-def _get_cross_encoder():
-    """Load and cache the local cross-encoder model (lazy singleton)."""
-    global _cross_encoder_instance
-    if _cross_encoder_instance is None:
-        from sentence_transformers import CrossEncoder
-        logger.info("Loading local cross-encoder model: %s", _cross_encoder_model_name)
-        try:
-            _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name, local_files_only=True)
-        except Exception as e:
-            logger.warning("Failed to load CrossEncoder in offline mode, retrying online: %s", e)
-            _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name)
-    return _cross_encoder_instance
-
-
-def cross_encoder_rerank(
-    query: str,
-    results: list[dict[str, Any]],
-    top_k: int = 5,
-) -> list[dict[str, Any]]:
-    """Rerank search results using a local cross-encoder model."""
-    if not results:
-        return []
-
-    try:
-        search_mod = sys.modules.get("document_rag.vectorstore.search")
-        getter = getattr(search_mod, "_get_cross_encoder", _get_cross_encoder) if search_mod else _get_cross_encoder
-        model = getter()
-        if model is None:
-            return results[:top_k]
-
-        pairs = [[query, r["document"][:1500]] for r in results]
-        scores = model.predict(pairs)
-
-        for i, r in enumerate(results):
-            r["cross_encoder_score"] = float(scores[i])
-
-        results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
-
-    except Exception as e:
-        logger.error("Local cross-encoder reranking failed: %s", e)
-        logger.info("Falling back to hybrid search scores.")
-        return results[:top_k]
-
-    return results[:top_k]

@@ -7,7 +7,7 @@
     <t t-name="miro_ai.SystrayItem">
         <div class="o_nav_entry miro-systray-container d-flex align-items-center">
             <!-- Systray Navbar Button -->
-            <a class="miro-systray-btn d-flex align-items-center px-2 py-1 text-decoration-none" role="button" t-on-click="toggleDrawer" title="Assistant MIRO AI">
+            <a class="miro-systray-btn d-flex align-items-center px-2 py-1 text-decoration-none" role="button" t-on-click="toggleDrawer" title="MIRO AI Assistant">
                 <span class="badge bg-primary text-white font-weight-bold px-2 py-1 miro-systray-label" style="font-size: 0.75rem; border-radius: 4px;">MIRO AI</span>
             </a>
 
@@ -18,13 +18,13 @@
                         <strong class="miro-drawer-title text-dark">MIRO AI Assistant</strong>
                     </div>
                     <div class="d-flex align-items-center">
-                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="startNewConversation" title="Nouvelle conversation">
+                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="startNewConversation" title="New conversation">
                             <i class="fa fa-plus"/>
                         </button>
-                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="toggleHistory" title="Historique">
+                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="toggleHistory" title="History">
                             <i class="fa fa-history"/>
                         </button>
-                        <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Fermer">
+                        <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Close">
                             <i class="fa fa-times fa-lg"/>
                         </button>
                     </div>
@@ -33,10 +33,10 @@
                 <!-- Compact History List -->
                 <div t-if="state.showHistory" class="miro-drawer-history p-2">
                     <div t-if="state.loadingSessions" class="text-muted text-center p-3 small">
-                        <i class="fa fa-spinner fa-spin mr-1"/> Chargement...
+                        <i class="fa fa-spinner fa-spin mr-1"/> Loading...
                     </div>
                     <div t-elif="state.sessions.length === 0" class="text-muted text-center p-3 small">
-                        Aucune conversation enregistrée.
+                        No conversation recorded.
                     </div>
                     <t t-else="">
                         <div t-foreach="state.sessions" t-as="session" t-key="session.session_id"
@@ -45,7 +45,7 @@
                             <div class="miro-history-item-meta text-muted small">
                                 <span t-esc="formatSessionDate(session.last_activity)"/>
                                 <span class="mx-1">·</span>
-                                <span t-esc="session.message_count + ' échange(s)'"/>
+                                <span t-esc="getExchangeCountLabel(session.message_count)"/>
                             </div>
                         </div>
                     </t>
@@ -56,7 +56,7 @@
                     <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
                         <div t-att-class="'miro-ai-message miro-drawer-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message') + (msg.cancelled ? ' cancelled-message' : '')">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
+                                <div class="message-sender" t-esc="getSenderLabel(msg)"/>
                                 <t t-if="msg.sender === 'bot' and msg.route">
                                     <span t-att-class="'badge badge-xs ' + getRouteBadgeClass(msg.route)" t-esc="getRouteLabel(msg.route)"/>
                                 </t>
@@ -68,11 +68,11 @@
                                 <details class="miro-verification-disclosure mt-2 small">
                                     <summary class="verification-summary small">
                                         <i class="fa fa-chevron-right mr-1 verification-chevron"/>
-                                        <i class="fa fa-search mr-1 text-primary"/> Preuves (<t t-esc="msg.sources ? msg.sources.length : 0"/>)
+                                        <i class="fa fa-search mr-1 text-primary"/> <t t-esc="getEvidenceLabel(msg.sources ? msg.sources.length : 0)"/>
                                     </summary>
                                     <div class="verification-content p-2 mt-1 bg-white rounded border">
                                         <t t-if="msg.investigation_plan and msg.investigation_plan.steps and msg.investigation_plan.steps.length">
-                                            <div class="text-primary font-weight-bold mb-1">Plan d'investigation :</div>
+                                            <div class="text-primary font-weight-bold mb-1">Investigation plan:</div>
                                             <ul class="pl-3 mb-2 small text-muted">
                                                 <t t-foreach="msg.investigation_plan.steps" t-as="st" t-key="st_index">
                                                     <li><strong t-esc="st.action"/>: <span t-esc="st.justification"/></li>
@@ -80,7 +80,7 @@
                                             </ul>
                                         </t>
                                         <t t-if="msg.sources and msg.sources.length > 0">
-                                            <div class="text-success font-weight-bold mb-1">Sources :</div>
+                                            <div class="text-success font-weight-bold mb-1">Sources:</div>
                                             <ul class="pl-3 mb-0 small text-muted">
                                                 <t t-foreach="msg.sources" t-as="s" t-key="s_index">
                                                     <li class="mb-2">
@@ -99,7 +99,7 @@
                     </t>
 
                     <div t-if="state.loading" class="miro-ai-message bot-message loading-indicator small">
-                        <i class="fa fa-spinner fa-spin mr-1"/> <span>Analyse en cours...</span>
+                        <i class="fa fa-spinner fa-spin mr-1"/> <span>Analysis in progress...</span>
                     </div>
                 </div>
 
@@ -108,22 +108,22 @@
                     <div class="miro-source-toggle mb-1">
                         <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'documentation' ? 'active' : ''}"
                                 t-on-click="() => this.toggleSourceMode('documentation')"
-                                title="Répondre uniquement à partir de la documentation interne">
-                            <i class="fa fa-book"/> D'après la documentation
+                                title="Answer only from the internal documentation">
+                            <i class="fa fa-book"/> From the documentation
                         </button>
                         <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'systeme' ? 'active' : ''}"
                                 t-on-click="() => this.toggleSourceMode('systeme')"
-                                title="Répondre à partir des données et du code du système">
-                            <i class="fa fa-cogs"/> D'après le système
+                                title="Answer from the system's data and code">
+                            <i class="fa fa-cogs"/> From the system
                         </button>
                     </div>
                     <div class="d-flex align-items-center">
-                        <input type="text" class="form-control form-control-sm miro-drawer-input-field me-2" placeholder="Posez une question..."
+                        <input type="text" class="form-control form-control-sm miro-drawer-input-field me-2" placeholder="Ask a question..."
                                t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
                         <button t-if="!state.loading" class="btn btn-primary miro-drawer-send-btn" type="button" t-on-click="sendMessage">
                             <i class="fa fa-paper-plane"/>
                         </button>
-                        <button t-else="" class="btn miro-stop-btn miro-drawer-send-btn" type="button" t-on-click="cancelRequest" title="Annuler la question en cours">
+                        <button t-else="" class="btn miro-stop-btn miro-drawer-send-btn" type="button" t-on-click="cancelRequest" title="Cancel the current question">
                             <i class="fa fa-stop"/>
                         </button>
                     </div>

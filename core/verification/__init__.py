@@ -1,7 +1,7 @@
 """
 core/verification/
 
-Deterministic answer verification (todo/contexte.txt sections 1119-1122): no LLM,
+Deterministic answer verification: no LLM,
 claims are extracted by lexical form and checked against tool evidence and the code graph.
 """
 

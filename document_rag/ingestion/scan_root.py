@@ -86,36 +86,3 @@ def compute_source(file_path: Path, scan_root: Optional[Path]) -> str:
         except ValueError:
             pass
     return str(file_path)
-
-
-def resolve_absolute_source(
-    source: str, candidate_roots: Iterable[Path] = DEFAULT_SCAN_ROOT_CANDIDATES
-) -> Path:
-    """Resolve a stored `source` metadata value back to an absolute path.
-
-    Mirrors compute_source() in reverse. If `source` is already absolute
-    (legacy chunks indexed before scan-root-relative sourcing existed, or
-    a caller that passed no scan_root), it is returned resolved as-is.
-
-    Otherwise `source` is joined against each candidate root in order; the
-    first candidate whose parent directory exists on disk wins. Parent
-    (not the file itself) is checked so this also works for sources whose
-    file has since been deleted -- exactly the case incremental.py's
-    deletion detection needs to resolve. Falls back to the first candidate
-    root if none match (best effort; only reachable if every candidate
-    root's relevant subdirectory is itself gone).
-    """
-    source_path = Path(source)
-    if source_path.is_absolute():
-        return source_path.resolve()
-
-    candidates = list(candidate_roots)
-    for candidate in candidates:
-        joined = Path(candidate).resolve() / source_path
-        if joined.parent.exists():
-            return joined
-
-
-    if candidates:
-        return Path(candidates[0]).resolve() / source_path
-    return source_path.resolve()

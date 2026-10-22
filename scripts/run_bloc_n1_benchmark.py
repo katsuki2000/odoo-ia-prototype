@@ -18,8 +18,8 @@ Usage:
     python scripts/run_bloc_n1_benchmark.py --technical      # questions techniques d'origine
 
 Par defaut, l'agent recoit `business_question` (francais courant, sans nom
-technique, libelles de l'interface Odoo : todo/architecture.md). Une banque
-dont `meta.requires_setting` n'est pas configure est sautee avec un message.
+technique, libelles de l'interface Odoo : todo/architecture.md). Les questions
+dont un module requis n'est pas installe sont sautees avec un message.
 Le run ne demarre pas si le serveur d'inference ou d'embeddings ne repond pas.
 
 Outputs (captures/) :
@@ -53,21 +53,32 @@ def discover_banks():
     return {p.name[: -len(BANK_SUFFIX)]: p for p in sorted(BANKS_DIR.glob(f"*{BANK_SUFFIX}"))}
 
 
-def _unmet_requirement(meta):
-    setting = meta.get("requires_setting")
-    if setting and not getattr(settings, setting, None):
-        return f"setting {setting} is not configured"
-    return None
+def open_service_session():
+    """Service-account connector and its uid: the benchmark's requester."""
+    from erp_data.odoo_connector import OdooConnector
+    connector = OdooConnector(technical=True)
+    return connector, connector.authenticate(connector.username)
+
+
+def bind_requester_identity():
+    """Set the requester uid and key like the API entry point, so ORM tools may read."""
+    from erp_data.odoo_context import odoo_api_key_ctx, odoo_uid_ctx
+    try:
+        connector, uid = open_service_session()
+    except Exception as error:
+        print(f"[WARN] Identite de test indisponible, les outils ORM refuseront toute lecture : {error}")
+        return
+    odoo_uid_ctx.set(uid)
+    odoo_api_key_ctx.set(connector.password)
 
 
 def read_installed_modules():
     """Names of the modules installed on the target instance, or None when the
     instance cannot be queried (then no question is skipped)."""
     try:
-        from erp_data.odoo_connector import OdooConnector
         from code_intelligence.graph.instance_fingerprint import read_runtime_inventory
-        connector = OdooConnector(technical=True)
-        modules, _ = read_runtime_inventory(connector, connector.authenticate(connector.username))
+        connector, uid = open_service_session()
+        modules, _ = read_runtime_inventory(connector, uid)
         return {row["name"] for row in modules}
     except Exception as error:
         print(f"[WARN] Inventaire des modules installes indisponible, aucune question sautee : {error}")
@@ -99,10 +110,6 @@ def load_questions(question_ids=None, module=None, banks=None, installed_modules
             continue
         with open(available[name], encoding="utf-8") as f:
             data = json.load(f)
-        reason = _unmet_requirement(data["meta"])
-        if reason:
-            print(f"[SKIP] Banque '{name}' sautee : {reason}.")
-            continue
         for item in data["questions"]:
             all_questions.append({**item, "bank": name, "language": data["meta"].get("language")})
         modules_covered.extend(data["meta"].get("modules_covered", []))
@@ -174,6 +181,8 @@ def run_benchmark(question_ids=None, module=None, fresh=False, technical=False, 
     except BackendUnavailable as error:
         print(f"[SKIP] Serveur d'inference indisponible, aucun run demarre : {error}")
         return 2
+
+    bind_requester_identity()
 
     print("=" * 80)
     print(" BENCHMARK RUNNER (banques de questions CI) ")

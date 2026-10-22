@@ -1,7 +1,7 @@
-"""Modeles attendus par question et classement d'une resolution (journal D-14).
+"""Expected models per question, and classification of a resolution.
 
-Mesure l'exactitude d'une resolution, pas seulement le fait qu'elle ait abouti : un assistant
-choisi a la place du bon modele est « resolu » pour l'audit mais « faux » ici.
+Measures whether a resolution is exact, not just whether it succeeded: an assistant model
+chosen in place of the right one counts as "resolved" for the audit but as "wrong" here.
 """
 
 import json
@@ -15,7 +15,7 @@ EXACT, PARTIAL, ABSTENTION, WRONG = "exact", "partiel", "abstention", "faux"
 
 
 def load_expected_models(path: Optional[Path] = None) -> Tuple[Dict[str, frozenset], Dict[str, frozenset]]:
-    """Retourne (attendus, toleres) par identifiant de question ; les cles `_...` sont reservees."""
+    """Return (expected, tolerated) by question id; keys starting with `_` are reserved."""
     data = json.loads(Path(path or DEFAULT_PATH).read_text(encoding="utf-8"))
     tolerated = data.get("_tolerated", {})
     expected = {qid: frozenset(models) for qid, models in data.items() if not qid.startswith("_")}
@@ -23,8 +23,8 @@ def load_expected_models(path: Optional[Path] = None) -> Tuple[Dict[str, frozens
 
 
 def classify_resolution(resolved: Iterable[str], expected: frozenset, tolerated: frozenset = frozenset()) -> str:
-    """exact : tous les attendus et rien hors attendus + toleres ; partiel : rien de faux mais des
-    attendus manquent (au moins un present) ; abstention : vide ; faux : le reste."""
+    """exact: every expected model and nothing outside expected + tolerated; partial: nothing wrong
+    but some expected models are missing (at least one present); abstention: empty; wrong: the rest."""
     models = frozenset(resolved)
     if not models:
         return ABSTENTION

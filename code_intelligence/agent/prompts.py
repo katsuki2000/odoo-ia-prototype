@@ -396,24 +396,16 @@ def build_synthesis_prompt(
 
 
 def build_persona_prompt_block(security_principals: dict) -> str:
-    """Section 888/889 (mecanisme), 899 (texte durci) : indique au LLM quelles
-    personas hypothetiques cette question nomme, et comment evaluer l'acces
-    pour chacune -- via `principal_id`, jamais en fournissant `user_groups_json`
-    lui-meme, qui est remplace a la frontiere d'execution des outils.
+    """Tell the LLM which hypothetical personas the question names and how to evaluate access
+    for each: through `principal_id`, never by supplying `user_groups_json` itself (it is
+    replaced at the tool execution boundary).
 
-    Chaine vide si `security_principals` est vide/absent -- `loop.py` n'ajoute
-    alors rien au prompt, comportement de production inchange (889, exigence 5).
+    Empty string when `security_principals` is empty: nothing is added to the prompt.
 
-    Durci en 899 (SAL-Q1/897, MNT-Q1/898 rechutaient : un seul appel
-    `evaluate_record_rules`, jamais de `principal_id`, malgre la 1ere version de
-    ce bloc deja presente) : (a) titre + regle explicitement marques
-    "OBLIGATOIRE", (b) nombre de personas rappele, (c) avertissement direct que
-    les [PRIOR TOOL OBSERVATIONS] (evaluees pour le VRAI demandeur du
-    benchmark, injectees plus loin dans le prompt) ne repondent a AUCUNE des
-    personas ci-dessous et ne dispensent d'aucun appel -- adresse l'hypothese
-    non verifiee de la section 892 (ces observations, vues APRES ce bloc,
-    pourraient etre prises a tort pour suffisantes) par le CONTENU de la
-    consigne plutot que par un reordonnancement du prompt (hors mandat 899)."""
+    The block is deliberately emphatic: the rule is marked mandatory, the number of personas
+    is repeated, and the [PRIOR TOOL OBSERVATIONS] (evaluated for the REAL requester and
+    injected later in the prompt) are stated to answer none of the personas and to replace
+    no call. This is done through the wording rather than by reordering the prompt."""
     if not security_principals:
         return ""
     n = len(security_principals)

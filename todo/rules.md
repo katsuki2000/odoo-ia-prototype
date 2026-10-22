@@ -13,7 +13,7 @@ make the work understooden easily by anyone (très important, je vais relire le 
 put all installed packages in requirements(we work in venv)
 put everything you change in todo/contexte.txt, and read the last lines before anything
 
-meme convention de nommage(snake_case pour les fichiers et PascalCase pour les classes, camel case pour les variables)
+meme convention de nommage
 DRY (Don't Repeat Yourself)
 utilise des trucs universels et standard , n'invente pas, au pire dis moi qu ça sort de l'ordinaire 
 fait que la transition vers aws soit facile en modifiant qu'un seul fichier (config/settings.py par exemple)

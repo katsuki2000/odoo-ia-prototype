@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     rep = sub.add_parser("replay", help="Replay frozen prompts against one or more models.")
     rep.add_argument("question_ids", nargs="*")
-    rep.add_argument("--model", action="append", help="[provider:]model, repeatable (e.g. ollama:qwen3:14b).")
+    rep.add_argument("--model", action="append", help="Ollama model tag, repeatable (e.g. qwen3:14b).")
     rep.add_argument("--samples", type=int, default=3)
     rep.add_argument("--temperature", type=float, default=0.0)
     rep.add_argument("--base-url", default=None, help="OpenAI-compatible endpoint; defaults to LLM_BASE_URL.")

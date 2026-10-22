@@ -1,14 +1,11 @@
-"""Benchmark routing accuracy; cross-encoder reranking is opt-in via RERANK=1."""
+"""Benchmark routing accuracy."""
 import json
 import logging
-import os
 from core.graph.graph import route
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 
 # Setup basic logging to suppress noisy output
 logging.basicConfig(level=logging.WARNING)
-
-USE_RERANKER = os.environ.get("RERANK") == "1"
 
 
 def test_routing_accuracy():
@@ -18,7 +15,7 @@ def test_routing_accuracy():
     correct = 0
     total = len(data["questions"])
     
-    print(f"Testing {total} questions for routing accuracy (reranker={'on' if USE_RERANKER else 'off, fast mode'})...\n")
+    print(f"Testing {total} questions for routing accuracy...\n")
     
     chroma_manager, bm25_index = get_retriever()
 
@@ -37,13 +34,12 @@ def test_routing_accuracy():
         }
         
         try:
-            # 1. Retrieve (reranker skipped by default -- see module docstring)
+            # 1. Retrieve
             chunks = search_retrieve(
                 query=question,
                 top_k=10,
                 chroma_manager=chroma_manager,
                 bm25_index=bm25_index,
-                use_reranker=USE_RERANKER,
             )
             state["retrieved_chunks"] = chunks
             

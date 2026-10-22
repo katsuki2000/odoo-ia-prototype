@@ -6,11 +6,9 @@ from typing import List, Optional
 import requests
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
-SERVER_EMBEDDING_BACKENDS = frozenset({'local_server', 'ollama', 'openai_compatible', 'vllm'})
 
-
-class LocalServerEmbeddingFunction(EmbeddingFunction):
-    """HTTP embedding client for configured OpenAI-compatible servers."""
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    """HTTP embedding client for the configured Ollama server (OpenAI-compatible API)."""
     def __init__(self, base_url: str, model: str, api_key: str = 'ollama', timeout: Optional[float] = None, max_retries: int = 3, batch_size: int = 16):
         cleanUrl = base_url.rstrip('/')
         self.endpoint = f'{cleanUrl}/embeddings' if '/v1' in cleanUrl else f'{cleanUrl}/v1/embeddings'
@@ -21,6 +19,7 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
         self.batch_size = max(1, int(batch_size))
 
     def name(self) -> str:
+        # Persisted in Chroma collections and in the semantic index identity: renaming forces a reindex.
         return f'local-server-{self.model}'
 
     def _embed_batch(self, texts: List[str]) -> List[List[float]]:
@@ -50,13 +49,9 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
         return embeddings
 
 
-def resolve_embedding_function(backend: Optional[str] = None, embedding_model: Optional[str] = None) -> EmbeddingFunction:
-    """Resolve a provider; explicit model overrides its configured backend default."""
-    from config.settings import DEFAULT_EMBEDDING_BACKEND
-    backend = (backend or os.environ.get('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND)).lower().strip()
-    if backend in SERVER_EMBEDDING_BACKENDS:
-        from config.settings import EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_API_KEY, require_inference_server
-        return LocalServerEmbeddingFunction(base_url=require_inference_server(EMBEDDING_BASE_URL),
-                                            model=embedding_model or EMBEDDING_MODEL,
-                                            api_key=EMBEDDING_API_KEY)
-    raise ValueError(f'Unknown EMBEDDING_BACKEND: {backend!r}')
+def resolve_embedding_function(embedding_model: Optional[str] = None) -> EmbeddingFunction:
+    """Embedding client for the configured Ollama server; an explicit model overrides the configured one."""
+    from config.settings import EMBEDDING_BASE_URL, EMBEDDING_MODEL, EMBEDDING_API_KEY, require_inference_server
+    return OllamaEmbeddingFunction(base_url=require_inference_server(EMBEDDING_BASE_URL),
+                                   model=embedding_model or EMBEDDING_MODEL,
+                                   api_key=EMBEDDING_API_KEY)

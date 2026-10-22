@@ -23,7 +23,7 @@ import networkx as nx
 
 from code_intelligence.graph.staleness import (
     StalenessLevel,
-    GraphStalenessDetector,
+    analyze_changes,
     build_file_hash_index,
     compute_file_hash,
 )
@@ -109,54 +109,43 @@ def test_build_file_hash_index_covers_all_files(tmp_path):
     assert any(p.name == "__manifest__.py" for p in paths)
 
 
-def test_detector_reports_no_staleness_when_unchanged(tmp_path):
-    """Level 1: detector reports nothing stale when files are identical."""
-    f = tmp_path / "model.py"
-    f.write_text("unchanged", encoding="utf-8")
-    old_index = {str(f): compute_file_hash(f)}
-
-    detector = GraphStalenessDetector(graph=nx.DiGraph(), module_roots={"sale": tmp_path})
-    report = detector.detect(old_hash_index=old_index)
+def test_analyze_changes_reports_nothing_when_no_file_changed(tmp_path):
+    """Level 1: nothing is stale when no file changed."""
+    report = analyze_changes([], nx.DiGraph(), module_roots={"sale": tmp_path})
 
     assert not report.is_stale
     assert report.level == StalenessLevel.CLEAN
     assert len(report.changed_modules) == 0
-    assert not report.is_stale
 
 
-def test_detector_detects_changed_file(tmp_path):
-    """Level 1: detector detects when a source file's hash has changed."""
+def test_analyze_changes_attributes_changed_file_to_its_module(tmp_path):
+    """Level 1: a changed source file marks its module as changed."""
     f = tmp_path / "model.py"
     f.write_text("original content", encoding="utf-8")
-    old_index = {str(f): "aaaa1111" * 8}  # deliberately wrong / stale hash
 
-    detector = GraphStalenessDetector(graph=nx.DiGraph(), module_roots={"sale": tmp_path})
-    report = detector.detect(old_hash_index=old_index)
+    report = analyze_changes([str(f)], nx.DiGraph(), module_roots={"sale": tmp_path})
 
     assert report.is_stale
     assert "sale" in report.changed_modules
 
 
-def test_detector_detects_new_file_as_stale(tmp_path):
-    """Level 1: a file absent from the old index is treated as a change."""
+def test_analyze_changes_treats_unindexed_new_file_as_stale(tmp_path):
+    """Level 1: a new file that no graph node knows about forces a full rebuild."""
     f = tmp_path / "new_model.py"
     f.write_text("class NewModel: pass", encoding="utf-8")
-    old_index: dict = {}  # empty → new file not in old index
 
-    detector = GraphStalenessDetector(graph=nx.DiGraph(), module_roots={"sale": tmp_path})
-    report = detector.detect(old_hash_index=old_index)
+    report = analyze_changes([str(f)], nx.DiGraph(), module_roots={"sale": tmp_path})
 
     assert report.is_stale
+    assert report.level == StalenessLevel.FULL_REBUILD
     assert "sale" in report.changed_modules
 
 
-def test_detector_detects_deleted_file_as_stale(tmp_path):
-    """Level 1: a file in the old index that no longer exists → stale."""
+def test_analyze_changes_treats_deleted_file_as_stale(tmp_path):
+    """Level 1: a path that no longer exists on disk is a change, attributed to its module."""
     deleted_path = str(tmp_path / "deleted.py")
-    old_index = {deleted_path: "deadbeef" * 8}
 
-    detector = GraphStalenessDetector(graph=nx.DiGraph(), module_roots={"sale": tmp_path})
-    report = detector.detect(old_hash_index=old_index)
+    report = analyze_changes([deleted_path], nx.DiGraph(), module_roots={"sale": tmp_path})
 
     assert report.is_stale
     assert "sale" in report.changed_modules
@@ -166,7 +155,7 @@ def test_detector_detects_deleted_file_as_stale(tmp_path):
 # Level 2: Cross-module edge invalidation propagation
 # ──────────────────────────────────────────────────────────────────────────────
 
-def test_detector_propagates_invalidation_to_dependent_modules(tmp_path):
+def test_analyze_changes_propagates_invalidation_to_dependent_modules(tmp_path):
     """
     Level 2: when 'sale' changes, cross-module edges in 'stock' that reference
     sale.order nodes are identified as potentially stale.
@@ -178,38 +167,29 @@ def test_detector_propagates_invalidation_to_dependent_modules(tmp_path):
     f.write_text("class SaleOrder: pass", encoding="utf-8")
     G.nodes["model:sale.order"]["source_files"] = [str(f)]
 
-    old_index = {str(f): "stale_hash" * 8}
-
-    detector = GraphStalenessDetector(
-        graph=G,
+    report = analyze_changes(
+        [str(f)],
+        G,
         module_roots={"sale": sale_root, "stock": tmp_path / "stock"},
     )
-    report = detector.detect(old_hash_index=old_index)
 
     assert report.is_stale
     assert "sale" in report.changed_modules
     assert len(report.affected_cross_edges) >= 1 or len(report.propagated_nodes) >= 1
 
 
-def test_detector_does_not_flag_edges_within_unchanged_modules(tmp_path):
+def test_analyze_changes_does_not_flag_edges_within_unchanged_modules(tmp_path):
     """
     Level 2: DEFINED_IN edges inside a stable module are NOT flagged as stale.
     """
     G = _make_graph_with_cross_module_edge()
-    # Both module roots exist but no files changed (empty old_index = all hashes match current)
     sale_root = tmp_path / "sale"
     sale_root.mkdir()
     stock_root = tmp_path / "stock"
     stock_root.mkdir()
 
-    detector = GraphStalenessDetector(
-        graph=G,
-        module_roots={"sale": sale_root, "stock": stock_root},
-    )
-    # No old index → nothing to compare → trivially not stale
-    report = detector.detect(old_hash_index={})
+    report = analyze_changes([], G, module_roots={"sale": sale_root, "stock": stock_root})
 
-    # With empty directories, no files found → no changes
     assert not report.is_stale
     assert report.affected_cross_edges == []
 
@@ -218,27 +198,24 @@ def test_detector_does_not_flag_edges_within_unchanged_modules(tmp_path):
 # Level 3: Uncoverable cases are flagged explicitly
 # ──────────────────────────────────────────────────────────────────────────────
 
-def test_detector_flags_potential_rename_as_uncoverable(tmp_path):
+def test_analyze_changes_flags_potential_rename_as_uncoverable(tmp_path):
     """
-    Level 3: when a node disappears from the rebuilt partial graph but its
-    source file still exists, the detector flags it as a potential rename
-    (uncoverable without PyRef — ).
+    Level 3: when a changed file matches no node of the graph (here the old
+    path of a renamed file), the change is flagged as a potential rename
+    (uncoverable without PyRef).
     """
     G = _make_graph_with_cross_module_edge()
-    # sale root with a file that was renamed in Python (sale_order → sale_document)
     sale_root = tmp_path / "sale"
     sale_root.mkdir()
-    # Old index had sale_order.py; now only sale_document.py exists
     old_file = sale_root / "sale_order.py"
     new_file = sale_root / "sale_document.py"
     new_file.write_text("class SaleDocument: pass", encoding="utf-8")
-    old_index = {str(old_file): "old_hash" * 8}
 
-    detector = GraphStalenessDetector(
-        graph=G,
+    report = analyze_changes(
+        [str(old_file), str(new_file)],
+        G,
         module_roots={"sale": sale_root, "stock": tmp_path / "stock"},
     )
-    report = detector.detect(old_hash_index=old_index)
 
     assert report.is_stale
     assert report.has_uncoverable_cases
@@ -252,14 +229,9 @@ def test_staleness_report_serialisable(tmp_path):
     sale_root.mkdir()
     f = sale_root / "model.py"
     f.write_text("class X: pass", encoding="utf-8")
-    old_index = {str(f): "stale" * 8}
 
-    detector = GraphStalenessDetector(
-        graph=G,
-        module_roots={"sale": sale_root},
-    )
-    report = detector.detect(old_hash_index=old_index)
-    # Must not raise
+    report = analyze_changes([str(f)], G, module_roots={"sale": sale_root})
+
     serialised = json.dumps(report.to_dict())
     data = json.loads(serialised)
     assert "is_stale" in data

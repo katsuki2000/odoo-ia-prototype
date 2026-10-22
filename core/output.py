@@ -4,7 +4,7 @@ core/output.py
 Single source of truth for the French confidence-level word used inside the
 "[Confiance: ...]" tag that deterministic/heuristic analyzers (security,
 data_constraints, server_actions, overrides) inject verbatim into tool
-observation text (schema C, cf. todo/contexte.txt Section 626). Before this
+observation text (schema C). Before this
 module, each call site hardcoded its own label, mixing English ("HIGH") and
 French ("FAIBLE") for the same concept.
 
@@ -103,7 +103,7 @@ def _strip_degenerate_blank_run(text: str) -> str:
 
 _DEGENERATE_PREFIX_LENGTH = 60
 _DEGENERATE_PREFIX_MIN_REPEATS = 4
-# Section 854/855: an attempt to raise this to 100 (hypothesis: ACC-Q1's
+# an attempt to raise this to 100 (hypothesis: ACC-Q1's
 # mid-word-looking truncated answer was a false-positive strip of
 # legitimately-distinct bullets sharing a long opener) was REVERTED --
 # tests/test_graph.py::test_detects_real_snowballing_sentence_bloc9_06c
@@ -113,7 +113,7 @@ _DEGENERATE_PREFIX_MIN_REPEATS = 4
 # a REAL regression case to chase an UNCONFIRMED hypothesis about a
 # different one. Left at 60 (original, tested value). The ACC-Q1 symptom
 # remains unexplained; see the pre-strip debug logging added in loop.py
-# (section 854) for next time it recurs -- don't guess again without
+# for next time it recurs -- don't guess again without
 # evidence.
 
 

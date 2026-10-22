@@ -99,17 +99,13 @@ def _arbitration_candidates(
 
 
 def _tiebreak_rarity_index(G) -> Tuple[Dict[str, int], Dict[str, int], int]:
-    """Section 1064: how many DISTINCT models share a given dotted-name
-    segment, and how many models a given declaring module owns -- cached
-    per graph. Built once over every Model node (not just the tied
-    candidates), mirroring matching.py's "rare token" discipline
+    """Count how many DISTINCT models share each dotted-name segment and how many models each
+    declaring module owns, cached per graph. Built over every Model node (not just the tied
+    candidates), with the same "rare token" discipline as matching.py
     (_paired_exact_field_model_matches, max_owners = max(3, 2% of models)).
-    Without this, _deterministic_tiebreak rewarded ANY shared segment
-    equally: on the real 535-model graph, 'line' names 21 models and
-    'order' names 10 -- generic business words, not a discriminating
-    signal -- which is the same false-positive class already fixed for
-    field-label matching in Section 1040 (MNT-Q4: 'acces en lecture'
-    beating the actually-cited 'Cost' field) but was never applied here.
+    Without it, _deterministic_tiebreak would reward ANY shared segment equally: on a
+    535-model graph 'line' names 21 models and 'order' names 10, generic words that do not
+    discriminate.
     """
     cached = _TIEBREAK_RARITY_CACHE.get(G)
     if cached is not None:
@@ -150,9 +146,8 @@ def _deterministic_tiebreak(
     G,
 ) -> Optional[str]:
     """Break a fuzzy tie only on a unique model or declaring-module mention,
-    and only when that mention is RARE across the graph's own model names
-    (Section 1064) -- a segment or module shared by many models is not a
-    discriminating signal, however literally it appears in the query."""
+    and only when that mention is RARE across the graph's own model names: a segment or
+    module shared by many models does not discriminate, however literally it appears in the query."""
     import re as _re
 
     top_score = fuzzy_results[0][1]

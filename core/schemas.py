@@ -35,7 +35,7 @@ class SourceReference(BaseModel):
 
 def source_display_title(meta: dict) -> str:
     """
-    User-facing title for a chunk's metadata -- section 338 (todo/contexte.txt):
+    User-facing title for a chunk's metadata:
     ingestion stores the absolute file path as 'source' (separate, unfixed
     debt), so falling back to it directly leaks the local filesystem layout
     into the answer text. Falls back to the basename instead when 'title' is
@@ -59,8 +59,8 @@ class LLMResponse(BaseModel):
             "Short per-turn source aliases (e.g. 'S1', 'S2', matching the "
             "'[Source Sx]' markers in the supplied context) that were "
             "actually drawn on to write 'answer'. Aliases are local to this "
-            "single call, never a stable id or file path -- section 336 "
-            "(todo/contexte.txt), lets format_output() show only chunks "
+            "single call, never a stable id or file path. They let "
+            "format_output() show only chunks "
             "genuinely used instead of every chunk retrieved."
         ),
     )
@@ -129,16 +129,15 @@ class AssistantResponse(BaseModel):
     verification: Optional[VerificationReport] = Field(
         default=None,
         description=(
-            "Deterministic claim verification of the final answer (todo/contexte.txt "
-            "section 1121): counts of number, group and method claims and the ones "
+            "Deterministic claim verification of the final answer: counts of number, group and method claims and the ones "
             "no evidence supports. None when the verifier did not run this turn."
         ),
     )
     evidence_dossier: List[Evidence] = Field(
         default_factory=list,
         description=(
-            "Structured, tool-provenance Evidence gathered this turn (Bloc B2, "
-            "todo/contexte.txt section 622) via core/evidence_collector.py. "
+            "Structured, tool-provenance Evidence gathered this turn "
+            "via core/evidence_collector.py. "
             "Distinct from 'sources' (SourceReference, UI-facing citation "
             "derived from RAG chunks) -- this is the raw fact + provenance a "
             "CI/ORM tool actually produced while it worked. Populated "

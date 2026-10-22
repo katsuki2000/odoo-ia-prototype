@@ -83,7 +83,7 @@ def reduce_message_context(messages: list) -> list:
     real 413 on account.move-heavy questions showed this path silently
     destroying most of an already-fetched observation, feeding the
     synthesis LLM a near-empty context and producing an uncited
-    hallucination (todo/contexte.txt sections 809/810)."""
+    hallucination."""
     reduced = []
     truncated_count = 0
     for msg in messages:
@@ -137,7 +137,7 @@ def reduce_message_context(messages: list) -> list:
             "Node [code_intelligence_agent]: emergency context reduction after "
             "a provider payload-size error rewrote %d message(s), some to as "
             "little as %d chars -- evidence may be missing from the answer "
-            "this produces. See todo/contexte.txt sections 809-810.",
+            "this produces.",
             truncated_count, _TOOL_MSG_HARD_CAP,
         )
     return reduced

@@ -27,10 +27,6 @@ def get_graph_ref():
     return _graphRef.get()
 
 
-def set_llm_ref(llm):
-    _llmRef.set(llm)
-
-
 def get_llm_ref():
     return _llmRef.get()
 

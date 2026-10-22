@@ -15,7 +15,6 @@ from config.settings import LLM_MODEL
 from core.evaluation.synthesis_metrics import SynthesisScore, score_answer
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
-KNOWN_PROVIDERS = {"ollama", "local", "vllm", "openai_compatible", "lmstudio", "llamacpp"}
 NO_THINK_MARKER = "/no_think"
 SYNTHESIS_MAX_TOKENS = 4096
 SYNTHESIS_MODEL_KWARGS = {"frequency_penalty": 0.3, "presence_penalty": 0.2}
@@ -24,18 +23,14 @@ SYNTHESIS_MODEL_KWARGS = {"frequency_penalty": 0.3, "presence_penalty": 0.2}
 @dataclass(frozen=True)
 class ModelSpec:
     model: str
-    provider: Optional[str] = None
 
     @classmethod
     def parse(cls, raw: str) -> "ModelSpec":
-        head, _, tail = raw.partition(":")
-        if tail and head.lower() in KNOWN_PROVIDERS:
-            return cls(model=tail, provider=head.lower())
         return cls(model=raw)
 
     @property
     def label(self) -> str:
-        return f"{self.provider}:{self.model}" if self.provider else self.model
+        return self.model
 
     @property
     def supports_thinking_switch(self) -> bool:

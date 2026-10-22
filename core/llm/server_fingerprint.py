@@ -1,10 +1,10 @@
-"""Empreinte du serveur d'inference : permet de comparer des mesures a serveur constant.
+"""Inference server fingerprint: lets measurements be compared on a constant server.
 
-Les reponses de l'arbitre changent d'une session de serveur a l'autre (journal 1467) ; une
-mesure n'est comparable a une autre que si l'empreinte est la meme. L'empreinte ne prouve pas
-l'identite du serveur : elle detecte les changements visibles par l'API (modele servi,
-metadonnees du modele, `system_fingerprint`). Ne leve jamais d'exception ; ne contient ni URL
-ni cle d'API (l'hote du endpoint n'apparait que sous forme hachee).
+The arbiter's answers change from one server session to another, so a measurement is only
+comparable to another when the fingerprint is the same. The fingerprint does not prove the
+server's identity: it detects the changes visible through the API (served model, model
+metadata, `system_fingerprint`). Never raises; contains neither a URL nor an API key (the
+endpoint host only appears in hashed form).
 """
 
 import hashlib
@@ -69,22 +69,20 @@ def _ollama_details(base_url: Optional[str], model: Optional[str], http_get: Any
 
 
 def compute_fingerprint_id(fingerprint: Dict[str, Any]) -> str:
-    """Hash des seuls champs qui caracterisent le modele servi.
+    """Hash of the only fields that characterise the served model.
 
-    Exclut l'hote du endpoint et l'horodatage : un tunnel qui redemarre change l'adresse sans
-    changer le modele, et inversement un meme tag peut changer de contenu (d'ou `created`,
-    `max_model_len` et `system_fingerprint` quand le serveur les fournit).
+    Excludes the endpoint host and the timestamp: a restarted tunnel changes the address without
+    changing the model, and conversely the same tag can change content (hence `created`,
+    `max_model_len` and `system_fingerprint` when the server provides them).
     """
     llm = fingerprint.get("llm") or {}
     stable = {
-        "provider": llm.get("provider"),
         "configured_model": llm.get("configured_model"),
         "served_models": llm.get("served_models"),
         "canary_model": (llm.get("canary") or {}).get("model"),
         "canary_system_fingerprint": (llm.get("canary") or {}).get("system_fingerprint"),
         "ollama": {k: (fingerprint.get("ollama") or {}).get(k)
                    for k in ("version", "digest", "quantization_level", "loaded_context_length", "runner", "fully_in_vram")},
-        "embedding_backend": (fingerprint.get("embedding") or {}).get("backend"),
         "embedding_model": (fingerprint.get("embedding") or {}).get("configured_model"),
     }
     return _short_hash(json.dumps(stable, sort_keys=True, ensure_ascii=False, default=str))
@@ -92,11 +90,9 @@ def compute_fingerprint_id(fingerprint: Dict[str, Any]) -> str:
 
 def get_inference_fingerprint(
     *,
-    provider: Optional[str] = None,
     base_url: Optional[str] = None,
     model: Optional[str] = None,
     api_key: Optional[str] = None,
-    embedding_backend: Optional[str] = None,
     embedding_model: Optional[str] = None,
     client: Any = None,
     http_get: Any = None,
@@ -105,15 +101,13 @@ def get_inference_fingerprint(
     """Interroge le serveur (liste des modeles + un appel d'un token) et retourne l'empreinte."""
     from config import settings
 
-    provider = provider or "ollama"
     base_url = base_url or settings.LLM_BASE_URL
     model = model or settings.LLM_MODEL
-    llm: Dict[str, Any] = {"provider": provider, "configured_model": model, "endpoint_hash": _host_hash(base_url)}
+    llm: Dict[str, Any] = {"configured_model": model, "endpoint_hash": _host_hash(base_url)}
     result: Dict[str, Any] = {
         "probed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "llm": llm,
         "embedding": {
-            "backend": embedding_backend or settings.EMBEDDING_BACKEND,
             "configured_model": embedding_model or settings.EMBEDDING_MODEL,
             "endpoint_hash": _host_hash(getattr(settings, "EMBEDDING_BASE_URL", None)),
         },
@@ -136,7 +130,7 @@ def get_inference_fingerprint(
     except Exception as error:  # noqa: BLE001 - l'empreinte ne doit jamais interrompre une mesure
         llm["error"] = type(error).__name__
         llm["error_stage"] = stage
-    if str(provider).lower() == "ollama" and (http_get is not None or not client_injected):
+    if http_get is not None or not client_injected:
         if http_get is None:
             import httpx
             http_get = httpx.get

@@ -239,7 +239,7 @@ class InheritanceChainResult:
     summary_text: str = ""
     # B1 replication of the B0 pilot: structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
-    # todo/contexte.txt section 831 (Famille 1, site 4/5): (filepath, lineno,
+    # (filepath, lineno,
     # end_line) per declaration site, same custom-module-first order as the
     # file:// links folded into summary_text -- lets callers reuse this
     # structured data instead of re-parsing summary_text.
@@ -426,10 +426,7 @@ def trace_full_inheritance(
 
         def _build_file_link(fp: str) -> Tuple[str, int, int]:
             """Locate the _name/_inherit line for model_name in fp and
-            return (markdown_link, lineno, end_line). Unchanged logic from
-            before section 853 -- only which files get labelled 'Declared
-            in' vs 'Extended in' changed, not how a single file's link is
-            built."""
+            return (markdown_link, lineno, end_line)."""
             p = Path(fp)
             lineno = 1
             line_count = 50
@@ -450,19 +447,18 @@ def trace_full_inheritance(
             link = f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})"
             return link, lineno, end_line
 
-        # Section 822/853 (todo/contexte.txt): filepath_roles (graph/builder.py)
+        # filepath_roles (graph/builder.py)
         # already knows, per FILE, whether that file declares (_name=, no
         # self-_inherit) or merely extends (_inherit=) the model -- computed
         # once at build time from the same per-declaration flag already
-        # trusted for the module-level DEFINED_IN edges (verified clean in
-        # section 822/823). Using it here means every file gets its own
+        # trusted for the module-level DEFINED_IN edges. Using it here means every file gets its own
         # correct label instead of the old behaviour, which slapped
         # "Declared in" on EVERY file matching a _name/_inherit regex
         # (declaration AND extension alike) and then relied on a
         # custom-first sort to put -- by pure luck, not correctness -- the
         # right one in front. A custom module extending the model would
         # match that regex too and could end up cited as if it declared the
-        # model (confirmed on account.move, section 822).
+        # model.
         filepath_roles: Dict[str, str] = G.nodes[model_node].get("filepath_roles", {})
         declares_files = [fp for fp in filepaths if filepath_roles.get(fp) == "declares"]
         extends_files = [fp for fp in filepaths if fp not in declares_files]
@@ -484,13 +480,11 @@ def trace_full_inheritance(
                     declaration_sites.append((fp, e_lineno, e_end))
                 summary += f" Extended in: {', '.join(ext_links)}."
         else:
-            # Fallback (todo/contexte.txt section 853, point 1 of pmm's
-            # mandate): zero or several files claim the 'declares' role --
+            # Fallback: zero or several files claim the 'declares' role --
             # either no filepath_roles data at all (older/unrebuilt graph)
             # or a genuine re-declaration across files, both edge cases the
-            # per-file role cannot resolve unambiguously. Revert to the
-            # pre-853 behaviour (custom-first sort, single undifferentiated
-            # 'Declared in' list) rather than guess.
+            # per-file role cannot resolve unambiguously. Use the custom-first sort with a
+            # single undifferentiated 'Declared in' list rather than guess.
             logger.warning(
                 "Node [code_intelligence_agent]: trace_full_inheritance('%s') "
                 "found %d file(s) with role='declares' (expected exactly 1) -- "
@@ -519,7 +513,7 @@ def trace_full_inheritance(
     )
 
 
-# ── Cross-Domain Module Extensions (Section 941, Point P) ───────────────
+# ── Cross-Domain Module Extensions ───────────────
 
 
 @dataclass
@@ -548,11 +542,10 @@ def _resolve_source_filepath(filepath_str: str) -> Optional[Path]:
         return p
     if Path("/" + filepath_str).exists():
         return Path("/" + filepath_str)
-    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, _ROOT
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, _ROOT
     candidates = [
         Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
         Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
-        Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
         _ROOT / filepath_str,
     ]
     try:

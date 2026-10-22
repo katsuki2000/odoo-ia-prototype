@@ -6,6 +6,7 @@ import config.settings  # noqa: F401  (loads .env)
 
 PASSWORD_VARIABLES = ("ODOO_ADMIN_PASSWORD", "ODOO_PASSWORD")
 LOGIN_VARIABLES = ("ODOO_ADMIN_LOGIN", "ODOO_USERNAME")
+DEFAULT_LOGIN = "admin"
 
 
 class MissingServiceCredentialError(RuntimeError):

@@ -27,7 +27,6 @@ _ARITHMETIC_ONLY_RE = re.compile(
 REACT_RECURSION_LIMIT = 6
 
 _MASSIVE_EXTRACTION_PATTERNS = [
-    r"toutes?\s+les?\s+règl(es|ements)",
     r"tous\s+les\s+modèles",
     r"tous\s+les\s+modules",
     r"chaque\s+modèle",
@@ -38,7 +37,6 @@ _MASSIVE_EXTRACTION_PATTERNS = [
     r"(?:liste|dump|export|afficher?|donne)\w*\s+(?:de\s+)?tous\s+les\s+utilisateurs",
     r"tous\s+les\s+utilisateurs\s+et\s+(?:leurs\s+)?mots\s+de\s+passe",
     r"extraire?\s+tout",
-    r"toutes\s+les\s+actions\s+serveur",
     r"all\s+rules\s+of\s+all\s+models",
     r"dump\s+all\s+models",
     r"dump\s+all\s+rules",

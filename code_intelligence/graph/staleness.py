@@ -131,7 +131,7 @@ def _detect_dynamic_uncovered_patterns(filepath: Path) -> Optional[str]:
 
     return None
 
-# ── Staleness Detector ───────────────────────────────────────────────────
+# ── Staleness analysis ───────────────────────────────────────────────────
 
 _logger = logging.getLogger(__name__)
 
@@ -284,83 +284,3 @@ def analyze_changes(
         changed_modules=changed_modules,
         affected_cross_edges=affected_cross_edges,
     )
-
-
-class GraphStalenessDetector:
-    """Class wrapper around analyze_changes for object-oriented usage."""
-
-    def __init__(
-        self,
-        G: Optional[nx.DiGraph] = None,
-        graph: Optional[nx.DiGraph] = None,
-        file_hash_index: Optional[Dict[str, str]] = None,
-        module_roots: Optional[Dict[str, Path]] = None,
-    ):
-        self.G = G if G is not None else (graph if graph is not None else nx.DiGraph())
-        self.file_hash_index = file_hash_index or {}
-        self.module_roots = module_roots or {}
-
-    def scan_changed_files(self, old_index: Optional[Dict[str, str]] = None) -> Tuple[List[str], List[str]]:
-        if old_index is None:
-            old_index = self.file_hash_index
-
-        changed_files = []
-        changed_modules = set()
-
-        for mod_name, mod_root in self.module_roots.items():
-            root_p = Path(mod_root)
-            if not root_p.exists():
-                continue
-            for f in root_p.rglob("*"):
-                if f.is_file() and f.suffix in {".py", ".xml", ".csv"}:
-                    f_str = str(f.resolve())
-                    curr_hash = compute_file_hash(f)
-                    old_hash = old_index.get(f_str)
-                    if old_hash != curr_hash:
-                        changed_files.append(f_str)
-                        changed_modules.add(mod_name)
-
-        for old_f in old_index.keys():
-            if not Path(old_f).exists() and old_f not in changed_files:
-                changed_files.append(old_f)
-                for mod_name, mod_root in self.module_roots.items():
-                    if old_f.startswith(str(Path(mod_root).resolve())):
-                        changed_modules.add(mod_name)
-
-        return changed_files, sorted(list(changed_modules))
-
-    def detect_staleness(
-        self,
-        changed_files: Optional[List[str]] = None,
-        old_index: Optional[Dict[str, str]] = None,
-        old_hash_index: Optional[Dict[str, str]] = None,
-    ) -> StalenessReport:
-        effective_old_index = old_hash_index if old_hash_index is not None else old_index
-
-        if changed_files is None:
-            changed_files, changed_modules = self.scan_changed_files(effective_old_index)
-        else:
-            changed_modules = []
-
-        return analyze_changes(
-            changed_files,
-            self.G,
-            module_roots=self.module_roots,
-            changed_modules_override=changed_modules if changed_modules else None,
-        )
-
-    def analyze(
-        self,
-        old_index: Optional[Dict[str, str]] = None,
-        old_hash_index: Optional[Dict[str, str]] = None,
-        changed_files: Optional[List[str]] = None,
-    ) -> StalenessReport:
-        return self.detect_staleness(changed_files=changed_files, old_index=old_index, old_hash_index=old_hash_index)
-
-    def detect(
-        self,
-        old_hash_index: Optional[Dict[str, str]] = None,
-        old_index: Optional[Dict[str, str]] = None,
-        changed_files: Optional[List[str]] = None,
-    ) -> StalenessReport:
-        return self.detect_staleness(changed_files=changed_files, old_index=old_index, old_hash_index=old_hash_index)

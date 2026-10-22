@@ -73,7 +73,7 @@ class ButtonExecutionPathResult:
     method_tags: List[str] = field(default_factory=list)
     # B1 replication of the B0 pilot: structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
-    # todo/contexte.txt section 831 (Famille 1, site 5/5): filepath/lineno/
+    # filepath/lineno/
     # end_lineno of the called method's own definition, already computed
     # locally to build method_link_str below -- exposed here so callers do
     # not need to re-parse the file:// link out of summary_text.
@@ -512,7 +512,7 @@ def button_execution_path(
     if user_groups is not None and button_resolved:
         available_to_requester = _requester_satisfies_required_groups(G, sorted(required_groups), user_groups)
         if not available_to_requester:
-            # Section 925 / 958: check if required groups are technical (settings-activated)
+            # check if required groups are technical (settings-activated)
             tech_groups = technical_groups_among(G, sorted(required_groups))
             tech_xmlids = {tg.xmlid for tg in tech_groups}
             technical_groups = [(tg.xmlid, tg.setting_field) for tg in tech_groups]

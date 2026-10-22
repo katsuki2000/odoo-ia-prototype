@@ -8,7 +8,7 @@ Validates authentication, read-only enforcement, and model whitelisting.
 import pytest
 import os
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
-from erp_data._odoo_helpers import odoo_api_key_ctx
+from erp_data.odoo_context import odoo_api_key_ctx
 
 
 class _AccessDeniedModels:

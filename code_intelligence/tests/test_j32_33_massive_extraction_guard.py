@@ -46,6 +46,8 @@ def test_is_massive_extraction_request_detection(query: str):
     "Qui a le permission d'approuver un avoir de 25 000€ ?",
     "Pourquoi ma demande de congé est refusée ?",
     "Comment créer un client dans Odoo ?",
+    "Quelles sont toutes les règles qui s'enchaînent quand on valide un avoir, et dans quel ordre s'exécutent-elles ?",
+    "Quelles sont toutes les actions serveur du modèle account.move ?",
 ])
 def test_legitimate_queries_not_flagged_as_massive_extraction(query: str):
     """J32-J33: verify legitimate queries are NOT flagged as massive extraction."""

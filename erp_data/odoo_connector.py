@@ -94,7 +94,7 @@ class OdooConnector:
         """
         if self.technical:
             return self.password
-        from erp_data._odoo_helpers import odoo_api_key_ctx
+        from erp_data.odoo_context import odoo_api_key_ctx
         ctx_key = odoo_api_key_ctx.get()
         if ctx_key is not None:
             return ctx_key

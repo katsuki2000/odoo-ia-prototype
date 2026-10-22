@@ -30,14 +30,9 @@ class ResolvedConcept:
     diagnostics: Dict[str, str] = field(default_factory=dict)
 
 
-# Cache indexe directement sur l'objet graphe (pas sur id(G)) : un
-# WeakKeyDictionary retire automatiquement son entree des qu'un graphe est
-# garbage-collecte (callback synchrone), ce qui elimine tout risque de
-# collision d'id() reutilise entre deux objets-graphe differents et de
-# duree de vie courte (bug reel observe et reproduit, todo/contexte.txt
-# Section 721 -- avec Dict[int, ...] indexe par id(G), un graphe A detruit
-# puis un graphe B different alloue a la meme adresse memoire faisait
-# retourner silencieusement l'index fuzzy de A pour B).
+# Keyed on the graph object itself, not on id(G): a WeakKeyDictionary drops the entry when
+# the graph is garbage-collected, so a reused memory address can never return another
+# graph's fuzzy index.
 _FUZZY_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
@@ -305,21 +300,6 @@ def _find_exact_technical_model_mentions(
     return found
 
 
-def has_non_generic_field_mention(query_lower: str, G) -> bool:
-    """Return whether the question names a specific indexed field."""
-    if G is None:
-        return False
-    for _node_id, data in G.nodes(data=True):
-        if data.get("node_type") != "Field":
-            continue
-        field_name = (data.get("name") or "").strip().lower()
-        if field_name in _GENERIC_FIELD_NAMES or len(field_name) < 5:
-            continue
-        if re.search(r"(?<!\w)" + re.escape(field_name) + r"(?!\w)", query_lower):
-            return True
-    return False
-
-
 def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
     """Find exact technical Odoo module names mentioned in query.
 
@@ -384,12 +364,11 @@ def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
 
 
 def _dotted_technical_name_only_embedded(technical_name: str, raw_query_lower: str) -> bool:
-    """Section 1064 (fuzzy-matching counterpart to the Section 890 guard):
-    True when a dotted technical model name appears in the raw query ONLY
+    """True when a dotted technical model name appears in the raw query ONLY
     as the prefix of a strictly longer dotted identifier, never as a
     standalone mention of itself -- e.g. 'custom.deep.document' inside
-    'other.custom.deep.document.extended'. Section 890 closed this for the
-    exact-technical-mention step (_find_exact_technical_model_mentions)
+    'other.custom.deep.document.extended'. The exact-technical-mention step
+    (_find_exact_technical_model_mentions) already handles it
     via the same (?!\\.\\w) lookahead, but _fuzzy_match_graph indexes each
     model's own technical name as a label for itself (_build_fuzzy_index)
     and scores it with rapidfuzz's token-set comparison, which is
@@ -426,7 +405,7 @@ def _fuzzy_match_graph(
     query_lower = _business_text(query)
     query_token_count = max(len(_business_tokens(query)), 1)
     raw_query_lower = query.lower()
-    # Section 1064: which index rows are a model's OWN technical-name
+    # which index rows are a model's OWN technical-name
     # self-entry (plain dotted, or the "."/"_" -> " " spaced variant) --
     # both added by _build_fuzzy_index right after the technical_name
     # check. Only these rows can trigger the embedded-substring false

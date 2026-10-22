@@ -1,7 +1,7 @@
 """
 core/llm/__init__.py
 
-Regroupement (todo/contexte.txt Section 649-653) : llm_client.py, llm_retry.py.
+Regroupement : llm_client.py, llm_retry.py.
 """
 
 from .llm_client import (

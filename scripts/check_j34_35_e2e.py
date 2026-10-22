@@ -10,8 +10,8 @@ graph_builder) directly and in isolation against custom_deep_inheritance_
 security -- it never calls code_intelligence_agent() end-to-end the way
 test_j25_26_e2e_purchase_bypass_gate.py does for . Unlike yesterday's
 gap (a brand-new tool needing an explicit dispatch wire), no plumbing is
-expected to be missing here -- the module sits under /home/user/odoo-17.0/
-addons/ like any other custom module, so the production graph builder picks
+expected to be missing here -- the module sits in a configured
+addons path like any other custom module, so the production graph builder picks
 it up automatically. This script is a one-shot live confirmation that the
 whole pipeline (business/technical resolution, graph traversal across 5
 levels of _inherit, security lock extraction, synthesis) actually produces

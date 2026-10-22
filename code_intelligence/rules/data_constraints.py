@@ -2,13 +2,9 @@
 code_intelligence/knowledge_rules/data_constraints.py
 
 Semgrep-backed detection of _sql_constraints and relational domain=
-declarations (Evidence tool 10/24). Regroupe (todo/contexte.txt, chantier
-de reduction du nombre de sous-paquets de knowledge_rules/) les anciens
-runner.py/analyzer.py de l'ex-paquet data_constraints/ en un seul module
-plat, sans changement de logique. Les fixtures/regles Semgrep elles-memes
-(donnees, pas du code Python importable) vivent dans code_intelligence/
-semgrep_rules/ (dossier plat frere depuis l'aplatissement Option C,
-seul consommateur).
+declarations (Evidence tool 10/24). The Semgrep rules themselves (data, not
+importable Python) live in code_intelligence/semgrep_rules/, which only this
+module consumes.
 """
 
 import ast
@@ -303,11 +299,6 @@ def _extract_check_expressions(sql_text: str) -> List[str]:
             return expressions
 
 
-def _extract_check_expression(sql_text: str) -> Optional[str]:
-    expressions = _extract_check_expressions(sql_text)
-    return expressions[0] if expressions else None
-
-
 def _conditional_check_fact(expression: str) -> Optional[str]:
     parts = _split_top_level_or(expression)
     if not parts:
@@ -591,10 +582,9 @@ def _build_data_constraints_evidence(matches: List[SemgrepMatch]) -> List[Eviden
     """
     One Evidence per real SemgrepMatch, confidence=HIGH (static deterministic
     pattern match, consistent with the [Confiance: ÉLEVÉE] tag shown in
-    summary_text, formatted via core.output -- section 629). check_id (e.g. odoo-sql-constraints-declaration vs
+    summary_text, formatted via core.output). check_id (e.g. odoo-sql-constraints-declaration vs
     odoo-relational-domain-declaration) already carries the SQL-constraint
-    vs domain= distinction -- no separate classification is rebuilt here,
-    per todo/contexte.txt section 463/464 decision.
+    vs domain= distinction, so no separate classification is rebuilt here.
 
     No negative Evidence for an empty match list -- see module docstring.
     """
@@ -653,12 +643,9 @@ def _compose_data_constraints_summary(
             or "selection" in m.check_id
             or "exception" in m.check_id
             or "filter" in m.check_id
-            # "unique" couvre odoo-raw-sql-unique-index /
-            # odoo-create-unique-index-helper (todo/contexte.txt section
-            # 812) : le mecanisme SQL brut le plus souvent recherche par
-            # les questions d'unicite doit sortir en tete, pas se noyer
-            # en fin d'un long document et risquer la troncature (budget
-            # cumulatif MAX_TOTAL_OBSERVATION_CHARS, section 811).
+            # "unique" covers odoo-raw-sql-unique-index / odoo-create-unique-index-helper:
+            # the raw SQL mechanism uniqueness questions look for must come first, not get
+            # truncated at the end of a long document (MAX_TOTAL_OBSERVATION_CHARS).
             or "unique" in m.check_id
         )
         return (not is_custom, not has_constrain)

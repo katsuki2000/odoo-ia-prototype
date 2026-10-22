@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vue Formulaire pour miro.ai.settings -->
+    <record id="view_miro_ai_settings_form" model="ir.ui.view">
+        <field name="name">miro.ai.settings.form</field>
+        <field name="model">miro.ai.settings</field>
+        <field name="arch" type="xml">
+            <form string="Paramètres MIRO AI">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" placeholder="Nom de la configuration..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Identifiants &amp; Connexion API">
+                            <field name="api_url" widget="url"/>
+                            <field name="api_token" password="True"
+                                     groups="base.group_system,miro_ai.group_miro_ai_admin"/>
+                            <field name="request_timeout"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                        <group string="Catégories de Compétences Activées">
+                            <field name="activer_ventes" widget="boolean_toggle"/>
+                            <field name="activer_stocks" widget="boolean_toggle"/>
+                            <field name="activer_comptabilite" widget="boolean_toggle"/>
+                            <field name="activer_tickets" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Vue Arbre / Liste pour miro.ai.settings -->
+    <record id="view_miro_ai_settings_tree" model="ir.ui.view">
+        <field name="name">miro.ai.settings.tree</field>
+        <field name="model">miro.ai.settings</field>
+        <field name="arch" type="xml">
+            <tree string="Paramètres MIRO AI">
+                <field name="name"/>
+                <field name="api_url"/>
+                <field name="activer_ventes" widget="boolean_toggle"/>
+                <field name="activer_stocks" widget="boolean_toggle"/>
+                <field name="activer_comptabilite" widget="boolean_toggle"/>
+                <field name="activer_tickets" widget="boolean_toggle"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Action de Fenêtre pour ouvrir les paramètres -->
+    <record id="action_miro_ai_settings" model="ir.actions.act_window">
+        <field name="name">Paramètres MIRO AI</field>
+        <field name="res_model">miro.ai.settings</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Créer une nouvelle configuration pour le serveur Miro AI
+            </p>
+            <p>
+                Configurez l'adresse du serveur FastAPI et activez les catégories de compétences ORM.
+            </p>
+        </field>
+    </record>
+</odoo>

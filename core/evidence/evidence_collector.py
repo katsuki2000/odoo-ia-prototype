@@ -1,7 +1,7 @@
 """
 core/evidence_collector.py
 
-Turn-scoped Evidence accumulator (Bloc B2, todo/contexte.txt section 622).
+Turn-scoped Evidence accumulator.
 
 Bloc B1 wired each of the 24+2 CI/ORM tools to compute a structured
 Evidence/List[Evidence] internally, but every public @tool wrapper

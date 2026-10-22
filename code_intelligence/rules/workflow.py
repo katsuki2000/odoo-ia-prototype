@@ -1,17 +1,8 @@
-"""
-code_intelligence/deterministic/workflow_process.py
+"""Workflow state transition analysis (WorkflowState -> TRANSITIONS_VIA -> WorkflowState)."""
 
-Workflow state transition graph analysis (WorkflowState -> TRANSITIONS_VIA -> WorkflowState).
-"""
-
-import ast
 from dataclasses import dataclass, field
-import logging
-import textwrap
 from typing import Any, Dict, List, Set
 import networkx as nx
-
-logger = logging.getLogger(__name__)
 
 from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER, QueryStatus
 from code_intelligence.rules.model_suggestions import model_not_found_message
@@ -168,104 +159,3 @@ def describe_workflow(
         summary_text=summary,
         evidence=_build_workflow_evidence(model_name, transitions),
     )
-
-
-
-
-def inspect_stage_workflow_actions(source_text: str) -> dict:
-    """Inspect AST of a write() method to detect automatic stage-driven actions
-    (recurrence duplication via copy(), close_date assignment, kanban reset, activity updates)."""
-    if not source_text or not source_text.strip():
-        return {}
-    try:
-        tree = ast.parse(textwrap.dedent(source_text))
-    except SyntaxError:
-        return {}
-
-    actions = {
-        "has_recurrence_copy": False,
-        "copy_conditions": [],
-        "has_close_date": False,
-        "has_kanban_reset": False,
-        "has_activity_update": False,
-        "followers_condition": None,
-    }
-
-    class Visitor(ast.NodeVisitor):
-        def __init__(self):
-            self.if_stack = []
-
-        def visit_If(self, node):
-            try:
-                cond = ast.unparse(node.test)
-            except Exception:
-                cond = ""
-            self.if_stack.append(cond)
-            self.generic_visit(node)
-            self.if_stack.pop()
-
-        def visit_Call(self, node):
-            if isinstance(node.func, ast.Attribute):
-                if node.func.attr == "copy":
-                    actions["has_recurrence_copy"] = True
-                    actions["copy_conditions"].extend(self.if_stack)
-                elif node.func.attr in ("activity_feedback", "activity_update"):
-                    actions["has_activity_update"] = True
-                elif node.func.attr == "_add_followers":
-                    actions["followers_condition"] = list(self.if_stack)
-                elif node.func.attr == "write":
-                    for arg in node.args:
-                        if "close_date" in ast.unparse(arg):
-                            actions["has_close_date"] = True
-            self.generic_visit(node)
-
-        def visit_Assign(self, node):
-            assign_str = ast.unparse(node)
-            if "kanban_state" in assign_str:
-                actions["has_kanban_reset"] = True
-            elif "close_date" in assign_str:
-                actions["has_close_date"] = True
-            self.generic_visit(node)
-
-    Visitor().visit(tree)
-    return actions
-
-
-def format_stage_workflow_note(model_name: str, actions: dict) -> str:
-    """Format a deterministic factual block describing stage-driven workflow actions in write()."""
-    if not actions.get("has_recurrence_copy") and not actions.get("has_close_date"):
-        return ""
-
-    header = "[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]"
-    lines = [
-        header,
-        f"Pour le modèle '{model_name}', le passage à une étape terminée (stage_id où done=True) déclenche automatiquement dans write() :",
-    ]
-
-    if actions.get("has_recurrence_copy"):
-        lines.append(
-            "1. Condition de duplication / récurrence : une nouvelle demande est créée par duplication (copy()) "
-            "uniquement si la maintenance est préventive et récurrente, ET si repeat_type == 'forever' ou que la "
-            "nouvelle date calculée reste inférieure ou égale à la date limite repeat_until (schedule_date <= repeat_until)."
-        )
-        lines.append(
-            "2. Paramètres de la nouvelle occurrence : calcul de la nouvelle date (schedule_date actuelle/existante + "
-            "repeat_interval en repeat_unit) et réinsertion à l'étape par défaut (_default_stage)."
-        )
-
-    effects = []
-    if actions.get("has_close_date"):
-        effects.append("enregistrement de la date de fin (close_date = today)")
-    if actions.get("has_kanban_reset"):
-        effects.append("réinitialisation de kanban_state à 'normal'")
-    if actions.get("has_activity_update"):
-        effects.append("mise à jour et replanification des activités (activity_feedback et activity_update)")
-
-    if effects:
-        lines.append(f"3. Mise à jour de la demande terminée : {', '.join(effects)}.")
-
-    lines.append(
-        "(Note importante : le passage à 'done' n'ajoute ni ne notifie aucun follower ; "
-        "_add_followers n'intervient que si le créateur ou le technicien change.)"
-    )
-    return "\n".join(lines)

@@ -176,11 +176,8 @@ GRAPH_JSON_PATH = Path(GRAPH_CACHE_PATH)
 
 _GRAPH_BUILD_LOCK = threading.Lock()
 
-# Native core modules always considered for preload into the production
-# graph -- Bloc N1 validation perimeter (todo/contexte.txt sections
-# 747-748, 753): purchase, sale, account, stock, maintenance. Filtered
-# against the target instance's real installed state by
-# _discover_installed_core_modules() before use (section 752).
+# Native core modules considered for preload into the production graph, filtered against
+# the target instance's real installed state by _discover_installed_core_modules().
 CORE_MODULE_CANDIDATES = ["account", "sale", "stock", "purchase", "maintenance"]
 
 
@@ -442,7 +439,6 @@ def _get_code_intelligence_graph(
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
         GRAPH_TRANSLATION_LANGUAGES,
-        OCA_SAMPLE_ADDONS_PATH,
         ODOO_CONF_PATH,
     )
 
@@ -620,44 +616,9 @@ def _get_code_intelligence_graph(
         else discover_odoo_modules(custom_addons_root)
     )
 
-    # 4. Load OCA Sample Modules (Bloc P3.1)
-    OCA_SAMPLE_MODULE_REPOS = {
-        "purchase_request": "purchase-workflow",
-        "animal": "partner-contact-management",
-        "base_tier_validation": "server-ux",
-        "stock_inventory": "stock-logistics-warehouse",
-        "sale_order_type": "sale-workflow",
-        "account_invoice_section_sale_order": "account-invoicing",
-        "database_cleanup": "server-tools",
-        "stock_archive_constraint": "stock-logistics-warehouse",
-        "auditlog": "server-tools",
-        "kpi": "reporting-engine",
-    }
-    oca_modules_loaded = []
-    if OCA_SAMPLE_ADDONS_PATH and installed_modules is None:
-        oca_sample_root = Path(OCA_SAMPLE_ADDONS_PATH)
-        if oca_sample_root.exists():
-            for mod_name, repo_name in OCA_SAMPLE_MODULE_REPOS.items():
-                if installed_modules is not None and mod_name not in _installed_module_names(installed_modules):
-                    continue
-                mod_dir = oca_sample_root / repo_name / mod_name
-                if not mod_dir.is_dir() or not (mod_dir / "__manifest__.py").exists():
-                    logger.warning("OCA sample module '%s' not found under %s -- skipping.", mod_name, mod_dir)
-                    continue
-                try:
-                    name, mod = _load_module(mod_dir, requested_languages)
-                    modules_dict[name] = mod
-                    oca_modules_loaded.append(name)
-                except Exception as e:
-                    logger.error("Failed to load OCA sample module '%s': %s", mod_name, e)
-            logger.info(
-                "Loaded %d/%d OCA sample modules from %s (Bloc P3.1).",
-                len(oca_modules_loaded), len(OCA_SAMPLE_MODULE_REPOS), oca_sample_root,
-            )
-
-    # 5. Load Direct Dependencies
+    # 3. Load Direct Dependencies
     direct_deps = set()
-    for mod_name in custom_modules + oca_modules_loaded:
+    for mod_name in custom_modules:
         dep_mod = modules_dict.get(mod_name)
         if dep_mod and dep_mod.manifest:
             direct_deps.update(dep_mod.manifest.depends)
@@ -696,7 +657,7 @@ def _get_code_intelligence_graph(
         except Exception as e:
             logger.error("Failed to load direct dependency '%s': %s", dep_name, e)
 
-    # 6. Build and Cache Graph
+    # 4. Build and Cache Graph
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
@@ -720,8 +681,6 @@ def _get_code_intelligence_graph(
         if mod and mod.manifest
     }
     source_paths = list(addon_roots)
-    if oca_modules_loaded:
-        source_paths.append(Path(OCA_SAMPLE_ADDONS_PATH))
     fingerprint = build_instance_fingerprint(
         installed_modules=installed_modules,
         addon_paths=source_paths,

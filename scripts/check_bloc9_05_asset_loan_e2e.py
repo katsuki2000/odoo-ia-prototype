@@ -24,7 +24,7 @@ disk, not from real / text):
     which this script's raw check treats as a POSITIVE assertion (a
     legitimate rule with nothing to gate), not a missing-extraction gap.
   - The trap: the condition is guarded by `rec.demande_achat_liee_id and
-    ...` (Rule 3 from todo/rules.md, correctly applied here -- no
+    ...` (guard on the relational field, correctly applied here -- no
     unguarded relational-field access). If NO purchase request is linked
     at all, the whole condition short-circuits to False and
     `action_demarrer` proceeds unconditionally regardless of the
@@ -36,7 +36,7 @@ disk, not from real / text):
     regardless of amount".
   - `custom_asset_loan` depends only on `custom_purchase_request`
     (`__manifest__.py`), itself already a `custom_*`-prefixed module the
-    graph loads directly (not the J36 real-core-Odoo-dependency gap,
+    graph loads directly (not the real-core-Odoo-dependency gap,
     which only concerned non-`custom_*` deps like `hr_expense`/
     `hr_holidays`) -- no generalization gap expected on that front here,
     unlike modules 3/8 and (implicitly) 5/8 being the second and third
@@ -225,7 +225,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale,  section 78). Generalized to all 8
+    the full rationale). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")

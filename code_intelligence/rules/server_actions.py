@@ -203,15 +203,6 @@ __all__ = [
 
 # ── Server Actions Analysis ──────────────────────────────────────────────
 
-"""
-code_intelligence/knowledge_rules/server_actions.py
-
-Static analysis of ir.actions.server 'code' fields (ex-paquet server_actions/,
-regle logique -- reduction du nombre de sous-paquets de knowledge_rules/,
-todo/contexte.txt). L'evidence-building/LLM-interpretation companion vit dans
-"""
-
-
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional

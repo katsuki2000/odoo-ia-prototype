@@ -1,36 +1,10 @@
-import xmlrpc.client
-import sys
-import logging
+from full_setup import DB, get_connection
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-URL = "http://localhost:8069"
-DB = "odoo-dev"
-USERNAME = "admin"
-
-def get_connection():
-    common = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/common")
-    uid = None
-    password = None
-    for pwd in ["admin", "odoo"]:
-        try:
-            uid = common.authenticate(DB, USERNAME, pwd, {})
-            if uid:
-                password = pwd
-                break
-        except Exception:
-            continue
-    if not uid:
-        print("Error: Failed to authenticate with Odoo server.")
-        sys.exit(1)
-    models = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/object")
-    return uid, password, models
 
 if __name__ == "__main__":
     print("Connecting to Odoo...")
     uid, pwd, models = get_connection()
-    print("Connected successfully as admin.")
+    print("Connected.")
 
     print("Cleaning up ALL transactions (including Demo data)...")
     

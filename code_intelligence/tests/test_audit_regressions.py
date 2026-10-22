@@ -110,7 +110,6 @@ def test_source_reader_rejects_files_outside_addon_roots(tmp_path, monkeypatch):
     outside_file.write_text("secret = True\n", encoding="utf-8")
     monkeypatch.setattr(settings, "CORE_ADDONS_PATH", str(addon_root))
     monkeypatch.setattr(settings, "CUSTOM_ADDONS_PATH", None)
-    monkeypatch.setattr(settings, "OCA_SAMPLE_ADDONS_PATH", None)
 
     result = read_precise_source_code(str(outside_file), 1, 1)
 

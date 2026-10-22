@@ -185,7 +185,7 @@ class OdooRpcClient:
         never guess or fabricate one. Raw numeric IDs are machine-specific
         (res_id depends on this instance's module install order); resolving
         by xml_id at request time instead is what keeps tests portable
-        across machines (todo/rules.md).
+        across machines.
         """
         if not xmlids:
             return {}

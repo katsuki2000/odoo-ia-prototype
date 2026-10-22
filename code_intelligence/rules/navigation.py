@@ -187,7 +187,7 @@ class NavigationPathResult:
     menu_breadcrumb: List[str] = field(default_factory=list)
     menu_xml_id: str = ""
     menu_groups: List[str] = field(default_factory=list)
-    # Section 1199: (menu xml_id, groups) for every menu of the CHILD_OF chain
+    # (menu xml_id, groups) for every menu of the CHILD_OF chain
     # that carries groups. Odoo needs one group of EACH entry (OR inside a
     # menu, AND between menus).
     menu_group_requirements: List[Any] = field(default_factory=list)
@@ -217,7 +217,7 @@ def _menu_breadcrumb(G: nx.DiGraph, menu_node_id: str) -> List[str]:
 
 
 def _menu_chain_group_requirements(G: nx.DiGraph, menu_node_id: str):
-    """Section 1199: walk CHILD_OF edges leaf -> root and return
+    """walk CHILD_OF edges leaf -> root and return
     ([(menu xml_id, sorted groups)] for menus carrying groups, chain length)."""
     requirements = []
     seen = set()
@@ -286,8 +286,8 @@ def describe_navigation_path(
     user_groups: Optional[List[str]] = None,
 ) -> NavigationPathResult:
     """
-    Answers the statically-derivable subset of "comment faire pour X"
-    (Bloc 17, Etage 1): which menu opens the model, and -- when a
+    Answers the statically-derivable subset of "comment faire pour X":
+    which menu opens the model, and -- when a
     button/action label is supplied -- which button triggers it, calling
     which method, under which group/visibility conditions (delegates to
     button_execution_path for that part, DRY with the existing tool).
@@ -295,7 +295,7 @@ def describe_navigation_path(
     Three possible outcomes, never fabricated:
       - QueryStatus.NOT_FOUND: the model itself is not in the graph.
       - QueryStatus.EMPTY: the model exists but no ir.ui.menu opens it
-        (the "aucun chemin UI" verdict from todo/bloc17_jour1_perimetre.md --
+        (the "aucun chemin UI" verdict --
         a real and expected outcome for backend-only/fixture modules, not
         a failure to be papered over with an invented menu).
       - QueryStatus.FOUND: a real navigation path, sourced with file link
@@ -444,7 +444,7 @@ def describe_navigation_path(
     if button_result:
         combined_required_groups.update(button_result.required_groups)
 
-    # Section 1199: one group of EACH restricted menu of the chain, AND one
+    # one group of EACH restricted menu of the chain, AND one
     # group of the button when it has any (previously a single OR over the union).
     requirement_sets = [list(groups) for _, groups in menu_requirements]
     if button_result and button_result.required_groups:

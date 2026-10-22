@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
@@ -39,27 +37,6 @@ def _language_matches(candidate_language: object, language: Optional[str]) -> bo
     candidate_base = _language_base(str(candidate_language or ""))
     language_base = _language_base(language)
     return not candidate_base or candidate_base == language_base
-
-
-_STOPWORDS = frozenset({
-    # French
-    "comment", "faire", "une", "un", "le", "la", "les", "de", "des", "du",
-    "et", "ou", "pour", "dans", "sur", "avec", "mon", "ma", "mes", "je",
-    "on", "ce", "cet", "cette", "qui", "que", "quoi", "est", "sont", "au",
-    "aux", "par", "pas", "plus", "les",
-    # English
-    "how", "do", "does", "did", "the", "a", "an", "to", "for", "of", "and",
-    "or", "in", "on", "my", "is", "are", "be", "with", "from", "what", "where",
-})
-
-
-def tokenize(text: str, *, drop_stopwords: bool = False) -> list[str]:
-    normalized = unicodedata.normalize("NFKD", text.casefold())
-    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
-    tokens = [token for token in re.findall(r"[^\W_]+", normalized, flags=re.UNICODE) if len(token) > 1]
-    if drop_stopwords:
-        tokens = [token for token in tokens if token not in _STOPWORDS]
-    return tokens
 
 
 def _labels(data: dict, language: Optional[str]) -> list[str]:

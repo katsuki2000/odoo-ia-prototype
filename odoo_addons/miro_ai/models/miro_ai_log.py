@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-miro_ai_log.py
-==============
-Modèle de journal d'audit et d'historique des requêtes MIRO AI .
-Enregistre chaque question posée, la réponse générée par le RAG, les sources citées,
-le temps de réponse et l'utilisateur à l'origine de la requête pour traçabilité et débogage.
-"""
+"""Audit log and history of the MIRO AI requests: question, answer, sources, response time, requester."""
 import json
 import logging
 from odoo import models, fields, api
@@ -15,66 +9,66 @@ _logger = logging.getLogger(__name__)
 
 class MiroAiLog(models.Model):
     _name = 'miro.ai.log'
-    _description = 'MIRO AI - Journal d\'audit des requêtes RAG'
+    _description = 'MIRO AI - RAG Request Audit Log'
     _order = 'create_date desc, id desc'
     _rec_name = 'question'
 
     question = fields.Text(
-        string='Question posée',
+        string='Question asked',
         required=True,
         readonly=True,
-        help='Texte brut de la question envoyée par l\'utilisateur au RAG.'
+        help='Raw text of the question the user sent to the RAG.'
     )
     answer = fields.Text(
-        string='Réponse générée',
+        string='Generated answer',
         readonly=True,
-        help='Réponse en Markdown renvoyée par le RAG (convertie en HTML côté frontend par formatMarkdown).'
+        help='Markdown answer returned by the assistant.'
     )
     user_id = fields.Many2one(
         'res.users',
-        string='Utilisateur',
+        string='User',
         default=lambda self: self.env.user,
         required=True,
         readonly=True
     )
     company_id = fields.Many2one(
         'res.company',
-        string='Société',
+        string='Company',
         default=lambda self: self.env.company,
         required=True,
         readonly=True
     )
     session_id = fields.Char(
-        string='ID de Session',
+        string='Session ID',
         readonly=True,
         index=True,
-        help='Identifiant unique de la session de discussion RAG.'
+        help='Unique identifier of the RAG discussion session.'
     )
     response_time_ms = fields.Integer(
-        string='Temps de réponse (ms)',
+        string='Response time (ms)',
         readonly=True,
-        help='Durée d\'interrogation du backend FastAPI RAG en millisecondes.'
+        help='Time taken to query the FastAPI RAG backend, in milliseconds.'
     )
     sources_text = fields.Text(
-        string='Sources (JSON brut)',
+        string='Sources (raw JSON)',
         readonly=True,
-        help='Liste brute des documents ou extraits ORM cités.'
+        help='Raw list of the cited documents or ORM excerpts.'
     )
     sources_count = fields.Integer(
-        string='Nb Sources',
+        string='Sources count',
         compute='_compute_sources_count',
         store=True,
-        help='Nombre de sources documentaires/code citées par la réponse.'
+        help='Number of documentary/code sources cited by the answer.'
     )
     metadata_text = fields.Text(
-        string='Métadonnées (JSON brut)',
+        string='Metadata (raw JSON)',
         readonly=True,
-        help="Route, confiance, statut de preuve, plan d'investigation et élements masqués, sérialisés en JSON."
+        help="Route, confidence, evidence status, investigation plan and omitted items, serialized as JSON."
     )
     state = fields.Selection([
-        ('success', 'Succès'),
-        ('error', 'Erreur')
-    ], string='Statut', default='success', readonly=True, index=True)
+        ('success', 'Success'),
+        ('error', 'Error')
+    ], string='Status', default='success', readonly=True, index=True)
 
     @api.depends('sources_text')
     def _compute_sources_count(self):
@@ -86,10 +80,10 @@ class MiroAiLog(models.Model):
                     if isinstance(data, list):
                         count = len(data)
                     else:
-                        _logger.warning("miro.ai.log: sources_text pour l'ID %s n'est pas une liste JSON", rec.id)
+                        _logger.warning("miro.ai.log: sources_text of id %s is not a JSON list", rec.id)
                         count = 0
                 except Exception as e:
-                    _logger.warning("miro.ai.log: échec du décodage JSON de sources_text pour l'ID %s: %s", rec.id, e)
+                    _logger.warning("miro.ai.log: JSON decoding of sources_text failed for id %s: %s", rec.id, e)
                     count = 0
             else:
                 count = 0
@@ -97,10 +91,7 @@ class MiroAiLog(models.Model):
 
     @api.model
     def log_query(self, question, answer, session_id, response_time_ms, sources, state='success', metadata=None):
-        """
-        Méthode utilitaire appelée par le contrôleur main.py pour enregistrer une requête.
-        Exécutée avec sudo() pour garantir la traçabilité même si l'utilisateur n'a pas les droits d'écriture sur les logs.
-        """
+        """Record one request. Elevated so the audit trail is kept even without write access to the log."""
         sources_str = json.dumps(sources, ensure_ascii=False) if isinstance(sources, (list, dict)) else str(sources or '')
         metadata_str = json.dumps(metadata, ensure_ascii=False) if isinstance(metadata, dict) else ''
         return self.sudo().create({
@@ -118,11 +109,9 @@ class MiroAiLog(models.Model):
     @api.model
     def get_sessions(self, limit=30, scan_limit=1000):
         """
-        Liste les sessions de conversation les plus récentes visibles par
-        l'utilisateur courant. Non-sudo : le ir.rule existant
-        (rule_miro_ai_log_user) filtre déjà sur l'utilisateur, la sécurité
-        est donc héritée par construction plutôt que revalidée ici.
-        Évite le piège N+1 en calculant les comptages de messages via read_group.
+        List the most recent conversations visible to the current user. Not elevated: the
+        rule_miro_ai_log_user record rule already filters on the user. Message counts come
+        from a single read_group to avoid N+1 queries.
         """
         logs = self.search([], order='create_date desc', limit=scan_limit)
         sessions = []
@@ -155,7 +144,7 @@ class MiroAiLog(models.Model):
                     if g.get('session_id')
                 }
             except Exception as e:
-                _logger.warning("miro.ai.log: échec du calcul groupé des sessions: %s", e)
+                _logger.warning("miro.ai.log: grouped session count failed: %s", e)
                 counts = {}
             for s in sessions:
                 s['message_count'] = counts.get(s['session_id'], 0)
@@ -164,11 +153,7 @@ class MiroAiLog(models.Model):
 
     @api.model
     def get_session_history(self, session_id):
-        """
-        Reconstitue l'historique complet d'une session sous forme de liste
-        ordonnée de tours question/réponse. Non-sudo, même raisonnement de
-        sécurité héritée que get_sessions().
-        """
+        """Rebuild the full history of a session as an ordered list of question/answer turns (not elevated, like get_sessions)."""
         if not session_id:
             return []
         logs = self.search([('session_id', '=', session_id)], order='create_date asc')
@@ -179,7 +164,7 @@ class MiroAiLog(models.Model):
                 try:
                     metadata = json.loads(log.metadata_text)
                 except Exception as e:
-                    _logger.warning("miro.ai.log: échec parsing metadata_text (id=%s): %s", log.id, e)
+                    _logger.warning("miro.ai.log: metadata_text parsing failed (id=%s): %s", log.id, e)
                     metadata = {}
             else:
                 metadata = {}
@@ -189,7 +174,7 @@ class MiroAiLog(models.Model):
                 try:
                     sources = json.loads(log.sources_text)
                 except Exception as e:
-                    _logger.warning("miro.ai.log: échec parsing sources_text (id=%s): %s", log.id, e)
+                    _logger.warning("miro.ai.log: sources_text parsing failed (id=%s): %s", log.id, e)
                     sources = []
             else:
                 sources = []

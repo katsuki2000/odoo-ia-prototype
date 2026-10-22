@@ -1,31 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Menu Principal MIRO AI -->
+    <!-- MIRO AI main menu -->
     <menuitem id="menu_miro_ai_root"
               name="MIRO Assistant"
               sequence="50"
               web_icon="miro_ai,static/description/icon.png"
               groups="base.group_user"/>
 
-    <!-- Sous-menu Journal des requêtes IA -->
+    <!-- AI request log sub-menu -->
     <menuitem id="menu_miro_ai_log"
-              name="Journal des requêtes"
+              name="Request Log"
               parent="menu_miro_ai_root"
               action="action_miro_ai_log"
               sequence="20"
               groups="base.group_user"/>
 
 
-    <!-- Sous-menu Configuration -->
+    <!-- Configuration sub-menu -->
     <menuitem id="menu_miro_ai_config"
               name="Configuration"
               parent="menu_miro_ai_root"
               sequence="100"
               groups="base.group_system,miro_ai.group_miro_ai_admin"/>
 
-    <!-- Option Paramètres sous Configuration -->
+    <!-- Settings entry under Configuration -->
     <menuitem id="menu_miro_ai_settings_action"
-              name="Paramètres"
+              name="Settings"
               parent="menu_miro_ai_config"
               action="action_miro_ai_settings"
               sequence="10"/>

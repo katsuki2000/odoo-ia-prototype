@@ -35,8 +35,6 @@ LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollamaUrl)
 LLM_MODEL = _target_setting('LLM_MODEL', OLLAMA_MODEL)
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
 LLM_NO_THINK_MARKER = os.getenv('LLM_NO_THINK_MARKER', '/no_think' if LLM_MODEL.lower().startswith('qwen3') else '')
-DEFAULT_EMBEDDING_BACKEND = 'local_server'
-EMBEDDING_BACKEND = os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND).lower()
 EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollamaUrl)
 EMBEDDING_MODEL = _target_setting('EMBEDDING_MODEL', 'bge-m3:latest')
 EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
@@ -70,7 +68,6 @@ _ADDON_PATHS = resolve_addon_paths(_conf_for_addon_paths, os.environ, _default_o
 CORE_ADDONS_PATH = _ADDON_PATHS.core
 CUSTOM_ADDONS_PATH = _ADDON_PATHS.custom[0]
 CUSTOM_ADDONS_PATHS = _ADDON_PATHS.custom
-OCA_SAMPLE_ADDONS_PATH = os.getenv('OCA_SAMPLE_ADDONS_PATH') or None
 logging.getLogger(__name__).info(
     'Addon paths (source): core=%s (%s), framework=%s (%s), custom=%s (%s)',
     _ADDON_PATHS.core, _ADDON_PATHS.sources['CORE_ADDONS_PATH'],
@@ -90,6 +87,7 @@ logging.getLogger(__name__).info('Odoo connection defaults (source): url=%s (%s)
 EVAL_DB_PREFIX = os.getenv('EVAL_DB_PREFIX', 'eval_')
 EVAL_INSTANCE_ADMIN_PASSWORD = os.getenv('EVAL_INSTANCE_ADMIN_PASSWORD', 'admin')
 EVAL_INSTANCES_DIR = os.getenv('EVAL_INSTANCES_DIR') or str(_ROOT / 'captures' / 'eval_instances')
+EVAL_OCA_ADDONS_PATH = os.getenv('EVAL_OCA_ADDONS_PATH') or None
 GRAPH_CACHE_PATH = os.getenv('GRAPH_CACHE_PATH') or str(_ROOT / 'active_graph.json')
 GRAPH_TRANSLATION_LANGUAGES = tuple(code.strip() for code in os.getenv('GRAPH_TRANSLATION_LANGUAGES', 'en_US,fr_FR').split(',') if code.strip())
 SEMANTIC_INDEX_CACHE_DIR = os.getenv('SEMANTIC_INDEX_CACHE_DIR') or str(_ROOT / 'active_semantic_index')
@@ -97,7 +95,6 @@ RAG_DOCS_PATH = os.getenv('RAG_DOCS_PATH') or str(_ROOT / 'document_rag' / 'docu
 DOCUMENT_MAX_TOKENS = int(os.getenv('DOCUMENT_MAX_TOKENS', '2048'))
 CORE_FRAMEWORK_ADDONS_PATH = _ADDON_PATHS.framework
 SOURCE_LINK_ROOTS = tuple(str(path) for path in (CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, *CUSTOM_ADDONS_PATHS) if path)
-USE_RERANKER = os.getenv('USE_RERANKER', 'false').lower() in ('true', '1', 'yes')
 VECTOR_SIMILARITY_FLOOR = float(os.getenv('VECTOR_SIMILARITY_FLOOR', '0.20'))
 API_HOST = os.getenv('API_HOST', '127.0.0.1')
 

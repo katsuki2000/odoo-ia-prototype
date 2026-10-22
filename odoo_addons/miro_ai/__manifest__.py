@@ -3,15 +3,15 @@
     'name': 'MIRO AI Assistant',
     'version': '17.0.1.0.0',
     'category': 'Productivity/AI',
-    'summary': 'Assistant IA Intelligent pour Odoo (RAG + ORM)',
+    'summary': 'Intelligent AI Assistant for Odoo (RAG + ORM)',
     'description': """
-MIRO AI Assistant - Intégration RAG et LangChain pour Odoo 17
-=============================================================
+MIRO AI Assistant - RAG and LangChain integration for Odoo 17
+==============================================================
 
-Fonctionnalités :
-- Paramétrage de la connexion API vers FastAPI / ChromaDB
-- Activation du périmètre d'action (Ventes, Stocks, Comptabilité, Tickets)
-- Interface de chat et journal d'audit des requêtes
+Features:
+- API connection settings towards FastAPI / ChromaDB
+- Activation of the skill scope (Sales, Stock, Accounting, Tickets)
+- Chat interface and request audit log
     """,
     'author': 'MIRO Team',
     'website': 'https://github.com/katsuki2000/odoo-ia-prototype',
@@ -27,6 +27,7 @@ Fonctionnalités :
     'assets': {
         'web.assets_backend': [
             'miro_ai/static/src/css/miro_ai.css',
+            'miro_ai/static/src/js/miro_ai_labels.js',
             'miro_ai/static/src/js/miro_ai.js',
             'miro_ai/static/src/xml/miro_ai_assistant.xml',
         ],

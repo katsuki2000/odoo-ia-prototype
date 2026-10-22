@@ -325,14 +325,14 @@ def evaluate_record_rules(
             "l'ensemble de groupes precis evalue ici."
         )
 
-    # Section 950 (todo/contexte.txt section 948, point 1): these 4 blocks
+    # these 4 blocks
     # used to be flat-joined and left to the generic, position-blind
     # head-truncation in context.py::_truncate_observation, which -- once
     # a verbose "ignorées" block (the LEAST essential one, listing rules
     # that do not even apply to the requester) pushes past the cap --
     # drops it AND every block after it, including the CONCLUSION and the
     # actually-applicable group rules whenever they happen to be assembled
-    # last in a long turn (cumulative budget squeeze, section 947 point 1).
+    # last in a long turn.
     # assemble_relevance_ranked_blocks keeps the original block order in
     # the output but decides survival by relevance to the question,
     # protecting the applicable-rules/conclusion blocks -- a no-op when

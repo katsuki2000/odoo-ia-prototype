@@ -1,7 +1,7 @@
 """
 core/graph/__init__.py
 
-Regroupement (todo/contexte.txt Section 649-653) : graph_nodes.py, graph_compat.py, graph.py.
+Regroupement : graph_nodes.py, graph_compat.py, graph.py.
 """
 
 from .graph_nodes import (

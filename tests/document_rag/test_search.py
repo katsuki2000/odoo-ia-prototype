@@ -25,7 +25,6 @@ sys.path.insert(0, os.path.join(project_root, "document_rag"))
 from document_rag.vectorstore.search import (
     BM25Index,
     _tokenize,
-    cross_encoder_rerank,
     hybrid_search,
     reciprocal_rank_fusion,
     retrieve,
@@ -321,38 +320,6 @@ class TestHybridSearch(unittest.TestCase):
         self.assertGreaterEqual(len(results_low), len(results_high))
 
 
-class TestCrossEncoderRerank(unittest.TestCase):
-    """Test cross-encoder re-ranking."""
-
-    def test_rerank_reorders_results(self):
-        results = [
-            {"id": "a", "document": "Le chat est un animal domestique", "metadata": {}, "score": 0.9},
-            {"id": "b", "document": "Comment créer une facture dans Odoo", "metadata": {}, "score": 0.8},
-            {"id": "c", "document": "La gestion des stocks", "metadata": {}, "score": 0.7},
-        ]
-
-        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
-            get_encoder.return_value.predict.return_value = [0.1, 0.9, 0.2]
-            reranked = cross_encoder_rerank("facture Odoo comptabilité", results, top_k=2)
-
-        self.assertEqual(len(reranked), 2)
-        # The invoice-related doc should rank higher after re-ranking
-        self.assertIn("cross_encoder_score", reranked[0])
-        self.assertEqual(reranked[0]["id"], "b")
-
-    def test_rerank_empty(self):
-        self.assertEqual(cross_encoder_rerank("test", [], top_k=5), [])
-
-    def test_rerank_single(self):
-        results = [
-            {"id": "a", "document": "test document", "metadata": {}, "score": 1.0},
-        ]
-        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
-            get_encoder.return_value.predict.return_value = [0.8]
-            reranked = cross_encoder_rerank("test", results, top_k=5)
-        self.assertEqual(len(reranked), 1)
-
-
 @pytest.mark.embedding_server
 class TestRetrievePipeline(unittest.TestCase):
     """Test the full retrieve() pipeline end-to-end."""
@@ -387,35 +354,21 @@ class TestRetrievePipeline(unittest.TestCase):
         self.chroma.add_chunks(texts, metadatas)
 
     def test_full_pipeline(self):
-        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
-            get_encoder.return_value.predict.return_value = [
-                1.0,
-                0.9,
-                0.8,
-                0.7,
-                0.6,
-                0.5,
-                0.4,
-                0.3,
-            ]
-            results = retrieve(
-                "Comment créer une facture ?",
-                top_k=3,
-                chroma_manager=self.chroma,
-                use_reranker=True,
-            )
+        results = retrieve(
+            "Comment créer une facture ?",
+            top_k=3,
+            chroma_manager=self.chroma,
+        )
         self.assertTrue(len(results) > 0)
         self.assertLessEqual(len(results), 3)
 
-    def test_pipeline_without_reranker(self):
+    def test_pipeline_returns_rrf_scores(self):
         results = retrieve(
             "gestion stock",
             top_k=3,
             chroma_manager=self.chroma,
-            use_reranker=False,
         )
         self.assertTrue(len(results) > 0)
-        # Without reranker, results should have rrf_score
         self.assertIn("rrf_score", results[0])
 
     def test_pipeline_code_query(self):
@@ -423,7 +376,6 @@ class TestRetrievePipeline(unittest.TestCase):
             "AccountMove action_post",
             top_k=3,
             chroma_manager=self.chroma,
-            use_reranker=False,
         )
         self.assertTrue(len(results) > 0)
 
@@ -432,7 +384,6 @@ class TestRetrievePipeline(unittest.TestCase):
             "quantum physics black hole",
             top_k=3,
             chroma_manager=self.chroma,
-            use_reranker=False,
             relevance_threshold=0.8,
         )
         # Should have few or no results for totally irrelevant query

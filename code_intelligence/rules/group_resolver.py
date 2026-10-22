@@ -272,7 +272,7 @@ def _expand_inheriting_acl_groups(
     acl_group automatically inherits that ACL permission. Reached by walking
     INCOMING IMPLIES edges to acl_group.
 
-    Section 848: also returns `inherited_via` -- a {higher_group: root_acl_group}
+    Also returns `inherited_via` -- a {higher_group: root_acl_group}
     map recording, for every group added ONLY because it implies acl_group
     (not because it has the ACL itself), which group actually holds the direct
     ACL. Without this, a flat `allowed_groups` set cannot distinguish "has the

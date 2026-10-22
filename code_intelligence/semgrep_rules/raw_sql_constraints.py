@@ -1,5 +1,5 @@
-# le parseur de tests scanne tous les commentaires du fichier et
-# confond une explication en prose avec une vraie annotation.
+# the test parser scans every comment in the file and
+# mistakes a prose explanation for a real annotation.
 
 from odoo import models
 from odoo.tools.sql import create_unique_index, create_index, index_exists
@@ -8,9 +8,8 @@ from odoo.tools.sql import create_unique_index, create_index, index_exists
 class AccountMoveLikeUnique(models.Model):
     _inherit = 'account.move'
 
-    # Cas reel qui a motive la regle (account.move : todo/contexte.txt
-    # section 811/812) -- index unique cree par execute() brut, jamais
-    # visible via _sql_constraints ni @api.constrains.
+    # Unique index created by raw execute(), never visible via _sql_constraints
+    # nor @api.constrains.
     def _auto_init(self):
         super()._auto_init()
         # ruleid: odoo-raw-sql-unique-index
@@ -39,8 +38,8 @@ class UnrelatedExecuteCall(models.Model):
 
     def action_confirm_custom(self):
         # ok: odoo-raw-sql-unique-index
-        # .execute() sans rapport avec du SQL -- l'argument n'est pas une
-        # chaine contenant "CREATE UNIQUE INDEX", ne doit PAS matcher.
+        # .execute() unrelated to SQL -- the argument is not a
+        # string containing "CREATE UNIQUE INDEX", must NOT match.
         wizard = self.env['some.wizard'].create({})
         return wizard.execute(self)
 

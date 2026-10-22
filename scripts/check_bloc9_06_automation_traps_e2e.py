@@ -189,7 +189,7 @@ def check_e2e_full_pipeline(account_manager_group_id):
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale,  section 78). Generalized to all 8
+    the full rationale). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")

@@ -6,8 +6,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from code_intelligence.agent.text_normalization import strip_accents
+from code_intelligence.agent.tools.helpers import _is_custom_module_filepath
 
 _SUPPORTED_SUFFIXES = {'.py', '.xml', '.js', '.csv', '.sql', '.po', '.html', '.scss', '.css'}
+_STOPWORDS = frozenset({
+    'des', 'les', 'dans', 'par', 'pour', 'avec', 'sur', 'une', 'que', 'qui',
+    'est', 'son', 'ses', 'aux', 'the', 'and', 'for', 'with', 'from', 'this',
+    'that', 'are', 'was',
+})
 
 
 @dataclass(frozen=True)
@@ -86,7 +92,9 @@ def confined_source_path(filepath, roots):
     return path
 
 
-def search_source_fragments(graph, roots, query, *, model='', module='', limit=8, limits=None):
+def search_source_fragments(
+    graph, roots, query, *, model='', module='', limit=8, limits=None, candidate_models=None,
+):
     if limit < 1:
         raise ValueError('limit must be positive.')
     limits = limits or SearchLimits()
@@ -113,10 +121,37 @@ def search_source_fragments(graph, roots, query, *, model='', module='', limit=8
         result['complete_scan'] = False
         return result
 
+    targetTerms = {term for term in queryTerms if term not in _STOPWORDS} or queryTerms
+    pattern = re.compile(
+        rf"(?<![a-zA-Z0-9])(?:{'|'.join(re.escape(t) for t in targetTerms)})(?![a-zA-Z0-9])"
+    )
+
     resolvedRoots = [Path(root).resolve() for root in roots if root]
     inventory = _source_inventory(graph)
     totalBytes = 0
-    for filepath, context in sorted(inventory.items()):
+    candidateSet = set(candidate_models or ())
+
+    def fileSortKey(item):
+        filePath, ctx = item
+        isCustom = _is_custom_module_filepath(filePath)
+        matchesCandidate = bool(candidateSet & (ctx['models'] | ctx['context_models']))
+        matchesModule = any(term in m.lower() for m in ctx['modules'] for term in targetTerms)
+        matchesFilename = any(term in Path(filePath).name.lower() for term in targetTerms)
+        if matchesCandidate and isCustom:
+            rank = 0
+        elif matchesCandidate:
+            rank = 1
+        elif (matchesModule or matchesFilename) and isCustom:
+            rank = 2
+        elif matchesModule or matchesFilename:
+            rank = 3
+        elif isCustom:
+            rank = 4
+        else:
+            rank = 5
+        return (rank, filePath)
+
+    for filepath, context in sorted(inventory.items(), key=fileSortKey):
         if model and model not in context['models'] | context['context_models']:
             continue
         if module and module not in context['modules']:
@@ -150,7 +185,7 @@ def search_source_fragments(graph, roots, query, *, model='', module='', limit=8
         normalizedLines = [strip_accents(line.casefold()) for line in text.splitlines()]
         matching = [
             index for index, line in enumerate(normalizedLines)
-            if any(term in line for term in queryTerms)
+            if pattern.search(line)
         ]
         if not matching:
             continue

@@ -4,13 +4,10 @@ tools/run_scalability_test.py
 Scalability test for the document_rag ingestion pipeline. Duplicates the
 document corpus `multiplier` times and measures total incremental-reindex time.
 
-Recalibrated (todo/contexte.txt section 669/670) after 2 permanent, unrelated
-decisions invalidated the original ~2500-chunk/code-duplication design:
-- Section 363: fake_data/ removed, replaced by document_rag/documents/.
-- Section 347-353: RAG scope permanently restricted to documents only, code
-  ingestion removed (SUPPORTED_EXTENSIONS in incremental.py no longer includes
-  .py) -- duplicating Odoo addon code no longer contributes any chunk, so it
-  is no longer duplicated here.
+Calibrated for the documents-only RAG scope: fake_data/ was replaced by
+document_rag/documents/, and code ingestion was removed (SUPPORTED_EXTENSIONS in
+incremental.py no longer includes .py), so duplicating Odoo addon code no longer
+contributes any chunk and is not duplicated here.
 Target: completes in < 6 minutes (< 360 seconds) on CPU.
 """
 

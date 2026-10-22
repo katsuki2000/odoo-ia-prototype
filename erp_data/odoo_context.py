@@ -1,9 +1,6 @@
 """Request-scoped Odoo identity ContextVars.
 
-Shared kernel: zero dependency on odoo_connector.py or _odoo_helpers.py,
-which both need these vars and would otherwise import each other in a
-cycle (odoo_connector needs the per-request api key, _odoo_helpers needs
-OdooConnector).
+Shared kernel with no dependency on odoo_connector.py, which reads these vars.
 """
 
 import contextvars

@@ -184,7 +184,7 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
     allowed_groups: Set[str] = set()
     all_authenticated = False
     active_rules: List[RuleDetail] = []
-    # Section 848: {inheriting_group: direct_acl_group} -- which groups in
+    # {inheriting_group: direct_acl_group} -- which groups in
     # allowed_groups got there only via implied_ids, and which direct ACL
     # they inherited it from. Empty for groups that hold the ACL themselves.
     inherited_via: Dict[str, str] = {}
@@ -240,23 +240,21 @@ def _annotate_inherited(
     inherited_via: Dict[str, str],
     G: Optional[nx.DiGraph] = None,
 ) -> str:
-    """Section 848 / 944: render a sorted group list with display names
+    """Render a sorted group list with display names
     and an inline "(via implied_ids <- X)" annotation on any group present only because
     it implies another group's direct ACL -- see _expand_inheriting_acl_groups.
 
-    Section 948 (todo/contexte.txt): direct (non-via) groups are listed
-    BEFORE via-only groups -- each tier still alphabetically sorted within
-    itself, rather than one single alphabetical interleaving. A group's own
+    Direct (non-via) groups are listed BEFORE via-only groups, each tier alphabetically
+    sorted, rather than one single alphabetical interleaving. A group's own
     direct grant is the single highest-value, non-redundant fact in this
     list; every via-annotated entry is a derivative repetition of ANOTHER
     group's same grant (one widely-implied group, e.g. base.group_user, can
     produce dozens of these). The naive head-truncation this observation is
     later subject to (_truncate_observation, context.py) previously had
     equal odds of cutting BEFORE a direct grant that happened to sort late
-    alphabetically among many via-entries -- confirmed root cause of a real
-    wrong answer on STK-Q1 (section 893: base.group_user's own direct WRITE
-    grant on stock.move.line sat past the old cap, hidden behind other
-    groups' via-annotations). Prioritizing direct grants first protects the
+    alphabetically among many via-entries (a direct WRITE grant of base.group_user on
+    stock.move.line once sat past the cap, hidden behind other groups' via-annotations
+    and produced a wrong answer). Prioritizing direct grants first protects the
     least redundant, highest-information content from being the one
     silently dropped."""
     direct = [g for g in sorted(groups) if not inherited_via.get(g)]
@@ -308,7 +306,7 @@ def who_has_access_to(
                 all_auth = True
             all_evidence.extend(_build_access_evidence(model_name, p, grps, auth, rules, group_id))
 
-            # Section 848 / 944: annotate any group present only via implied_ids
+            # annotate any group present only via implied_ids
             # inheritance, not its own direct ACL, with functional display names.
             grp_str = "All authenticated users" if auth else (_annotate_inherited(list(grps), inherited_via, G) if grps else "None")
             _grp_citations = format_xml_id_citations(sorted(grps)) if (grps and not auth) else ""
@@ -318,15 +316,13 @@ def who_has_access_to(
         header = f"Access Matrix for '{model_name}':"
         from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
         from code_intelligence.agent.tools.helpers import get_current_question
-        # Section 950 (todo/contexte.txt section 948, point 1): the 4
-        # permission blocks used to be flat-joined and left to the
+        # The 4 permission blocks used to be flat-joined and left to the
         # generic, position-blind head-truncation in
         # context.py::_truncate_observation, which drops whichever
         # block(s) sit AFTER wherever the cut lands, in fixed READ/WRITE/
         # CREATE/UNLINK order regardless of which permission the question
-        # actually asks about (confirmed root cause of STK-Q1, section
-        # 894 -- write.access.group_user sat past the old cap and was
-        # silently dropped). assemble_relevance_ranked_blocks keeps every
+        # actually asks about (a WRITE grant sitting past the cap was silently
+        # dropped). assemble_relevance_ranked_blocks keeps every
         # block in that same original order in the OUTPUT, but decides
         # which one(s) survive a cut by relevance to the question instead
         # of pure position -- a no-op when everything already fits.
@@ -364,7 +360,7 @@ def who_has_access_to(
             _display_citation = format_xml_id_citation(display_id)
             dname = get_group_display_name(G, display_id)
             dname_suffix = f" ('{dname}')" if dname else ""
-            # Section 848 / 944: same implied_ids annotation with display names for single-group query.
+            # same implied_ids annotation with display names for single-group query.
             _via = inherited_via.get(display_id) if resolved_group_id else None
             if _via:
                 _via_fmt = _format_group_with_display_name(G, _via)
@@ -403,8 +399,7 @@ def who_has_access_to(
     )
 
 
-# ── Section 955: single-fact synthesis-inversion guard for ACL permission ──
-# verdicts (STK-Q1, todo/contexte.txt sections 952/954). Same family as
+# Single-fact synthesis-inversion guard for ACL permission verdicts. Same family as
 # _correct_can_view_amount_contradictions / _correct_security_lock_
 # threshold_contradictions / _answer_denies_other_overrides: the parsed
 # observation ("Group '...' HAS/DOES NOT HAVE {PERM} access to '{model}'")
@@ -455,7 +450,7 @@ def _access_allow_re(verb_re: str) -> "re.Pattern":
 
 
 _ACCESS_VERB_WORDS = {"READ": "consulter", "WRITE": "modifier", "CREATE": "créer", "UNLINK": "supprimer"}
-# Section 956: a naive "up to the first period" split breaks on the
+# a naive "up to the first period" split breaks on the
 # model's OWN internal period ("stock.quant" -> stops at "stock."). A
 # real sentence end is a period followed by whitespace or end-of-block;
 # "stock.quant" is followed immediately by "q", so the lookahead skips it.
@@ -467,9 +462,7 @@ def _correct_access_permission_contradictions(final_answer: str, scoped_tool_out
     verdict: the observation says HAS/DOES NOT HAVE a given permission on a
     given model, the prose asserts the opposite.
 
-    Section 956 (todo/contexte.txt): the STK-Q1 rejeu that confirmed the
-    section 955 fix on the WRITE volet also showed READ still uninverted --
-    the denial sentence ("ne peut pas consulter les quantités en stock")
+    A same-sentence match is not enough: the denial sentence ("ne peut pas consulter les quantités en stock")
     never names `stock.quant` at all, only the FOLLOWING sentence does
     ("...enregistrements de stock.quant"). A same-sentence match therefore
     missed it. Scoped one level up instead, to the paragraph/block (text
@@ -509,7 +502,7 @@ def _correct_access_permission_contradictions(final_answer: str, scoped_tool_out
 
             for match in list(_ACCESS_SENTENCE_RE.finditer(block)):
                 sentence = match.group(0)
-                # Section 956: Markdown emphasis markers routinely sit between
+                # Markdown emphasis markers routinely sit between
                 # the negation and the verb ("**ne peut pas** consulter"), which
                 # a plain \s* separator does not cross. Match against an
                 # emphasis-stripped copy; splice the ORIGINAL sentence text

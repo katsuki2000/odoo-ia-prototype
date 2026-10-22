@@ -61,7 +61,6 @@ def evaluate_recall(
     chroma_manager: ChromaManager,
     bm25_index: BM25Index,
     top_k: int = 5,
-    use_reranker: bool = True,
 ) -> dict:
     """
     Evaluate recall@k on benchmark questions.
@@ -74,7 +73,6 @@ def evaluate_recall(
         chroma_manager: ChromaManager instance
         bm25_index: BM25Index instance
         top_k: Number of results to evaluate
-        use_reranker: Whether to use cross-encoder
 
     Returns:
         Evaluation results dict
@@ -107,7 +105,6 @@ def evaluate_recall(
                 top_k=top_k,
                 chroma_manager=chroma_manager,
                 bm25_index=bm25_index,
-                use_reranker=use_reranker,
             )
         except Exception as e:
             logger.error("Retrieval failed for Q%d: %s", i + 1, e)
@@ -181,7 +178,6 @@ def evaluate_recall(
         "overall_recall_at_k": overall_recall,
         "recall_by_type": recall_by_type,
         "top_k": top_k,
-        "use_reranker": use_reranker,
         "total_questions": len(detailed),
         "total_time_ms": round(total_time * 1000),
         "avg_time_ms": round(total_time * 1000 / max(len(detailed), 1)),
@@ -204,9 +200,7 @@ def generate_report(results: dict, config: dict) -> str:
         f"| BM25 weight | {config.get('bm25_weight', 0.4)} |",
         f"| RRF constant `k` | {config.get('rrf_k', 60)} |",
         f"| Relevance threshold | {config.get('relevance_threshold', 0.3)} |",
-        f"| Cross-encoder | `{config.get('cross_encoder', 'ms-marco-MiniLM-L-6-v2')}` |",
         f"| Final `top_k` | {results['top_k']} |",
-        f"| Re-ranker enabled | {results['use_reranker']} |",
         "",
         "## Results",
         "",
@@ -302,16 +296,10 @@ def main():
         "bm25_weight": 0.3,
         "rrf_k": 60,
         "relevance_threshold": 0.3,
-        "cross_encoder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
     }
 
-    use_reranker = "--reranker" in sys.argv or (os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes") and "--no-reranker" not in sys.argv)
-    logger.info(f"Running evaluation (reranker enabled: {use_reranker})...")
-    results = evaluate_recall(
-        questions, chroma, bm25,
-        top_k=5,
-        use_reranker=use_reranker,
-    )
+    logger.info("Running evaluation...")
+    results = evaluate_recall(questions, chroma, bm25, top_k=5)
 
     # Generate and save report
     report = generate_report(results, config)

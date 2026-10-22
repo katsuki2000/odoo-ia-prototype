@@ -1,0 +1,546 @@
+{
+  "meta": {
+    "language": "fr",
+    "description": "Bloc P3.1 -- banc de 50 questions CI (10 modules OCA reels x 5 questions), gabarit standardise par capacite. Selection des modules issue de scripts/categorize_oca_modules.py (stratification structurelle, pas de choix a la main sur des noms familiers -- voir todo/contexte.txt section 520). Chaque question est ancree dans du code reel lu directement sur le disque (tests/oca_sample), pas inventee.",
+    "date_created": "2026-09-03",
+    "total_questions": 50,
+    "requires_setting": "OCA_SAMPLE_ADDONS_PATH",
+    "gabarit": {
+      "Q1": "Securite -- ACL + Record Rules combines",
+      "Q2": "Workflow -- ce qui autorise/bloque une transition ou une action",
+      "Q3": "Heritage -- quels modules/methodes modifient un comportement existant",
+      "Q4": "UI -- pourquoi un champ/bouton/vue est visible ou non",
+      "Q5": "Structure -- contraintes/regles qui s'appliquent"
+    },
+    "fields": {
+      "capability": "categorie CI ciblee : security | workflow | inheritance | ui | constraints",
+      "difficulty": "easy | medium | hard -- charge de raisonnement requise, pas longueur de reponse",
+      "expected_tools": "noms exacts des outils @tool dans code_intelligence/ci_agent_tools.py:ALL_CI_TOOLS attendus pour repondre",
+      "reference_answer": "reponse de reference verifiable, redigee a partir du code reel",
+      "verification": "fichier(s)+element(s) precis du code source ou verifier la reponse de reference"
+    },
+    "modules": [
+      {"module": "purchase_request", "repo": "purchase-workflow", "selection_rationale": "securite ACL+Rules combinees (candidat fort)"},
+      {"module": "animal", "repo": "partner-contact-management", "selection_rationale": "securite ACL seules (cas de controle anti-hallucination ir.rule)"},
+      {"module": "base_tier_validation", "repo": "server-ux", "selection_rationale": "workflow (reference OCA quasi canonique)"},
+      {"module": "stock_inventory", "repo": "stock-logistics-warehouse", "selection_rationale": "workflow (verifie que le moteur ne sur-apprend pas le domaine achat)"},
+      {"module": "sale_order_type", "repo": "sale-workflow", "selection_rationale": "heritage normal"},
+      {"module": "account_invoice_section_sale_order", "repo": "account-invoicing", "selection_rationale": "heritage transverse plus difficile"},
+      {"module": "database_cleanup", "repo": "server-tools", "selection_rationale": "server actions / stress test analyze_security_locks"},
+      {"module": "stock_archive_constraint", "repo": "stock-logistics-warehouse", "selection_rationale": "contraintes -- cas simple a evaluer objectivement"},
+      {"module": "auditlog", "repo": "server-tools", "selection_rationale": "vue/UI -- proche des questions reelles des utilisateurs"},
+      {"module": "kpi", "repo": "reporting-engine", "selection_rationale": "reporting -- domaine moins deterministe"}
+    ]
+  },
+  "questions": [
+    {
+      "id": "PR-Q1",
+      "module": "purchase_request",
+      "capability": "security",
+      "difficulty": "hard",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules"],
+      "question": "Qui a le droit de modifier une demande d'achat (purchase.request), et sous quelles conditions ?",
+      "reference_answer": "group_purchase_request_user a perm_write=1 (ACL access_purchase_request_user) mais restreint par ir.rule purchase_request_rule au domaine [('requested_by','=',user.id)] -- un utilisateur simple ne peut modifier que ses propres demandes. group_purchase_request_manager a aussi perm_write=1 (ACL access_purchase_request_manager) via purchase_request_manager_rule, sans domain_force -- ecriture illimitee. stock.group_stock_user et purchase.group_purchase_user n'ont que perm_write=0 (lecture seule).",
+      "verification": "security/ir.model.access.csv (access_purchase_request_user, access_purchase_request_manager) + security/purchase_request.xml (purchase_request_rule, purchase_request_manager_rule)"
+    },
+    {
+      "id": "PR-Q2",
+      "module": "purchase_request",
+      "capability": "workflow",
+      "difficulty": "medium",
+      "expected_tools": ["describe_workflow", "button_execution_path"],
+      "question": "Qu'est-ce qui bloque le passage d'une demande d'achat de l'etat 'draft' a 'to_approve' ?",
+      "reference_answer": "button_to_approve() appelle to_approve_allowed_check(), qui leve une UserError si to_approve_allowed est faux. to_approve_allowed (_compute_to_approve_allowed) est vrai seulement si state=='draft' ET au moins une ligne non annulee avec product_qty non nul.",
+      "verification": "models/purchase_request.py : _compute_to_approve_allowed / to_approve_allowed_check / button_to_approve"
+    },
+    {
+      "id": "PR-Q3",
+      "module": "purchase_request",
+      "capability": "inheritance",
+      "difficulty": "medium",
+      "expected_tools": ["trace_full_inheritance", "analyze_method_override_chain"],
+      "question": "Quel module modifie le comportement de button_confirm() sur purchase.order, et quelle regle ajoute-t-il ?",
+      "reference_answer": "purchase_request etend purchase.order (classe PurchaseOrder, _inherit='purchase.order') et surcharge button_confirm() pour appeler _purchase_request_line_check() avant super() -- leve UserError si une purchase.request.line liee a deja purchase_state=='done'.",
+      "verification": "models/purchase_order.py, classe PurchaseOrder"
+    },
+    {
+      "id": "PR-Q4",
+      "module": "purchase_request",
+      "capability": "ui",
+      "difficulty": "medium",
+      "expected_tools": ["button_execution_path"],
+      "question": "Pourquoi le bouton statistique 'Picking' n'est-il pas visible pour tous les utilisateurs ayant acces a une demande d'achat ?",
+      "reference_answer": "le bouton action_view_stock_picking porte groups='stock.group_stock_manager' dans la vue formulaire -- independant de group_purchase_request_user/_manager. Invisible aussi si move_count==0.",
+      "verification": "views/purchase_request_view.xml, bouton name='action_view_stock_picking'"
+    },
+    {
+      "id": "PR-Q5",
+      "module": "purchase_request",
+      "capability": "constraints",
+      "difficulty": "medium",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Quelle regle empeche de rattacher une ligne de commande d'achat a une ligne de demande d'achat portant sur un produit different ?",
+      "reference_answer": "PurchaseOrderLine._check_product_from_request (@api.constrains('product_id','purchase_request_lines')) leve ValidationError si request_line.product_id != line.product_id pour une des purchase_request_lines liees.",
+      "verification": "models/purchase_order.py, classe PurchaseOrderLine, methode _check_product_from_request"
+    },
+
+    {
+      "id": "AN-Q1",
+      "module": "animal",
+      "capability": "security",
+      "difficulty": "easy",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules"],
+      "question": "Existe-t-il des ir.rule (Record Rules) sur le modele animal, ou seulement des ACL ?",
+      "reference_answer": "Aucune ir.rule -- le module ne contient que security/res_groups.xml et security/ir.model.access.csv. base.group_user a perm CRUD complet sur 'animal' ; les modeles de reference (animal.color/breed/species) sont en lecture seule (base.group_user) sauf pour animal.group_animal_manager (CRUD complet, sauf unlink sur species).",
+      "verification": "security/ir.model.access.csv -- pas de fichier ir.rule dans security/"
+    },
+    {
+      "id": "AN-Q2",
+      "module": "animal",
+      "capability": "workflow",
+      "difficulty": "easy",
+      "expected_tools": ["describe_workflow"],
+      "question": "Le modele animal possede-t-il un champ d'etat (state) ou un workflow a etapes ?",
+      "reference_answer": "Non -- aucun champ Selection nomme 'state' ni ailleurs sur animal/animal.breed/animal.species/animal.color. Le seul comportement dynamique est un enchainement d'onchange (species_id -> reset breed_id -> reset color_id), pas une machine a etats.",
+      "verification": "models/animal.py -- onchange_species/onchange_breed, aucun champ state"
+    },
+    {
+      "id": "AN-Q3",
+      "module": "animal",
+      "capability": "inheritance",
+      "difficulty": "easy",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Le module etend-il un modele Odoo standard existant, ou declare-t-il ses propres modeles ?",
+      "reference_answer": "Declaration pure : animal/animal.breed/animal.species/animal.color sont tous _name (nouveaux modeles). Seul 'animal' porte _inherit=['mail.thread','mail.activity.mixin'] (mixins techniques, pas extension d'un modele metier existant).",
+      "verification": "models/animal.py, animal_breed.py, animal_species.py, animal_color.py -- tous _name, aucun _inherit d'un modele metier"
+    },
+    {
+      "id": "AN-Q4",
+      "module": "animal",
+      "capability": "ui",
+      "difficulty": "easy",
+      "expected_tools": ["button_execution_path"],
+      "question": "Pourquoi le menu 'Configuration' (especes/races/couleurs) n'est-il pas visible pour tous les utilisateurs ?",
+      "reference_answer": "menu_config porte groups='group_animal_manager' dans views/menu.xml -- seuls les managers voient ce sous-menu, les menus racine/animal restent ouverts a tous.",
+      "verification": "views/menu.xml, menuitem id='menu_config'"
+    },
+    {
+      "id": "AN-Q5",
+      "module": "animal",
+      "capability": "constraints",
+      "difficulty": "easy",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Quelles contraintes (@api.constrains ou _sql_constraints) s'appliquent sur les modeles de ce module ?",
+      "reference_answer": "Aucune -- pas de @api.constrains ni de _sql_constraints dans animal.py/animal_breed.py/animal_species.py/animal_color.py. Seules des relations Many2one 'required=True' (species_id/breed_id) et un champ related readonly (species_id sur animal.color).",
+      "verification": "models/*.py -- absence confirmee de decorateur @api.constrains et de _sql_constraints"
+    },
+
+    {
+      "id": "BTV-Q1",
+      "module": "base_tier_validation",
+      "capability": "security",
+      "difficulty": "hard",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules", "read_source_code"],
+      "question": "Qui peut valider (approve) un enregistrement soumis a tier.validation, et ou est-ce configure ?",
+      "reference_answer": "Pas par ir.rule/ACL sur le modele cible : determine dynamiquement par des enregistrements tier.definition par modele, via review_type = 'individual' (reviewer_id), 'group' (reviewer_group_id, tout utilisateur du groupe) ou 'field' (reviewer_field_id, champ de l'enregistrement). Evalue par enregistrement via can_review/_get_sequences_to_approve.",
+      "verification": "models/tier_definition.py (champs review_type/reviewer_id/reviewer_group_id/reviewer_field_id) + models/tier_validation.py (_get_sequences_to_approve, can_review)"
+    },
+    {
+      "id": "BTV-Q2",
+      "module": "base_tier_validation",
+      "capability": "workflow",
+      "difficulty": "hard",
+      "expected_tools": ["describe_workflow", "read_source_code"],
+      "question": "Qu'est-ce qui empeche un enregistrement soumis a tier.validation de passer de l'etat source a l'etat cible tant que la validation n'est pas terminee ?",
+      "reference_answer": "write() appelle _tier_validation_check_state_on_write, qui declenche request_validation()/_validate_tier() et leve ValidationError si validation_status != 'validated' apres evaluation (liste les reviews pending). _tier_validation_check_write_allowed bloque aussi l'ecriture de champs non exemptes tant que review_ids existent (sous validation) ou apres validation.",
+      "verification": "models/tier_validation.py : write(), _tier_validation_check_state_on_write, _tier_validation_check_write_allowed"
+    },
+    {
+      "id": "BTV-Q3",
+      "module": "base_tier_validation",
+      "capability": "inheritance",
+      "difficulty": "medium",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Comment un modele concret (ex. tier.validation.tester) active-t-il le mecanisme d'approbation par paliers, et quel champ doit-il definir ?",
+      "reference_answer": "En ajoutant 'tier.validation' a _inherit (AbstractModel mixin) et en definissant un champ 'state' correspondant a _state_field (par defaut 'state'), avec possibilite de surcharger _state_from/_state_to/_tier_validation_manual_config. Illustre par tier.validation.tester (tests/tier_validation_tester.py).",
+      "verification": "tests/tier_validation_tester.py, classe TierValidationTester (_inherit=['tier.validation','mail.thread'])"
+    },
+    {
+      "id": "BTV-Q4",
+      "module": "base_tier_validation",
+      "capability": "ui",
+      "difficulty": "hard",
+      "expected_tools": ["read_source_code", "button_execution_path"],
+      "question": "Comment les boutons de validation/rejet apparaissent-ils automatiquement dans le formulaire d'un modele qui utilise tier.validation, sans etre declares dans la vue XML du modele ?",
+      "reference_answer": "get_view() est surcharge pour injecter dynamiquement (xpath sur /form/header/button[last()] et /form/sheet) les templates QWeb _add_tier_validation_buttons/_add_tier_validation_label/_add_tier_validation_reviews dans l'arch au moment du chargement de la vue -- controle par _tier_validation_manual_config (False = injection automatique ; True, comme tier.validation.tester, = boutons a ajouter manuellement dans la vue).",
+      "verification": "models/tier_validation.py : get_view(), _add_tier_validation_buttons/_add_tier_validation_label/_add_tier_validation_reviews"
+    },
+    {
+      "id": "BTV-Q5",
+      "module": "base_tier_validation",
+      "capability": "constraints",
+      "difficulty": "hard",
+      "expected_tools": ["analyze_data_constraints", "read_source_code"],
+      "question": "Quelle regle empeche de modifier des champs non exemptes sur un enregistrement en cours de validation ou deja valide ?",
+      "reference_answer": "_tier_validation_check_write_allowed leve ValidationError dans deux cas : 'sous validation' (review_ids present et _check_allow_write_under_validation renvoie False) et 'apres validation' (validation_status=='validated', etat dans _state_to/_cancel_state et _check_allow_write_after_validation renvoie False). Les exceptions par champ sont definies dynamiquement via le modele tier.validation.exception, pas par un decorateur @api.constrains.",
+      "verification": "models/tier_validation.py : _tier_validation_check_write_allowed, _get_under_validation_exceptions, _get_after_validation_exceptions"
+    },
+
+    {
+      "id": "SI-Q1",
+      "module": "stock_inventory",
+      "capability": "security",
+      "difficulty": "medium",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules", "read_source_code"],
+      "question": "Qui peut creer une nouvelle demande d'inventaire (stock.inventory), et qui peut la supprimer ?",
+      "reference_answer": "stock.group_stock_user a perm_create=1 mais perm_unlink=0 (ACL access_stock_inventory_user) ; stock.group_stock_manager a perm_create=1 ET perm_unlink=1 (access_stock_inventory_manager). Les deux sont restreints par l'ir.rule multi-societe stock_inventory_comp_rule (globale). Meme un manager ne peut pas supprimer un enregistrement non-draft -- unlink() leve UserError sauf state=='draft'.",
+      "verification": "security/ir.model.access.csv + security/security.xml (stock_inventory_comp_rule) + models/stock_inventory.py: unlink()"
+    },
+    {
+      "id": "SI-Q2",
+      "module": "stock_inventory",
+      "capability": "workflow",
+      "difficulty": "medium",
+      "expected_tools": ["describe_workflow", "read_source_code"],
+      "question": "Qu'est-ce qui empeche de demarrer (action_state_to_in_progress) un nouvel inventaire sur un emplacement ou produit deja en cours de comptage ?",
+      "reference_answer": "action_state_to_in_progress() recherche les stock.quant a to_do=True sur les memes emplacements/produits, puis verifie si un autre stock.inventory en etat in_progress les couvre deja ; si trouve, ValidationError listant les inventaires bloquants.",
+      "verification": "models/stock_inventory.py : action_state_to_in_progress()"
+    },
+    {
+      "id": "SI-Q3",
+      "module": "stock_inventory",
+      "capability": "inheritance",
+      "difficulty": "hard",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Le module etend-il un modele Odoo standard existant, ou declare-t-il son propre modele stock.inventory ?",
+      "reference_answer": "Piege : stock.inventory est un NOUVEAU modele (_name='stock.inventory', seulement _inherit=['mail.thread'] en mixin) -- pas une extension d'un modele natif existant (le stock.inventory du core Odoo <17 a disparu en v17). En revanche, stock_quant.py et stock_move_line.py DANS LE MEME MODULE etendent reellement les modeles natifs stock.quant (_inherit='stock.quant', surcharge de _apply_inventory()) et stock.move.line.",
+      "verification": "models/stock_inventory.py (_name, pas d'extension) vs models/stock_quant.py (_inherit='stock.quant', _apply_inventory override)"
+    },
+    {
+      "id": "SI-Q4",
+      "module": "stock_inventory",
+      "capability": "ui",
+      "difficulty": "medium",
+      "expected_tools": ["button_execution_path"],
+      "question": "Pourquoi le bouton 'Back to Draft' n'est-il pas visible meme quand l'etat est 'in_progress' ?",
+      "reference_answer": "invisible='state in (\"draft\",\"done\") or count_stock_moves != 0' -- purement conditionnel (etat + compteur de mouvements deja generes), aucun attribut groups= sur ce bouton.",
+      "verification": "views/stock_inventory.xml, bouton name='action_state_to_draft'"
+    },
+    {
+      "id": "SI-Q5",
+      "module": "stock_inventory",
+      "capability": "constraints",
+      "difficulty": "easy",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Quelle regle empeche de selectionner plusieurs produits quand product_selection vaut 'one' ou 'lot' ?",
+      "reference_answer": "@api.constrains('product_selection','product_ids') _check_one_product_in_product_selection leve ValidationError si len(product_ids) > 1 alors que product_selection est 'one' ou 'lot'.",
+      "verification": "models/stock_inventory.py : _check_one_product_in_product_selection"
+    },
+
+    {
+      "id": "SOT-Q1",
+      "module": "sale_order_type",
+      "capability": "security",
+      "difficulty": "medium",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules"],
+      "question": "Qui peut creer ou modifier un type de commande (sale.order.type) ?",
+      "reference_answer": "Seul sales_team.group_sale_manager a perm_write/create/unlink=1 (ACL). sales_team.group_sale_salesman et account.group_account_invoice sont en lecture seule. ir.rule sale_order_type_comp_rule restreint la visibilite multi-societe mais re-accorde explicitement les 4 permissions au niveau de la regle (pas une coupure de securite en soi).",
+      "verification": "security/ir.model.access.csv + security/security.xml (sale_order_type_comp_rule)"
+    },
+    {
+      "id": "SOT-Q2",
+      "module": "sale_order_type",
+      "capability": "workflow",
+      "difficulty": "hard",
+      "expected_tools": ["read_source_code", "button_execution_path"],
+      "question": "Pourquoi changer le type d'une commande peut modifier son numero de reference (name), et dans quels cas cela ne se produit pas ?",
+      "reference_answer": "SaleOrder.write() : si type_id change et que le nouveau type a un sequence_id distinct, la commande est renumerotee via next_by_id() -- mais seulement si state est dans {'draft','sent'} (pas pour une commande confirmee/verrouillee) et si le nouveau numero differerait reellement de celui que la sequence par defaut aurait deja donne (garde ignore_default_sequence).",
+      "verification": "models/sale.py, classe SaleOrder, methode write()"
+    },
+    {
+      "id": "SOT-Q3",
+      "module": "sale_order_type",
+      "capability": "inheritance",
+      "difficulty": "easy",
+      "expected_tools": ["trace_full_inheritance", "analyze_method_override_chain"],
+      "question": "Quelles methodes calculees (compute) de sale.order sont surchargees par ce module, et quel principe commun suivent-elles ?",
+      "reference_answer": "_compute_warehouse_id, _compute_picking_policy, _compute_payment_term_id, _compute_pricelist_id, _compute_incoterm, _compute_analytic_account_id, _compute_validity_date sur sale.order, plus _compute_route_id sur sale.order.line -- chacune appelle super() d'abord puis n'ecrase le champ que si order.type_id definit une valeur correspondante (jamais de valeur forcee si le type ne la definit pas).",
+      "verification": "models/sale.py, classes SaleOrder et SaleOrderLine"
+    },
+    {
+      "id": "SOT-Q4",
+      "module": "sale_order_type",
+      "capability": "ui",
+      "difficulty": "medium",
+      "expected_tools": ["button_execution_path", "read_source_code"],
+      "question": "Pourquoi le champ 'Type' devient-il non modifiable sur une commande confirmee ?",
+      "reference_answer": "La vue sot_view_order_form (inherit_id='sale.view_order_form') met readonly='state in [\"sale\",\"cancel\"] or locked' sur type_id -- combine l'etat du workflow ET le booleen 'locked' (independant de l'etat, positionne apres facturation), pas une restriction par groupe.",
+      "verification": "views/sale_order_view.xml, record sot_view_order_form"
+    },
+    {
+      "id": "SOT-Q5",
+      "module": "sale_order_type",
+      "capability": "constraints",
+      "difficulty": "medium",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Qu'est-ce qui empeche de supprimer un type de commande encore utilise par des commandes existantes ?",
+      "reference_answer": "Le champ type_id sur sale.order porte ondelete='restrict' -- contrainte d'integrite referentielle au niveau ORM/base de donnees qui bloque la suppression d'un sale.order.type reference, distincte d'un @api.constrains explicite. route_id sur sale.order.type lui-meme porte aussi ondelete='restrict' vers stock.route.",
+      "verification": "models/sale.py (type_id, ondelete='restrict') + models/sale_order_type.py (route_id, ondelete='restrict')"
+    },
+
+    {
+      "id": "AISO-Q1",
+      "module": "account_invoice_section_sale_order",
+      "capability": "security",
+      "difficulty": "hard",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules", "read_source_code"],
+      "question": "Qui peut voir ou configurer le nom personnalise de la section de facture sur la fiche d'un partenaire ?",
+      "reference_answer": "Aucun ACL/ir.rule dans ce module (pas de security/ir.model.access.csv, pas de ir.rule). L'acces au champ invoice_section_name_scheme est controle uniquement par un attribut groups= sur le <group> qui l'entoure dans la vue partenaire (group_sale_order_invoice_section_name) -- une securite d'affichage pure, le champ reste ecrivable par quiconque a deja le droit d'ecrire res.partner via un autre canal (ex. import, autre vue).",
+      "verification": "security/res_groups.xml (definition seule, pas d'ACL) + views/res_partner.xml (groups= sur le <group>)"
+    },
+    {
+      "id": "AISO-Q2",
+      "module": "account_invoice_section_sale_order",
+      "capability": "workflow",
+      "difficulty": "medium",
+      "expected_tools": ["read_source_code"],
+      "question": "Dans quel cas la generation de facture depuis une commande n'ajoute-t-elle pas de ligne de section ?",
+      "reference_answer": "Dans SaleOrder._create_invoices(), les lignes de section sont sautees quand toutes les lignes de la facture appartiennent a un seul groupe de commande ET que company.always_create_invoice_section est False -- comportement force par ce parametre societe.",
+      "verification": "models/sale_order.py, methode _create_invoices()"
+    },
+    {
+      "id": "AISO-Q3",
+      "module": "account_invoice_section_sale_order",
+      "capability": "inheritance",
+      "difficulty": "hard",
+      "expected_tools": ["list_involved_modules", "trace_full_inheritance", "analyze_method_override_chain"],
+      "question": "Quels modeles sont modifies par ce module, et quelle methode standard de facturation est reellement surchargee ?",
+      "reference_answer": "5 modeles etendus via _inherit : sale.order (_create_invoices, override reel qui appelle super() puis post-traite), account.move/account.move.line (methodes utilitaires de tri/regroupement, pas de surcharge d'une methode core), res.partner et res.company (nouveaux champs de config uniquement, aucune methode surchargee). Seul sale.order._create_invoices modifie vraiment un comportement de facturation existant.",
+      "verification": "models/sale_order.py, models/account_move.py, models/res_partner.py, models/res_company.py"
+    },
+    {
+      "id": "AISO-Q4",
+      "module": "account_invoice_section_sale_order",
+      "capability": "ui",
+      "difficulty": "medium",
+      "expected_tools": ["button_execution_path", "read_source_code"],
+      "question": "Pourquoi le champ 'invoice_section_name_scheme' n'apparait-il pas sur la fiche partenaire pour certains utilisateurs ?",
+      "reference_answer": "Le <group> conteneur dans view_partner_property_form (inherit_id='account.view_partner_property_form') porte groups='account_invoice_section_sale_order.group_sale_order_invoice_section_name' -- seuls les utilisateurs de ce groupe local au module voient le champ dans cette vue.",
+      "verification": "views/res_partner.xml, record view_partner_property_form"
+    },
+    {
+      "id": "AISO-Q5",
+      "module": "account_invoice_section_sale_order",
+      "capability": "constraints",
+      "difficulty": "hard",
+      "expected_tools": ["analyze_data_constraints", "read_source_code"],
+      "question": "Que se passe-t-il si invoice_section_grouping a une valeur non reconnue lors de la facturation ?",
+      "reference_answer": "AccountMoveLine._get_section_grouping() leve UserError('Unrecognized invoice_section_grouping') si company_id.invoice_section_grouping n'est pas 'sale_order' -- mais le champ res.company correspondant est un Selection a UNE SEULE option ('sale_order') et required=True : cette branche est du code defensif mort via l'UI normale, seulement atteignable par ecriture programmatique directe.",
+      "verification": "models/account_move.py (_get_section_grouping) + models/res_company.py (invoice_section_grouping, Selection a une seule valeur)"
+    },
+
+    {
+      "id": "DC-Q1",
+      "module": "database_cleanup",
+      "capability": "security",
+      "difficulty": "hard",
+      "expected_tools": ["who_has_access_to", "analyze_security_locks", "read_source_code"],
+      "question": "Un utilisateur simple (base.group_user) peut-il reellement declencher une purge de modeles orphelins via l'assistant cleanup.purge.wizard.model ?",
+      "reference_answer": "L'ACL seule dit oui : access_cleanup_purge_wizard_model / access_cleanup_purge_line_model accordent perm_create=1 a base.group_user (tous les utilisateurs connectes). Mais create() sur les deux classes abstraites cleanup.purge.wizard/cleanup.purge.line leve un AccessDenied explicite si base.group_erp_manager n'est pas dans les groupes de l'utilisateur -- la garde reelle est codee en dur en Python, absente de ir.rule et de ir.model.access.csv.",
+      "verification": "security/ir.model.access.csv (base.group_user, perm_create=1) + models/purge_wizard.py : create() sur CleanupPurgeLine et PurgeWizard"
+    },
+    {
+      "id": "DC-Q2",
+      "module": "database_cleanup",
+      "capability": "workflow",
+      "difficulty": "medium",
+      "expected_tools": ["read_source_code"],
+      "question": "Comment l'assistant determine-t-il quels modeles proposer a la purge, et que se passe-t-il si aucun n'est trouve ?",
+      "reference_answer": "CleanupPurgeWizardModel.find() compare tous les modeles connus en base (ir.model) a ceux reellement instanciables dans self.env ; si la liste resultante est vide, une UserError explicite ('No orphaned models found') est levee plutot que de renvoyer une liste vide silencieusement.",
+      "verification": "models/purge_models.py, classe CleanupPurgeWizardModel, methode find()"
+    },
+    {
+      "id": "DC-Q3",
+      "module": "database_cleanup",
+      "capability": "inheritance",
+      "difficulty": "hard",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Comment cleanup.purge.line.model reutilise-t-il cleanup.purge.line, et ce module modifie-t-il aussi un modele natif Odoo (pas OCA) ?",
+      "reference_answer": "cleanup.purge.line.model porte a la fois _inherit='cleanup.purge.line' (reutilise les champs/methodes de l'abstrait) ET _name='cleanup.purge.line.model' (nouvelle table concrete) -- pattern 'extension + nouveau nom' pour deriver un modele concret d'un mixin abstrait. Par ailleurs IrModel/IrModelFields etendent directement ir.model/ir.model.fields du core Odoo (pas un module OCA) en surchargeant _drop_table()/_inherited_models()/_prepare_update() pour eviter un crash sur des modeles orphelins non instanciables.",
+      "verification": "models/purge_models.py : classe CleanupPurgeLineModel (_inherit + _name) et classe IrModel (_inherit='ir.model')"
+    },
+    {
+      "id": "DC-Q4",
+      "module": "database_cleanup",
+      "capability": "ui",
+      "difficulty": "hard",
+      "expected_tools": ["button_execution_path", "read_source_code"],
+      "question": "Le menu 'Database cleanup' n'est pas visible par defaut pour un utilisateur simple -- pourquoi, et cela suffit-il seul a empecher l'acces aux assistants ?",
+      "reference_answer": "menu_database_cleanup porte groups_id restreint a base.group_erp_manager -- masque le menu pour les non-managers dans l'UI. Mais c'est un mecanisme distinct de l'ACL (ouverte a base.group_user, cf DC-Q1) et du garde AccessDenied code en dur : un acces direct par action/XML-RPC contournerait la restriction de menu, seul le garde Python dans create() bloquerait reellement.",
+      "verification": "views/menu.xml, record menu_database_cleanup (groups_id) -- a mettre en regard de DC-Q1"
+    },
+    {
+      "id": "DC-Q5",
+      "module": "database_cleanup",
+      "capability": "constraints",
+      "difficulty": "medium",
+      "expected_tools": ["analyze_data_constraints", "read_source_code"],
+      "question": "Qu'est-ce qui empeche l'assistant de proposer la suppression de colonnes sensibles comme res_users.password meme si elles semblent orphelines ?",
+      "reference_answer": "CleanupPurgeWizardColumn.blacklist (dict {table: [colonnes]}) exclut statiquement des colonnes sensibles connues (res_users: password/password_crypt/totp_secret ; res_partner: signup_token ; wkf_instance: uid) du resultat de get_orphaned_columns() -- une liste noire codee en dur, pas un mecanisme de contrainte Odoo declaratif.",
+      "verification": "models/purge_columns.py, classe CleanupPurgeWizardColumn, attribut blacklist"
+    },
+
+    {
+      "id": "SAC-Q1",
+      "module": "stock_archive_constraint",
+      "capability": "security",
+      "difficulty": "easy",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules"],
+      "question": "Ce module ajoute-t-il des droits d'acces (ACL) ou des regles d'enregistrement (ir.rule) specifiques sur product.product ou stock.location ?",
+      "reference_answer": "Non -- aucun dossier security/ dans ce module (pas de ir.model.access.csv, pas de ir.rule). Les droits restent ceux du module stock core ; ce module n'ajoute que des contraintes Python.",
+      "verification": "structure du module -- absence de dossier security/"
+    },
+    {
+      "id": "SAC-Q2",
+      "module": "stock_archive_constraint",
+      "capability": "workflow",
+      "difficulty": "easy",
+      "expected_tools": ["describe_workflow", "read_source_code"],
+      "question": "Qu'est-ce qui declenche la verification empechant d'archiver un produit ou un emplacement, et a quel moment s'execute-t-elle ?",
+      "reference_answer": "Les 6 methodes @api.constrains('active') s'executent automatiquement a chaque ecriture du champ active via l'ORM, pas via un bouton dedie -- declenchees par tout write({'active': False}), qu'il vienne du bouton d'archivage standard de stock, d'un import ou d'un appel programmatique.",
+      "verification": "models/product_product.py + models/stock_location.py -- decorateurs @api.constrains('active')"
+    },
+    {
+      "id": "SAC-Q3",
+      "module": "stock_archive_constraint",
+      "capability": "inheritance",
+      "difficulty": "easy",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Ce module cree-t-il de nouveaux modeles, ou etend-il des modeles standard ? Combien de methodes distinctes sont ajoutees, et sur quels modeles ?",
+      "reference_answer": "Extension pure (_inherit) de deux modeles standard : product.product (3 methodes @api.constrains) et stock.location (3 methodes equivalentes) -- aucune nouvelle classe/_name, aucune surcharge de methode existante (write/unlink), uniquement des contraintes ajoutees en parallele.",
+      "verification": "models/product_product.py (_inherit='product.product') + models/stock_location.py (_inherit='stock.location')"
+    },
+    {
+      "id": "SAC-Q4",
+      "module": "stock_archive_constraint",
+      "capability": "ui",
+      "difficulty": "easy",
+      "expected_tools": ["list_involved_modules", "read_source_code"],
+      "question": "Ce module modifie-t-il une vue ou ajoute-t-il un bouton visible dans l'interface ?",
+      "reference_answer": "Non -- pas de dossier views/ dans ce module. Le comportement n'est visible qu'indirectement : le bouton natif 'Archiver' du formulaire produit/emplacement (fourni par stock, pas par ce module) declenche l'erreur si des mouvements/reservations existent encore.",
+      "verification": "structure du module -- absence de dossier views/"
+    },
+    {
+      "id": "SAC-Q5",
+      "module": "stock_archive_constraint",
+      "capability": "constraints",
+      "difficulty": "medium",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Quelles sont les 3 conditions distinctes qui empechent d'archiver un produit, et pourquoi les memes 3 controles existent-ils en miroir sur les emplacements de stock ?",
+      "reference_answer": "Pour product.product : (1) stock.quant non nul sur un emplacement interne/transit, (2) stock.move non termine/annule, (3) stock.move.line (reservation) non terminee/annulee -- chacune leve une ValidationError distincte. La meme triple verification est dupliquee sur stock.location (avec recherche child_of pour les sous-emplacements), car archiver un emplacement peut invalider les memes donnees qu'archiver un produit. Les 6 methodes partagent le meme garde de test (_skip_check_archive_constraint_condition), duplique a l'identique dans les deux fichiers plutot que factorise.",
+      "verification": "models/product_product.py + models/stock_location.py -- les 6 methodes @api.constrains et _skip_check_archive_constraint_condition"
+    },
+
+    {
+      "id": "AL-Q1",
+      "module": "auditlog",
+      "capability": "security",
+      "difficulty": "easy",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules"],
+      "question": "Un utilisateur du groupe group_auditlog_user peut-il creer une nouvelle regle d'audit (auditlog.rule) ?",
+      "reference_answer": "Non -- access_auditlog_rule_user accorde uniquement perm_read=1 (0 pour write/create/unlink) a auditlog.group_auditlog_user. Seul auditlog.group_auditlog_manager a les 4 permissions. Pas de ir.rule sur ce modele -- securite purement ACL.",
+      "verification": "security/ir.model.access.csv (access_auditlog_rule_user vs access_auditlog_rule_manager)"
+    },
+    {
+      "id": "AL-Q2",
+      "module": "auditlog",
+      "capability": "workflow",
+      "difficulty": "hard",
+      "expected_tools": ["describe_workflow", "read_source_code"],
+      "question": "Que se passe-t-il concretement quand on clique sur le bouton 'Subscribe' d'une regle d'audit, au-dela du changement d'etat ?",
+      "reference_answer": "subscribe() fait deux choses au-dela de passer state a 'subscribed' : (1) cree un raccourci ir.actions.act_window ('View logs') lie au modele audite, (2) declenche _register_hook()/_patch_methods() qui remplace dynamiquement les methodes create/read/write/unlink de la classe Python du modele cible par des versions journalisees -- un monkey-patch en memoire, pas une simple bascule de statut.",
+      "verification": "models/rule.py : subscribe(), _register_hook(), _patch_methods(), _patch_method()"
+    },
+    {
+      "id": "AL-Q3",
+      "module": "auditlog",
+      "capability": "inheritance",
+      "difficulty": "hard",
+      "expected_tools": ["trace_full_inheritance", "analyze_method_override_chain"],
+      "question": "Ce module modifie-t-il le comportement des modeles audites via un _inherit classique ?",
+      "reference_answer": "Non -- auditlog.rule ne fait aucune extension _inherit du modele cible. Le mecanisme est un patch dynamique de methodes a l'execution (setattr(model_class, method_name, new_method) dans _patch_method), applique et retire selon l'etat subscribed/draft de la regle -- fondamentalement different de l'heritage statique _inherit utilise dans les autres modules du lot.",
+      "verification": "models/rule.py : _patch_method() -- setattr sur la classe Python, aucun _inherit declare"
+    },
+    {
+      "id": "AL-Q4",
+      "module": "auditlog",
+      "capability": "ui",
+      "difficulty": "easy",
+      "expected_tools": ["button_execution_path"],
+      "question": "Pourquoi le champ 'action_id' n'est-il visible que pour certains utilisateurs sur le formulaire d'une regle d'audit ?",
+      "reference_answer": "Le champ action_id porte groups='base.group_no_one' dans view_auditlog_rule_form -- visible uniquement en mode developpeur/technique, independamment des groupes auditlog.group_auditlog_user/_manager eux-memes.",
+      "verification": "views/auditlog_view.xml, record view_auditlog_rule_form, champ action_id"
+    },
+    {
+      "id": "AL-Q5",
+      "module": "auditlog",
+      "capability": "constraints",
+      "difficulty": "medium",
+      "expected_tools": ["analyze_data_constraints"],
+      "question": "Qu'est-ce qui empeche de creer deux regles d'audit sur le meme modele ?",
+      "reference_answer": "_sql_constraints = [('model_uniq', 'unique(model_id)', ...)] sur auditlog.rule -- contrainte SQL native (pas @api.constrains), qui leve une erreur d'integrite si on tente d'enregistrer une seconde regle avec le meme model_id.",
+      "verification": "models/rule.py, classe AuditlogRule, attribut _sql_constraints"
+    },
+
+    {
+      "id": "KPI-Q1",
+      "module": "kpi",
+      "capability": "security",
+      "difficulty": "hard",
+      "expected_tools": ["who_has_access_to", "evaluate_record_rules", "read_source_code"],
+      "question": "Un utilisateur simple (base.group_user, sans kpi.group_kpi_manager) peut-il modifier le code SQL/Python execute par un indicateur (kpi.kpi) ?",
+      "reference_answer": "Pas directement -- l'ACL sur model_kpi limite base.group_user a perm_read=1 seul, tout write/create/unlink necessite kpi.group_kpi_manager. Mais un utilisateur simple PEUT creer/modifier des base.external.dbsource (ACL access_base_external_dbsource_manager accorde perm_write/create/unlink=1 a base.group_user malgre son nom) -- sans pouvoir creer le kpi.kpi de type 'external' qui les referencerait, car cette creation reste reservee au manager.",
+      "verification": "security/ir.model.access.csv (access_kpi_user vs access_kpi_manager vs access_base_external_dbsource_manager)"
+    },
+    {
+      "id": "KPI-Q2",
+      "module": "kpi",
+      "capability": "workflow",
+      "difficulty": "hard",
+      "expected_tools": ["read_source_code", "describe_workflow"],
+      "question": "Comment la valeur d'un KPI est-elle recalculee periodiquement, et avec quels droits s'execute ce recalcul ?",
+      "reference_answer": "Un ir.cron (ir_cron_kpi_action, toutes les heures) appelle model.update_kpi_value(), qui filtre les KPI actifs/echus puis appelle compute_kpi_value() -> _get_kpi_value() pour chacun. Le cron s'execute avec user_id=base.user_root (superutilisateur) -- le code SQL/Python de kpi_code tourne donc avec les pleins droits admin, independamment des droits de l'utilisateur qui l'a defini (mais seul un manager peut definir kpi_code, cf KPI-Q1).",
+      "verification": "data/kpi_data.xml (ir_cron_kpi_action, user_id=base.user_root) + models/kpi.py : update_kpi_value(), _get_kpi_value()"
+    },
+    {
+      "id": "KPI-Q3",
+      "module": "kpi",
+      "capability": "inheritance",
+      "difficulty": "easy",
+      "expected_tools": ["trace_full_inheritance", "list_involved_modules"],
+      "question": "Le modele kpi etend-il un modele Odoo standard (ex. reporting natif) ?",
+      "reference_answer": "Non -- _name='kpi' avec _inherit=['mail.thread','mail.activity.mixin'] (mixins uniquement) : nouveau modele declare par ce module, pas une extension d'un modele metier existant. Meme piege que animal/stock.inventory dans ce lot.",
+      "verification": "models/kpi.py, classe KPI (_name='kpi', _inherit=mixins seulement)"
+    },
+    {
+      "id": "KPI-Q4",
+      "module": "kpi",
+      "capability": "ui",
+      "difficulty": "medium",
+      "expected_tools": ["button_execution_path"],
+      "question": "Un utilisateur en lecture seule (sans kpi.group_kpi_manager) voit-il le champ kpi_code (le code SQL/Python execute) sur la fiche d'un KPI ?",
+      "reference_answer": "Non -- toute la page 'Computation' du formulaire (qui contient kpi_type, dbsource_id, kpi_code, periodicity*) porte groups='kpi.group_kpi_manager' sur le <page> lui-meme, pas juste sur des champs individuels.",
+      "verification": "views/kpi_views.xml, record view_kpi_form, <page string='Computation' groups='kpi.group_kpi_manager'>"
+    },
+    {
+      "id": "KPI-Q5",
+      "module": "kpi",
+      "capability": "constraints",
+      "difficulty": "hard",
+      "expected_tools": ["analyze_data_constraints", "read_source_code"],
+      "question": "Qu'est-ce qui empeche un KPI de type SQL d'executer une requete destructive (DROP/DELETE/UPDATE) au lieu d'un simple SELECT ?",
+      "reference_answer": "is_sql_or_ddl_statement() (regex recherchant INSERT/UPDATE/DELETE/CREATE/ALTER/DROP/GRANT/REVOKE/INDEX) doit renvoyer True avant execution de kpi_code pour kpi_type in ('local','external') -- ce n'est PAS une contrainte Odoo declarative (pas de @api.constrains) : un simple garde regex evalue a l'execution dans _get_kpi_value(), contournable et non applique du tout pour kpi_type=='python' (le safe_eval s'execute sans cette verification).",
+      "verification": "models/kpi.py : RE_SELECT_QUERY, is_sql_or_ddl_statement(), _get_kpi_value()"
+    }
+  ]
+}

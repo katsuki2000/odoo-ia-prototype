@@ -13,7 +13,7 @@ from typing import Iterable, Mapping, Optional, Sequence
 from core.evaluation.frozen_cases import SPLITS, ExpectedClaim, FrozenCase, FrozenDataset, require
 
 OUTCOMES = ("answered", "clarification", "abstention", "refusal", "error")
-# The system has no clarification output (section 1096): not guessing satisfies must_clarify.
+# The system has no clarification output: not guessing satisfies must_clarify.
 CLARIFY_ACCEPTED = ("clarification", "abstention")
 TECHNICAL_IDENTIFIER = re.compile(
     r"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b|\b[a-z]{2,}[a-z0-9]*(?:\.[a-z]{2,}[a-z0-9_]*)+\b"

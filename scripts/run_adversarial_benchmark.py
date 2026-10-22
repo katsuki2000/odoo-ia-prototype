@@ -115,7 +115,7 @@ BENCHMARK_QUESTIONS = [
 def run_benchmark(question_ids=None):
     """question_ids: optional list of question IDs (e.g. ['Q6.1', 'Q6.2']) to run a
     subset instead of the full 9-question suite -- useful when the LLM backend is
-    fragile/slow (cf. todo/contexte.txt Section 714) and re-running everything just
+    fragile/slow, and re-running everything just
     to re-check one or two questions wastes time. Unknown IDs are reported and
     ignored; None/empty runs the full suite unchanged (backward compatible)."""
     questions = BENCHMARK_QUESTIONS
@@ -179,8 +179,7 @@ def run_benchmark(question_ids=None):
         start_time = time.time()
         try:
             state = {"question": question, "chat_history": [], "user_groups": user_groups}
-            # Mirrors core.graph.graph::query_graph()'s lifecycle (Section 704,
-            # todo/contexte.txt) -- this script calls code_intelligence_agent()
+            # Mirrors core.graph.graph::query_graph()'s lifecycle -- this script calls code_intelligence_agent()
             # directly instead of going through query_graph(), so it must own
             # the turn-scoped Evidence accumulator itself or record_evidence()
             # drops every call (no active turn). Dossier unused here, just drained
@@ -301,12 +300,11 @@ def run_benchmark(question_ids=None):
 
 
 if __name__ == "__main__":
-    # Diagnostic instrumentation (Section 706, todo/contexte.txt) -- scoped to
+    # Diagnostic instrumentation -- scoped to
     # core.llm.llm_client only (not a global basicConfig) so the existing
     # "LLM DIAGNOSTIC METADATA" INFO log (finish_reason, token usage) becomes
     # visible for this run without drowning the output in every other
-    # module's INFO logs. Investigates the CI_MAX_HOPS truncation reported in
-    # Section 695 -- confirms or refutes reasoning-token budget exhaustion on
+    # module's INFO logs. Investigates the CI_MAX_HOPS truncation -- confirms or refutes reasoning-token budget exhaustion on
     # the synthesis call for multi-hop questions.
     import logging
     _llm_diag_handler = logging.StreamHandler()
@@ -316,6 +314,6 @@ if __name__ == "__main__":
     _llm_diag_logger.setLevel(logging.INFO)
 
     # Filtre optionnel : `python scripts/run_adversarial_benchmark.py Q6.1 Q6.2`
-    # ne rejoue que ces questions (todo/contexte.txt Section 715) ; sans argument,
+    # ne rejoue que ces questions ; sans argument,
     # comportement inchange (les 9 questions).
     run_benchmark(question_ids=sys.argv[1:] or None)

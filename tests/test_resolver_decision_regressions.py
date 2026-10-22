@@ -95,7 +95,7 @@ class ResolverDecisionTests(unittest.TestCase):
         self.settings.EMBEDDING_BASE_URL = 'https://configured.example/v1'
         self.settings.EMBEDDING_MODEL = 'configured-default'
         self.settings.EMBEDDING_API_KEY = 'fixture'
-        self.settings.DEFAULT_EMBEDDING_BACKEND = 'local_server'
+        self.settings.require_inference_server = lambda url: url
         self.settings.SEMANTIC_INDEX_CACHE_DIR = None
         config = types.ModuleType('config')
         config.settings = self.settings
@@ -123,19 +123,13 @@ class ResolverDecisionTests(unittest.TestCase):
 
     def test_server_override_is_respected(self):
         module = self.embedding_module()
-        provider = module.resolve_embedding_function('local_server', 'resolver-specific')
+        provider = module.resolve_embedding_function('resolver-specific')
         self.assertEqual(provider.model, 'resolver-specific')
         self.assertEqual(provider.endpoint, self.settings.EMBEDDING_BASE_URL + '/embeddings')
 
     def test_server_default_is_preserved(self):
-        provider = self.embedding_module().resolve_embedding_function('local_server')
+        provider = self.embedding_module().resolve_embedding_function()
         self.assertEqual(provider.model, 'configured-default')
-
-    def test_unselected_local_embedding_backends_are_rejected(self):
-        module = self.embedding_module()
-        for backend in ('local_light', 'local'):
-            with self.subTest(backend=backend), self.assertRaisesRegex(ValueError, 'Unknown EMBEDDING_BACKEND'):
-                module.resolve_embedding_function(backend, 'unused')
 
     def test_identity_separates_servers_with_same_model_tag(self):
         self.assertNotEqual(self.semantic._embedding_name(self.provider), self.semantic._embedding_name(Provider('https://two.example/v1/embeddings')))
@@ -276,7 +270,7 @@ class ResolverDecisionTests(unittest.TestCase):
             'EmbeddingFunction': object,
             'chromadb': types.SimpleNamespace(PersistentClient=lambda **kwargs: types.SimpleNamespace(get_or_create_collection=lambda **kwargs: kwargs)),
             'resolve_embedding_function': lambda **kwargs: kwargs})
-        with tempfile.TemporaryDirectory() as path, patch.dict('os.environ', {'EMBEDDING_BACKEND': 'local_server', 'EMBEDDING_MODEL': 'unrelated-local-name'}):
+        with tempfile.TemporaryDirectory() as path, patch.dict('os.environ', {'EMBEDDING_MODEL': 'unrelated-local-name'}):
             manager = module.ChromaManager(db_path=path)
             self.assertEqual(manager.embedding_model, 'configured-default')
 

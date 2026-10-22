@@ -64,11 +64,8 @@ def _embedding_name(embedding_function) -> str:
 
 
 def build_semantic_embedding_function():
-    from config.settings import DEFAULT_EMBEDDING_BACKEND
     from document_rag.vectorstore.embedding_functions import resolve_embedding_function
-    backend = (os.getenv('RESOLVER_SEMANTIC_EMBEDDING_BACKEND') or os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND)).strip().lower()
-    model = os.getenv('RESOLVER_SEMANTIC_EMBEDDING_MODEL')
-    return resolve_embedding_function(backend=backend, embedding_model=model)
+    return resolve_embedding_function(embedding_model=os.getenv('RESOLVER_SEMANTIC_EMBEDDING_MODEL'))
 
 
 def _validated_vector(vector, dimension=None):

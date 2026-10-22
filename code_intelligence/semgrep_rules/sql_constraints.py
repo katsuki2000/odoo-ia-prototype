@@ -1,5 +1,5 @@
-# le parseur de tests scanne tous les commentaires du fichier et
-# confond une explication en prose avec une vraie annotation.
+# the test parser scans every comment in the file and
+# mistakes a prose explanation for a real annotation.
 
 from odoo import models, fields
 
@@ -39,8 +39,8 @@ class PartnerHelper(models.Model):
     _inherit = 'res.partner'
 
     def _get_existing_constraints(self):
-        # Lecture (attribute access), pas une déclaration — ne doit PAS
-        # matcher.
+        # Read (attribute access), not a declaration -- must NOT
+        # match.
         # ok: odoo-sql-constraints-declaration
         existing = self._sql_constraints
         return existing
@@ -49,8 +49,8 @@ class PartnerHelper(models.Model):
 class ConstraintBackupMixin(models.AbstractModel):
     _name = 'constraint.backup.mixin'
 
-    # Nom différent (suffixe _backup) — ne doit PAS matcher : le token
-    # exact `_sql_constraints` est requis.
+    # Different name (_backup suffix) -- must NOT match: the exact
+    # `_sql_constraints` token is required.
     # ok: odoo-sql-constraints-declaration
     _sql_constraints_backup = [
         ('old_uniq', 'unique(old_field)', 'Ancien message.'),
@@ -60,9 +60,9 @@ class ConstraintBackupMixin(models.AbstractModel):
 class InvoiceOverride(models.Model):
     _inherit = 'account.move'
 
-    # Surcharge dynamique par compréhension + concaténation — HORS
-    # (gap documenté dans sql_constraints.yaml), ne doit
-    # donc PAS matcher pour l'instant.
+    # Dynamic override through comprehension + concatenation -- OUT OF SCOPE
+    # (gap documented in sql_constraints.yaml), so it must
+    # NOT match for now.
     # ok: odoo-sql-constraints-declaration
     _sql_constraints = [
         c for c in models.Model._sql_constraints if c[0] != 'name_uniq'

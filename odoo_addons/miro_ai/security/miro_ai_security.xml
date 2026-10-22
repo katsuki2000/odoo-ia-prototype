@@ -1,47 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data noupdate="1">
-        <!-- Catégorie pour MIRO AI -->
+        <!-- MIRO AI category -->
         <record id="module_category_miro_ai" model="ir.module.category">
-            <field name="name">MIRO Assistant IA</field>
-            <field name="description">Gestion des accès à l'assistant MIRO IA</field>
+            <field name="name">MIRO AI Assistant</field>
+            <field name="description">Access management for the MIRO AI assistant</field>
             <field name="sequence">50</field>
         </record>
 
-        <!-- Groupe Utilisateur MIRO AI -->
+        <!-- MIRO AI User group -->
         <record id="group_miro_ai_user" model="res.groups">
-            <field name="name">Utilisateur MIRO AI</field>
+            <field name="name">MIRO AI User</field>
             <field name="category_id" ref="module_category_miro_ai"/>
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">Peut interroger l'assistant MIRO et voir ses historiques.</field>
+            <field name="comment">Can query the MIRO assistant and view their own histories.</field>
         </record>
 
-        <!-- Groupe Administrateur MIRO AI -->
+        <!-- MIRO AI Administrator group -->
         <record id="group_miro_ai_admin" model="res.groups">
-            <field name="name">Administrateur MIRO AI</field>
+            <field name="name">MIRO AI Administrator</field>
             <field name="category_id" ref="module_category_miro_ai"/>
             <field name="implied_ids" eval="[(4, ref('group_miro_ai_user'))]"/>
-            <field name="comment">Peut configurer l'API, les compétences et consulter tous les journaux.</field>
+            <field name="comment">Can configure the API and the skills, and view all logs.</field>
         </record>
 
-        <!-- Règle multi-sociétés pour les paramètres MIRO AI -->
+        <!-- Multi-company rule for the MIRO AI settings -->
         <record id="rule_miro_ai_settings_company" model="ir.rule">
             <field name="name">MIRO AI Settings Multi-Company</field>
             <field name="model_id" ref="model_miro_ai_settings"/>
             <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         </record>
 
-        <!-- Règle de visibilité du journal : Utilisateur voit ses propres requêtes de sa société -->
+        <!-- Log visibility rule: a user sees their own requests within their companies -->
         <record id="rule_miro_ai_log_user" model="ir.rule">
-            <field name="name">MIRO AI Log : Voir ses requêtes</field>
+            <field name="name">MIRO AI Log: own requests</field>
             <field name="model_id" ref="model_miro_ai_log"/>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
             <field name="domain_force">['&amp;', ('user_id', '=', user.id), ('company_id', 'in', company_ids)]</field>
         </record>
 
-        <!-- Règle de visibilité du journal : Admin voit toutes les requêtes des sociétés autorisées -->
+        <!-- Log visibility rule: an admin sees all requests of the allowed companies -->
         <record id="rule_miro_ai_log_admin" model="ir.rule">
-            <field name="name">MIRO AI Log : Admin voit tout</field>
+            <field name="name">MIRO AI Log: admin sees all</field>
             <field name="model_id" ref="model_miro_ai_log"/>
             <field name="groups" eval="[(4, ref('group_miro_ai_admin')), (4, ref('base.group_system'))]"/>
             <field name="domain_force">[('company_id', 'in', company_ids)]</field>

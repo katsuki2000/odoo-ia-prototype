@@ -5,16 +5,12 @@ Generic, tool-agnostic relevance ranking and protected-minimum budget
 water-filling for assembling several deterministic-tool text "blocks"
 under a single character budget.
 
-Extracted from security_evidence.py (todo/contexte.txt sections 824-846),
-which built this mechanism first and only for analyze_security_locks.
-Section 948 (point 1) confirmed that who_has_access_to, evaluate_record_rules
-and analyze_method_override_chain still fell back to plain head-truncation
-(_truncate_observation, code_intelligence/agent/context.py): when a cut is
-needed, that mechanism keeps whichever blocks happen to sit first in FIXED
-positional/source order and drops everything after, regardless of which
-block is actually relevant to the question being asked. Section 950
-generalizes the security-lock mechanism to those three tools by moving its
-tool-agnostic primitives here.
+Extracted from security_evidence.py, which built this mechanism first for
+analyze_security_locks. who_has_access_to, evaluate_record_rules and
+analyze_method_override_chain would otherwise fall back to plain head-truncation
+(_truncate_observation, code_intelligence/agent/context.py), which keeps whichever blocks
+sit first in FIXED source order and drops the rest, whatever the question asks. The
+tool-agnostic primitives live here so all these tools share the relevance-ranked mechanism.
 """
 
 from __future__ import annotations
@@ -57,8 +53,7 @@ def _rerank_by_relevance(items: list, text_fn, question: Optional[str], bonus_fn
     set_current_question, and existing tests asserting a specific
     source/positional order, are unaffected.
 
-    `bonus_fn` (mandat "method name tracking", todo/contexte.txt section
-    972 item 1 / decision post-975): optional callable returning a numeric
+    `bonus_fn`: optional callable returning a numeric
     score to ADD on top of the generic fuzzy-text `_relevance_score` for a
     given item -- lets a caller fold in a deterministic, non-heuristic-text
     signal (e.g. the question's action verb matching the item's real

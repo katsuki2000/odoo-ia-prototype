@@ -133,7 +133,7 @@ class ReasoningTraceLogger:
         return failure
 
     def log_routing(self, trace_id: str, matched_dispatchers: List[str]) -> ReasoningRouting:
-        """Section 861 (mandat 4.4/trajectory recall): logs, once per question
+        """logs, once per question
         turn, whether deterministic predispatch matched anything -- and if
         so, which dispatcher(s) -- or whether routing was left fully open to
         the LLM's free ReAct choice. Previously this transition was silent;

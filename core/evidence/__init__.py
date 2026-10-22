@@ -1,7 +1,7 @@
 """
 core/evidence/__init__.py
 
-Regroupement (todo/contexte.txt Section 649-653) : evidence.py, evidence_check.py, evidence_collector.py, evidence_sufficiency.py.
+Regroupement : evidence.py, evidence_check.py, evidence_collector.py, evidence_sufficiency.py.
 """
 
 from .evidence import (

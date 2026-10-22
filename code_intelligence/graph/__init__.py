@@ -47,7 +47,6 @@ from .staleness import (
     StalenessReport,
     compute_file_hash,
     build_file_hash_index,
-    GraphStalenessDetector,
     analyze_changes,
 )
 from .atomic_swap import atomic_write_json, atomic_read_json

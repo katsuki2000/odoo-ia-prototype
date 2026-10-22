@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-tools/full_setup.py
-
 Consolidated single setup script to populate a fresh Odoo 17 database (SINGLE COMPANY):
 1. Single Company (Company Alpha) + Sales Journal + Income Account
 2. 6 Specialized users + 1 Miro Manager user, all linked to Company Alpha
@@ -15,42 +13,25 @@ databases rather than multiple res.company records in one DB.
 Includes fixes for:
 - Sales journal creation (account.journal type sale)
 - Income account creation (account.account code 400000) and product category assignment
-
-Note (2026-08-31, section 363): Sales Orders / Support Tickets seeding via
-document_rag/fake_data/{sales,tickets}.json was removed -- fake_data/ was
-intentionally dropped from the project, replaced by document_rag/documents/.
-Those steps are permanent dead code as of this removal, not a bug.
 """
 
-import xmlrpc.client
 import sys
+import xmlrpc.client
+from pathlib import Path
 
-URL = "http://localhost:8069"
-DB = "odoo-dev"
-USERNAME = "admin"
-PASSWORDS_TO_TRY = ["admin", "odoo"]
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from config.odoo_credentials import service_login, service_password
+from config.settings import ODOO_DB_DEFAULT as DB, ODOO_URL_DEFAULT as URL
 
-# --- Connection ---
 
 def get_connection():
-    common = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/common")
-    uid = None
-    password = None
-    for pwd in PASSWORDS_TO_TRY:
-        try:
-            uid = common.authenticate(DB, USERNAME, pwd, {})
-            if uid:
-                password = pwd
-                break
-        except Exception:
-            continue
+    uid = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/common").authenticate(DB, service_login(), service_password(), {})
     if not uid:
         print("Failed to authenticate with Odoo. Check credentials or DB name.")
         sys.exit(1)
-    print(f"Authenticated as admin (UID: {uid})")
-    models = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/object")
-    return uid, password, models
+    print(f"Authenticated (UID: {uid})")
+    return uid, service_password(), xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/object")
 
 
 # --- Generic Helpers ---

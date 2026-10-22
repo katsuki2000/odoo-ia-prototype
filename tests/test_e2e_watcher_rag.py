@@ -78,7 +78,7 @@ def test_e2e_live_add_delete_query_cycle():
             mock_get_retriever.return_value = (mock_retriever, mock_bm25)
             
             # Patch search_retrieve inside graph to use our real e2e manager
-            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 mock_llm_instance = MagicMock()
                 mock_build_llm.return_value = mock_llm_instance
                 mock_structured_llm = MagicMock()
@@ -121,7 +121,7 @@ def test_e2e_live_add_delete_query_cycle():
                 }
             }
             mock_get_retriever.return_value = (MagicMock(), MagicMock())
-            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 # Same explicit documentary anchor requirement as Step 3 above --
                 # generate() (RAG) only runs on an explicit documentary request.
                 response_after_delete = query_graph("Selon la documentation, quel est le code secret Katsuki ?")

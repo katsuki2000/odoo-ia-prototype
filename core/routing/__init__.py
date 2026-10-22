@@ -1,7 +1,7 @@
 """
 core/routing/__init__.py
 
-Regroupement (todo/contexte.txt Section 649-653) : routing_keywords.py, routing.py.
+Regroupement : routing_keywords.py, routing.py.
 """
 
 from .routing_keywords import (

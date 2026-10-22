@@ -121,20 +121,6 @@ def validate_name_search_operator(operator: str) -> str:
     return operator
 
 
-def domain_field_names(domain: list) -> list[str]:
-    return [
-        item[0]
-        for item in domain
-        if isinstance(item, (list, tuple)) and len(item) == 3
-    ]
-
-
-def order_field_names(order: Optional[str]) -> list[str]:
-    if not order:
-        return []
-    return [clause.split()[0] for clause in order.split(",") if clause.strip()]
-
-
 def _company_values(value: Any) -> list[int]:
     if isinstance(value, bool):
         return []
