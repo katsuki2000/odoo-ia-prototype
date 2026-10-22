@@ -1,5 +1,6 @@
 """Routing keywords, accent-folding helpers, and route priority definitions."""
 
+import re
 import unicodedata
 from core.schemas import QueryRoute
 
@@ -70,6 +71,11 @@ CONDITIONAL_AMOUNT_TERMS = [
     "quel que soit", "quelle que soit",
 ]
 
+_EXPLICIT_DOC_REQUEST_PATTERNS = [
+    r"\b(selon\s+le\s+wiki|dans\s+le\s+wiki|wiki\s+interne|guide\s+utilisateur|documentation|procedure|procédure)\b",
+    r"\b(ou\s+est\s+documente|où\s+est\s+documenté|politique\s+interne)\b",
+]
+
 
 def _fold_accents(text: str) -> str:
     """Strip diacritics for accent-insensitive keyword matching."""
@@ -77,6 +83,10 @@ def _fold_accents(text: str) -> str:
         ch for ch in unicodedata.normalize("NFD", text)
         if unicodedata.category(ch) != "Mn"
     )
+
+
+def has_explicit_doc_request(folded_question: str) -> bool:
+    return any(re.search(pattern, folded_question) for pattern in _EXPLICIT_DOC_REQUEST_PATTERNS)
 
 
 def _fold_keywords(keywords: list) -> list:

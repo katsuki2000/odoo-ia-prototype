@@ -19,7 +19,7 @@ from code_intelligence.rules.relevance_budget import (
 from code_intelligence.rules.access_evaluator import who_has_access_to
 from code_intelligence.rules.record_rules import evaluate_record_rules
 from code_intelligence.rules.override_composer import analyze_method_override_chain_with_evidence
-import code_intelligence.agent.tool_helpers as tool_helpers
+import code_intelligence.agent.tools.helpers as tool_helpers
 
 
 def test_significant_tokens_excludes_stopwords():

@@ -8,7 +8,7 @@ import time
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from code_intelligence.agent.matching import ResolvedConcept
+    from code_intelligence.agent.resolution.matching import ResolvedConcept
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

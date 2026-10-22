@@ -12,8 +12,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from code_intelligence.agent.matching import _fuzzy_match_graph
-from code_intelligence.agent.resolver import (
+from code_intelligence.agent.resolution.matching import _fuzzy_match_graph
+from code_intelligence.agent.resolution.resolver import (
     WIDENED_CANDIDATE_LIMIT,
     WIDENED_CANDIDATE_THRESHOLD,
     resolve_business_term,

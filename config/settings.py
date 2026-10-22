@@ -10,22 +10,44 @@ from config.odoo_conf import resolve_addon_paths, resolve_database, resolve_odoo
 
 _ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / '.env')
-LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'local')
-LOCAL_ONLY = os.getenv('LOCAL_ONLY', 'true').lower() in ('true', '1', 'yes')
-LOCAL_ALLOWED_HOSTS = frozenset(host.strip().lower() for host in os.getenv(
-    'LOCAL_ALLOWED_HOSTS', 'localhost,127.0.0.1,::1').split(',') if host.strip())
-OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'gpt-oss:20b')
-LOCAL_LLM_BASE_URL = os.getenv('LOCAL_LLM_BASE_URL', f'{OLLAMA_HOST}/v1')
-LOCAL_LLM_MODEL = os.getenv('LOCAL_LLM_MODEL', OLLAMA_MODEL)
-LOCAL_LLM_API_KEY = os.getenv('LOCAL_LLM_API_KEY', 'ollama')
-LLM_NO_THINK_MARKER = os.getenv('LLM_NO_THINK_MARKER', '/no_think' if LOCAL_LLM_MODEL.lower().startswith('qwen3') else '')
+# .env holds only secrets and server addresses; every other setting has its default here
+# (an environment variable of the same name overrides it).
+# Kaggle is a temporary dev host: delete its entry (and the KAGGLE_* variables) to drop it.
+LLM_TARGETS = {
+    'aws': {'prefix': 'AWS', 'headers': {}},
+    'kaggle': {'prefix': 'KAGGLE', 'headers': {'ngrok-skip-browser-warning': '1'}},
+}
+LLM_TARGET = os.getenv('LLM_TARGET', 'aws').strip().lower()
+if LLM_TARGET not in LLM_TARGETS:
+    raise ValueError(f'LLM_TARGET must be one of {sorted(LLM_TARGETS)}, got {LLM_TARGET!r}.')
+LLM_EXTRA_HEADERS = LLM_TARGETS[LLM_TARGET]['headers']
+LLM_TARGET_PREFIX = LLM_TARGETS[LLM_TARGET]['prefix']
+
+
+def _target_setting(name, default=''):
+    return os.getenv(f'{LLM_TARGET_PREFIX}_{name}') or default
+
+
+OLLAMA_HOST = _target_setting('OLLAMA_HOST')
+OLLAMA_MODEL = _target_setting('OLLAMA_MODEL', 'qwen3:14b')
+_ollamaUrl = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
+LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollamaUrl)
+LLM_MODEL = _target_setting('LLM_MODEL', OLLAMA_MODEL)
+LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
+LLM_NO_THINK_MARKER = os.getenv('LLM_NO_THINK_MARKER', '/no_think' if LLM_MODEL.lower().startswith('qwen3') else '')
 DEFAULT_EMBEDDING_BACKEND = 'local_server'
 EMBEDDING_BACKEND = os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND).lower()
-EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-m3')
-LOCAL_EMBEDDING_BASE_URL = os.getenv('LOCAL_EMBEDDING_BASE_URL', f'{OLLAMA_HOST}/v1')
-LOCAL_EMBEDDING_MODEL = os.getenv('LOCAL_EMBEDDING_MODEL', 'bge-m3:latest')
-LOCAL_EMBEDDING_API_KEY = os.getenv('LOCAL_EMBEDDING_API_KEY', 'ollama')
+EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollamaUrl)
+EMBEDDING_MODEL = _target_setting('EMBEDDING_MODEL', 'bge-m3:latest')
+EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
+
+
+def require_inference_server(url):
+    if not url:
+        raise ValueError(f'No inference server configured: set {LLM_TARGET_PREFIX}_OLLAMA_HOST in .env.')
+    return url
+
+
 CI_MAX_HOPS = int(os.getenv('CI_MAX_HOPS', '15'))
 CHROMA_PATH = os.getenv('CHROMA_PATH') or str(_ROOT / 'document_rag' / 'vectorstore' / 'chroma_db')
 DOCS_COLLECTION_NAME = 'odoo_docs'
@@ -88,13 +110,7 @@ def parse_cors_origins(raw: str) -> list[str]:
 CORS_ALLOWED_ORIGINS = parse_cors_origins(os.getenv('CORS_ALLOWED_ORIGINS', ''))
 API_PORT = int(os.getenv('API_PORT', '8000'))
 LATENCY_BUDGET_P90_SECONDS = float(os.getenv('LATENCY_BUDGET_P90_SECONDS', '12.0'))
-LATENCY_BUDGET_RESOLVER_MS = int(os.getenv('LATENCY_BUDGET_RESOLVER_MS', '2000'))
-LATENCY_BUDGET_PER_HOP_MS = int(os.getenv('LATENCY_BUDGET_PER_HOP_MS', '3000'))
-LATENCY_BUDGET_SYNTHESIS_MS = int(os.getenv('LATENCY_BUDGET_SYNTHESIS_MS', '4000'))
-LATENCY_BUDGET_XMLRPC_MS = int(os.getenv('LATENCY_BUDGET_XMLRPC_MS', '5000'))
 ORM_RUNTIME_MAX_ROWS = int(os.getenv('ORM_RUNTIME_MAX_ROWS', '100'))
 ORM_NAME_SEARCH_LIMIT = int(os.getenv('ORM_NAME_SEARCH_LIMIT', '20'))
-ORM_USE_TYPED_RUNTIME = os.getenv('ORM_USE_TYPED_RUNTIME', 'true').lower() in ('true', '1', 'yes')
-MAX_MODELS_PER_QUERY = int(os.getenv('MAX_MODELS_PER_QUERY', '3'))
 MASSIVE_EXTRACTION_REFUSAL_MSG = 'La demande dépasse le périmètre d\'analyse autorisé.'
 PROMPT_INJECTION_REFUSAL_MSG = 'Demande non autorisée : les consignes système et politiques de sécurité ne peuvent pas être altérées ou divulguées.'

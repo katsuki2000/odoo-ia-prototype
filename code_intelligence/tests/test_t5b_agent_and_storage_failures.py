@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import chromadb
 import pytest
 
-from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
+from code_intelligence.agent.tools.helpers import _is_custom_module_filepath
 from core.llm.llm_retry import try_recover_tool_use_failed
 from document_rag.ingestion.incremental import _is_under_roots
 from document_rag.vectorstore.chroma_helpers import get_or_create_collection, reset_collection

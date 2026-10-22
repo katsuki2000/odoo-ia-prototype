@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 
 from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.resolution.matching import ResolvedConcept
 from code_intelligence.agent.postprocess import build_final_response
 from code_intelligence.agent.provenance import (
     GRAPH_SOURCE_FOOTER,

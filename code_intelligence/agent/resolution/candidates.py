@@ -5,8 +5,8 @@ import weakref
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
-from ..matching import _fuzzy_match_graph
-from ..semantic_retrieval import SemanticRetrievalStatus, retrieve_semantic_model_candidates
+from .matching import _fuzzy_match_graph
+from .semantic_retrieval import SemanticRetrievalStatus, retrieve_semantic_model_candidates
 
 _logger = logging.getLogger(__name__)
 

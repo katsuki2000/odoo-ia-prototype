@@ -1,7 +1,7 @@
 from dataclasses import asdict
 
 from api.schemas import AskResponseV1
-from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.resolution.matching import ResolvedConcept
 from core.graph.graph_nodes import format_output
 from core.schemas import AssistantResponse
 

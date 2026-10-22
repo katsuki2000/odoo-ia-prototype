@@ -8,13 +8,12 @@ from typing import Any, Callable, Optional, Tuple
 from langchain_core.messages import SystemMessage
 
 from config.settings import (
-    LLM_PROVIDER,
-    LOCAL_LLM_BASE_URL,
-    LOCAL_LLM_MODEL,
-    LOCAL_LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    LLM_API_KEY,
     LLM_NO_THINK_MARKER,
+    require_inference_server,
 )
-from core.llm.local_only import assert_local_endpoint
 from core.llm.llm_retry import (
     ToolCallFallback as _ToolCallFallback,
     parse_reset_seconds as _parse_reset_seconds,
@@ -29,7 +28,7 @@ from core.llm.llm_retry import (
 logger = logging.getLogger(__name__)
 
 
-# ── Provider-agnostic client factory ──────────────────────────────────────
+# ── Client factory ──────────────────────────────────────
 
 def with_no_think(prompt: str) -> str:
     return f"{prompt} {LLM_NO_THINK_MARKER}" if LLM_NO_THINK_MARKER else prompt
@@ -37,7 +36,6 @@ def with_no_think(prompt: str) -> str:
 
 def get_chat_llm(
     *,
-    provider: Optional[str] = None,
     model: Optional[str] = None,
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
@@ -46,38 +44,19 @@ def get_chat_llm(
     max_retries: int = 0,
     model_kwargs: Optional[dict] = None,
 ):
-    """Construct an LLM client according to the configured or requested provider.
-
-    Supported providers are local OpenAI-compatible inference servers.
-    """
-    active_provider = (provider or LLM_PROVIDER or "local").lower().strip()
-
-    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"):
-        from langchain_openai import ChatOpenAI
-        kw = dict(model_kwargs or {})
-        freq = kw.pop("frequency_penalty", None)
-        pres = kw.pop("presence_penalty", None)
-        penalties = {}
-        if freq is not None:
-            penalties["frequency_penalty"] = freq
-        if pres is not None:
-            penalties["presence_penalty"] = pres
-
-        local_base_url = base_url or LOCAL_LLM_BASE_URL
-        assert_local_endpoint(local_base_url, "LLM")
-        return ChatOpenAI(
-            model=model or LOCAL_LLM_MODEL,
-            base_url=local_base_url,
-            api_key=api_key or LOCAL_LLM_API_KEY,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            max_retries=max_retries,
-            model_kwargs=kw,
-            **penalties,
-        )
-
-    raise ValueError(
-        f"Unknown LLM_PROVIDER={active_provider!r}; expected a local OpenAI-compatible provider."
+    """Build the chat client for the configured Ollama server (OpenAI-compatible API)."""
+    from langchain_openai import ChatOpenAI
+    kw = dict(model_kwargs or {})
+    penalties = {name: kw.pop(name) for name in ("frequency_penalty", "presence_penalty") if kw.get(name) is not None}
+    return ChatOpenAI(
+        model=model or LLM_MODEL,
+        base_url=require_inference_server(base_url or LLM_BASE_URL),
+        api_key=api_key or LLM_API_KEY,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        max_retries=max_retries,
+        model_kwargs=kw,
+        **penalties,
     )
 
 

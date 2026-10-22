@@ -21,8 +21,7 @@ def _reset_connector():
     set_connector_for_tests(None)
 
 
-def test_resolve_orm_tools_exposes_only_generic_read_primitives(monkeypatch):
-    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", False, raising=False)
+def test_resolve_orm_tools_exposes_only_generic_read_primitives():
     tools = resolve_orm_tools({"ventes": True, "stocks": True, "comptabilite": True, "tickets": True})
     names = {tool.name for tool in tools}
     assert names == {

@@ -146,7 +146,7 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
 
 
 def _allowed_source_roots() -> list:
-    from code_intelligence.agent.tool_helpers import get_graph_ref
+    from code_intelligence.agent.tools.helpers import get_graph_ref
     from config.settings import (
         CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
         OCA_SAMPLE_ADDONS_PATH,
@@ -165,14 +165,14 @@ def read_precise_source_code(
     include_citation: bool = False,
 ) -> str:
     """Targeted source reader restricted to configured and active-graph addon roots."""
-    from code_intelligence.agent.source_boundary import validate_source_range
+    from code_intelligence.agent.tools.source_boundary import validate_source_range
     rangeError = validate_source_range(line_start, line_end, max_lines)
     if rangeError:
         return rangeError
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     from code_intelligence.rules.server_actions import _SUDO_PATTERN, _HARDCODED_ID_LIST_PATTERN
     from code_intelligence.rules.security import _EMAIL_PATTERN
-    from code_intelligence.agent.tool_helpers import get_graph_ref
+    from code_intelligence.agent.tools.helpers import get_graph_ref
     graph = get_graph_ref()
     path = Path(filepath_str)
     target_model_resolved = None
@@ -288,14 +288,14 @@ def read_precise_source_code(
             citation = format_file_link(str(path), shown_start, shown_end)
             body = f"Source: {citation}\n{body}"
         return body
-    except Exception as e:
+    except (OSError, UnicodeDecodeError) as e:
         _logger.error("Error reading file %s: %s", filepath_str, e)
         return f"Error reading file '{filepath_str}': {str(e)}"
 
 
 import json
 from langchain_core.tools import tool
-from code_intelligence.agent.tool_helpers import _require_graph, _resolve_model_param
+from code_intelligence.agent.tools.helpers import _require_graph, _resolve_model_param
 from core.evidence.evidence_collector import record_evidence
 
 

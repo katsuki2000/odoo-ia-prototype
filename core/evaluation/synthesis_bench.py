@@ -11,7 +11,7 @@ from typing import Dict, Iterator, List, Optional
 
 from langchain_core.messages import HumanMessage
 
-from config.settings import LOCAL_LLM_MODEL
+from config.settings import LLM_MODEL
 from core.evaluation.synthesis_metrics import SynthesisScore, score_answer
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
@@ -107,7 +107,7 @@ def load_cases(directory: Path, case_ids: Optional[List[str]] = None) -> List[Fr
 
 
 def default_model_specs() -> List[ModelSpec]:
-    return [ModelSpec.parse(LOCAL_LLM_MODEL)]
+    return [ModelSpec.parse(LLM_MODEL)]
 
 
 def generate_answer(
@@ -119,7 +119,7 @@ def generate_answer(
 ) -> str:
     def build_llm():
         return get_chat_llm(
-            provider=spec.provider, model=spec.model, base_url=base_url,
+            model=spec.model, base_url=base_url,
             temperature=temperature, max_tokens=SYNTHESIS_MAX_TOKENS,
             model_kwargs=dict(SYNTHESIS_MODEL_KWARGS),
         )

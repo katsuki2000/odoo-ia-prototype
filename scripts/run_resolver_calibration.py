@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 from code_intelligence.evaluation.e1.cases import DATA_DIR, load_calibration_cases
 from code_intelligence.evaluation.resolver_calibration import score_case, summarize
 from code_intelligence.graph.loader import get_code_intelligence_graph

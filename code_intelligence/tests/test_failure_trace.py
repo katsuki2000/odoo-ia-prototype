@@ -2,7 +2,7 @@ import json
 from types import SimpleNamespace
 
 from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.tool_execution import execute_tool_calls
+from code_intelligence.agent.tools.execution import execute_tool_calls
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 

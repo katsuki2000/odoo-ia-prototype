@@ -1,18 +1,4 @@
-"""
-Test script for Step 7 Day 3: Evaluate routing accuracy on benchmark questions.
-
-2026-08-19 (H1 prototype session): reranker disabled by default here.
-On this dev machine (no AVX2, see EMBEDDING_BACKEND=local_light warning in
-vectorstore/chroma_manager.py), the cross-encoder rerank in
-vectorstore/search.py's retrieve() (a real PyTorch forward pass, not
-cached per-query) made the un-modified eval_routing_accuracy.py take over
-30 minutes for 37 questions and eventually crash the terminal. This is an
-infra/hardware issue, unrelated to routing logic. use_reranker=False skips
-only that final re-ranking step -- vector search + BM25 + RRF still run
-for real, which is what route()'s chunk-dependent branches actually look
-at. Pass RERANK=1 as an env var to run the original (slow, faithful)
-path if you specifically need reranked chunk ordering for this check.
-"""
+"""Benchmark routing accuracy; cross-encoder reranking is opt-in via RERANK=1."""
 import json
 import logging
 import os

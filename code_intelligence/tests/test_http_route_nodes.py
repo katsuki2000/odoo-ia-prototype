@@ -1,7 +1,6 @@
-"""Section 1418: @http.route methods are extracted with ast and become HttpRoute nodes; the audit inventory agrees."""
+"""@http.route methods are extracted with AST and become HttpRoute graph nodes."""
 import networkx as nx
 
-from code_intelligence.evaluation.source_inventory import inventory_module
 from code_intelligence.extractor.http_routes import parse_http_routes
 from code_intelligence.graph.nodes import ParsedModule
 from code_intelligence.graph.output_nodes import add_http_route_nodes
@@ -72,7 +71,7 @@ def test_non_literal_arguments_are_left_empty_and_bare_route_is_an_override(tmp_
     assert override.overrides_parent is True and override.paths == [] and override.auth == ""
 
 
-def test_nodes_are_built_and_inventory_agrees(tmp_path):
+def test_nodes_are_built(tmp_path):
     module_dir = _write_module(tmp_path)
     module = ParsedModule(manifest=_Manifest())
     module.http_routes = parse_http_routes(module_dir / "controllers" / "main.py")
@@ -81,10 +80,16 @@ def test_nodes_are_built_and_inventory_agrees(tmp_path):
     node = G.nodes["route:demo.PortalController.orders"]
     assert node["node_type"] == "HttpRoute" and node["technical_tags"] == [] and node["module"] == "demo"
     graph_ids = {n.partition(":")[2] for n, d in G.nodes(data=True) if d["node_type"] == "HttpRoute"}
-    assert graph_ids == inventory_module(module_dir).xmlIds["http_route"]
+    assert graph_ids == {
+        "demo.PortalController.orders",
+        "demo.PortalController.decline",
+        "demo.PortalController.default_auth",
+        "demo.PortalController.dynamic",
+        "demo.PortalOverride.orders",
+    }
 
 
-def test_controller_declared_inside_a_function_is_not_a_route_for_extractor_nor_inventory(tmp_path):
+def test_controller_declared_inside_a_function_is_not_a_route(tmp_path):
     module_dir = tmp_path / "demo"
     module_dir.mkdir()
     source = (
@@ -96,4 +101,3 @@ def test_controller_declared_inside_a_function_is_not_a_route_for_extractor_nor_
     )
     (module_dir / "tests.py").write_text(source, encoding="utf-8")
     assert parse_http_routes(module_dir / "tests.py") == []
-    assert inventory_module(module_dir).xmlIds["http_route"] == set()

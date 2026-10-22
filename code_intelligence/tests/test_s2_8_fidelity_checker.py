@@ -14,7 +14,7 @@ from code_intelligence.agent.tools import (
     analyze_server_actions,
     analyze_security_locks,
 )
-from code_intelligence.agent.tool_helpers import set_graph_ref
+from code_intelligence.agent.tools.helpers import set_graph_ref
 
 
 @pytest.fixture

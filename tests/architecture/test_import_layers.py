@@ -16,8 +16,7 @@ KERNEL = ("core.llm", "core.session", "core.schemas", "core.output", "core.evide
 ORCHESTRATION = ("core.graph", "core.routing", "core.verification", "core.evaluation")
 
 KNOWN_VIOLATIONS = frozenset({
-    ("code_intelligence.agent.access_guards", "core.verification.extractors"),
-    ("core.evidence.evidence_check", "code_intelligence.agent.matching"),
+    ("core.evidence.evidence_check", "code_intelligence.agent.resolution.matching"),
     ("core.evidence.evidence_sufficiency", "code_intelligence.rules.common"),
     ("core.schemas", "core.verification.claims"),
     ("document_rag.verification", "core.evaluation.oracles.documentation"),

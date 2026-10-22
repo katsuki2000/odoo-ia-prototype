@@ -6,12 +6,12 @@ from code_intelligence.agent.resolution.dense_lookup import (
     DenseResolution,
     resolve_dense_retrieval,
 )
-from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
+from code_intelligence.agent.resolution.semantic_retrieval import SemanticRetrievalStatus
 
 
 def _fake_scored_retrieval(results, status=None):
     """Patch retrieve_semantic_model_candidates_scored to return fixed results."""
-    from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
+    from code_intelligence.agent.resolution.semantic_retrieval import SemanticRetrievalStatus
 
     actual_status = status or (
         SemanticRetrievalStatus.SUCCESS if results else SemanticRetrievalStatus.NO_CANDIDATES
@@ -56,7 +56,7 @@ class TestDenseResolution:
         assert outcome.candidates == ()
 
     def test_disabled_falls_through(self, monkeypatch):
-        from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
+        from code_intelligence.agent.resolution.semantic_retrieval import SemanticRetrievalStatus
         monkeypatch.setattr(
             "code_intelligence.agent.resolution.dense_lookup.retrieve_semantic_model_candidates_scored",
             lambda *a, **kw: ([], SemanticRetrievalStatus.DISABLED),
@@ -67,7 +67,7 @@ class TestDenseResolution:
         assert result == DenseResolution(SemanticRetrievalStatus.DISABLED)
 
     def test_error_falls_through(self, monkeypatch):
-        from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
+        from code_intelligence.agent.resolution.semantic_retrieval import SemanticRetrievalStatus
         monkeypatch.setattr(
             "code_intelligence.agent.resolution.dense_lookup.retrieve_semantic_model_candidates_scored",
             lambda *a, **kw: ([], SemanticRetrievalStatus.ERROR),
@@ -138,7 +138,7 @@ class TestDenseStatusVisibility:
         "status", [SemanticRetrievalStatus.DISABLED, SemanticRetrievalStatus.ERROR],
     )
     def test_resolver_publishes_dense_outage_on_unresolved_concept(self, monkeypatch, status):
-        from code_intelligence.agent import resolver
+        from code_intelligence.agent.resolution import resolver
         import networkx as nx
         monkeypatch.setattr(
             resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(status),
@@ -148,7 +148,7 @@ class TestDenseStatusVisibility:
         assert result.diagnostics == {"semantic_retrieval": status.value}
 
     def test_resolver_omits_dense_status_when_step_not_run(self, monkeypatch):
-        from code_intelligence.agent import resolver
+        from code_intelligence.agent.resolution import resolver
         import networkx as nx
         monkeypatch.setattr(
             resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(None),
@@ -161,7 +161,7 @@ class TestStaticAliasesRemoved:
     """The manual alias tables and their switches no longer exist (section 1436)."""
 
     def test_resolver_has_no_static_alias_switch(self):
-        from code_intelligence.agent.resolver import resolve_business_term
+        from code_intelligence.agent.resolution.resolver import resolve_business_term
         import inspect
         params = inspect.signature(resolve_business_term).parameters
         assert "use_static_aliases" not in params
@@ -170,7 +170,7 @@ class TestStaticAliasesRemoved:
 
 def test_resolver_arbitrates_when_dense_and_fuzzy_leaders_disagree(monkeypatch):
     import networkx as nx
-    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import resolver
     from code_intelligence.agent.resolution import fuzzy_lookup
     from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
 
@@ -208,7 +208,7 @@ def test_resolver_arbitrates_when_dense_and_fuzzy_leaders_disagree(monkeypatch):
 def test_closed_list_keeps_the_semantic_candidate_ranked_seventh(monkeypatch):
     """A model at semantic rank 7 must reach the arbitrator (the list used to keep only 5)."""
     import networkx as nx
-    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import resolver
     from code_intelligence.agent.resolution import fuzzy_lookup
     from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
 
@@ -245,7 +245,7 @@ def test_closed_list_keeps_the_semantic_candidate_ranked_seventh(monkeypatch):
 
 def test_resolver_abstains_when_retrievals_disagree_without_llm(monkeypatch):
     import networkx as nx
-    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import resolver
     from code_intelligence.agent.resolution import fuzzy_lookup
 
     graph = nx.DiGraph()
@@ -275,7 +275,7 @@ def test_resolver_abstains_when_retrievals_disagree_without_llm(monkeypatch):
 
 def test_semantic_candidates_are_not_silently_discarded_without_llm(monkeypatch):
     import networkx as nx
-    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import resolver
     from code_intelligence.agent.resolution import fuzzy_lookup
 
     graph = nx.DiGraph()

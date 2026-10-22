@@ -13,7 +13,7 @@ load_dotenv(Path(__file__).resolve().parents[2] / '.env')
 import chromadb
 from chromadb.api.types import EmbeddingFunction
 from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
-from document_rag.vectorstore.embedding_functions import resolve_embedding_function, SERVER_EMBEDDING_BACKENDS
+from document_rag.vectorstore.embedding_functions import resolve_embedding_function
 from document_rag.vectorstore.chroma_helpers import (
     clean_metadata, format_query_results, get_chroma_client, get_or_create_collection,
     add_documents, reset_collection, get_collection_stats,
@@ -28,16 +28,14 @@ class ChromaManager:
     def __init__(self, db_path: str | Path = None, embedding_model: Optional[str] = None, collection_name: str = DOCS_COLLECTION_NAME):
         self.db_path = Path(db_path) if db_path is not None else Path(CHROMA_PATH)
         self.db_path.mkdir(parents=True, exist_ok=True)
-        from config.settings import DEFAULT_EMBEDDING_BACKEND, EMBEDDING_MODEL_NAME, LOCAL_EMBEDDING_MODEL
-        backend = os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND).strip().lower()
-        defaultModel = LOCAL_EMBEDDING_MODEL if backend in SERVER_EMBEDDING_BACKENDS else os.getenv('EMBEDDING_MODEL') or EMBEDDING_MODEL_NAME
-        self.embedding_model = embedding_model or defaultModel
+        from config.settings import EMBEDDING_MODEL
+        self.embedding_model = embedding_model or EMBEDDING_MODEL
         self.collection_name = collection_name
         self.client = chromadb.PersistentClient(path=str(self.db_path))
         self.collection = self.client.get_or_create_collection(name=collection_name,
             embedding_function=self._resolve_embedding_function(), metadata=dict(COLLECTION_METADATA))
 
-    def _resolve_embedding_function(self) -> Optional[EmbeddingFunction]:
+    def _resolve_embedding_function(self) -> EmbeddingFunction:
         return resolve_embedding_function(embedding_model=self.embedding_model)
 
     def add_chunks(self, texts: list[str], metadatas: list[dict[str, Any]], ids: list[str] | None = None) -> list[str]:

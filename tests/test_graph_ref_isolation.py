@@ -1,6 +1,6 @@
 import pytest
 
-import code_intelligence.agent.tool_helpers as tool_helpers
+import code_intelligence.agent.tools.helpers as tool_helpers
 
 SENTINEL = object()
 

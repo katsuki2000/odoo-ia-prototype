@@ -6,13 +6,11 @@ Unit tests for J32-J33 (Security — Prompt Injection & Massive Extraction Guard
 2. Verifies is_prompt_injection detects system prompt reveal and jailbreak queries.
 3. Verifies code_intelligence_agent returns explicit refusal for massive extraction queries.
 4. Verifies code_intelligence_agent returns explicit refusal for prompt injection queries.
-5. Verifies MAX_MODELS_PER_QUERY limits resolved models to 3 max.
-6. Verifies tools reject wildcard model names ("*", "all", "%").
+5. Verifies tools reject wildcard model names ("*", "all", "%").
 """
 
 import pytest
 from config.settings import (
-    MAX_MODELS_PER_QUERY,
     MASSIVE_EXTRACTION_REFUSAL_MSG,
     PROMPT_INJECTION_REFUSAL_MSG,
 )
@@ -25,7 +23,7 @@ from code_intelligence.agent.tools import (
     analyze_server_actions,
     analyze_data_constraints,
 )
-from code_intelligence.agent.tool_helpers import WILDCARD_MODEL_ERROR_MSG
+from code_intelligence.agent.tools.helpers import WILDCARD_MODEL_ERROR_MSG
 
 
 @pytest.mark.parametrize("query", [
@@ -105,8 +103,3 @@ def test_tools_reject_wildcard_model_name(tool_func):
 
     res_all = tool_func.invoke({"model_name": "all"})
     assert res_all == WILDCARD_MODEL_ERROR_MSG
-
-
-def test_max_models_per_query_limit_constant():
-    """J32-J33: verify MAX_MODELS_PER_QUERY is set to 3."""
-    assert MAX_MODELS_PER_QUERY == 3

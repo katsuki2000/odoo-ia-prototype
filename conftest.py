@@ -24,9 +24,9 @@ def _embedding_server_error():
 
     try:
         LocalServerEmbeddingFunction(
-            base_url=settings.LOCAL_EMBEDDING_BASE_URL,
-            model=settings.LOCAL_EMBEDDING_MODEL,
-            api_key=settings.LOCAL_EMBEDDING_API_KEY,
+            base_url=settings.EMBEDDING_BASE_URL,
+            model=settings.EMBEDDING_MODEL,
+            api_key=settings.EMBEDDING_API_KEY,
             timeout=EMBEDDING_PROBE_TIMEOUT_SECONDS,
             max_retries=1,
         )(["ping"])
@@ -49,7 +49,7 @@ def pytest_collection_modifyitems(items):
 
 @pytest.fixture(autouse=True)
 def _pin_embedding_backend(monkeypatch):
-    if os.environ.get("USE_KAGGLE_EMBEDDINGS", "").lower() == "true":
+    if os.environ.get("USE_REMOTE_EMBEDDINGS", "").lower() == "true":
         return
     monkeypatch.setenv("EMBEDDING_BACKEND", "local_server")
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
@@ -69,7 +69,7 @@ def _isolate_tool_helpers_graph_ref():
     part of the saved value and stays in place for the whole module."""
     import sys
 
-    module_name = "code_intelligence.agent.tool_helpers"
+    module_name = "code_intelligence.agent.tools.helpers"
     loaded = sys.modules.get(module_name)
     previous = loaded.get_graph_ref() if loaded is not None else None
     yield
@@ -81,14 +81,14 @@ def _isolate_tool_helpers_graph_ref():
 @pytest.fixture(scope="module")
 def real_graph():
     """Real graph registered as the active graph for one test module, then restored."""
-    from code_intelligence.agent import tool_helpers
+    from code_intelligence.agent.tools import helpers
     from code_intelligence.graph.loader import get_code_intelligence_graph
 
-    previous = tool_helpers.get_graph_ref()
+    previous = helpers.get_graph_ref()
     graph = get_code_intelligence_graph()
-    tool_helpers.set_graph_ref(graph)
+    helpers.set_graph_ref(graph)
     yield graph
-    tool_helpers.set_graph_ref(previous)
+    helpers.set_graph_ref(previous)
 
 
 @pytest.fixture(scope="module")

@@ -12,7 +12,7 @@ from pathlib import Path
 from langchain_core.tools import tool
 
 from code_intelligence.rules.model_suggestions import model_not_found_message
-from code_intelligence.agent.tool_helpers import (
+from code_intelligence.agent.tools.helpers import (
     _require_graph,
     _resolve_model_param,
     WILDCARD_MODEL_ERROR_MSG,
@@ -23,7 +23,6 @@ from code_intelligence.agent.tool_helpers import (
     _is_custom_server_action_module,
     _sort_server_action_entries_custom_first,
     _sort_filepaths_custom_first,
-    _trace_invoked_methods_with_citations,
 )
 from core.evidence.evidence_collector import record_evidence
 from code_intelligence.rules.security_evidence import assemble_security_lock_blocks
@@ -31,29 +30,23 @@ from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
 
 
 def _compose_server_actions_observation(model_name: str):
-    """Shared implementation behind the analyze_server_actions @tool -- builds
-    both the LLM-facing text AND the structured (filepath, start, end)
-    citations _trace_invoked_methods_with_citations discovers along the way,
-    from a single pass over the model's server-action nodes.
-    Returns (text, citations) where citations is a List[Tuple[str, int, int]].
-    """
+    """Analyze each indexed server action once and combine its evidence."""
     if _is_wildcard_model(model_name):
-        return WILDCARD_MODEL_ERROR_MSG, []
+        return WILDCARD_MODEL_ERROR_MSG
     from code_intelligence.rules.server_actions import analyze_server_action_code, interpret_server_action_with_llm
 
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return model_not_found_message(G, model_name), []
+        return model_not_found_message(G, model_name)
 
     sa_nodes = find_server_action_nodes(G, model_name)
     if not sa_nodes:
-        return f"No server actions (ir.actions.server) found for model '{model_name}'.", []
+        return f"No server actions (ir.actions.server) found for model '{model_name}'."
 
     entries = []
     all_evidence = []
-    all_citations = []
     llm_ref = get_llm_ref()
     for node_id, attrs in sa_nodes:
         xml_id = attrs.get("xml_id", node_id)
@@ -69,21 +62,17 @@ def _compose_server_actions_observation(model_name: str):
         )
         analysis = interpret_server_action_with_llm(analysis, code, llm_ref)
         all_evidence.extend(analysis.evidence)
-        trace_text, trace_citations = _trace_invoked_methods_with_citations(G, model_name, code)
-        all_citations.extend(trace_citations)
-        summary = analysis.summary_text + trace_text
-        entries.append((xml_id, _is_custom_server_action_module(G, xml_id), summary))
+        entries.append((xml_id, _is_custom_server_action_module(G, xml_id), analysis.summary_text))
 
     record_evidence(all_evidence)
     entries = _sort_server_action_entries_custom_first(entries)
-    return "\n\n".join(summary for _, _, summary in entries), all_citations
+    return "\n\n".join(summary for _, _, summary in entries)
 
 
 @tool
 def analyze_server_actions(model_name: str) -> str:
     """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model."""
-    text, _citations = _compose_server_actions_observation(model_name)
-    return text
+    return _compose_server_actions_observation(model_name)
 
 
 @tool

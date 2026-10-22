@@ -9,7 +9,7 @@ No manual alias tables exist anymore (removed, journal 1436-1438).
 
 import pytest
 import networkx as nx
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 
 
 @pytest.fixture

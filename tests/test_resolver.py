@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 from code_intelligence.graph.loader import get_code_intelligence_graph
 
 print("Loading graph...")
@@ -80,7 +80,7 @@ for q in native_model_candidates:
 # en cause, pour identifier la source exacte AVANT d'ecrire
 # la table de synonymes natifs (retiree, journal 1436-1438) (risque de collision de score sinon). Lecture seule :
 # appelle une fonction privee du module en lecture, ne modifie rien.
-from code_intelligence.agent.matching import _build_fuzzy_index
+from code_intelligence.agent.resolution.matching import _build_fuzzy_index
 
 print("\n=== entrees d'index contenant 'achat' ===")
 idx = _build_fuzzy_index(G)

@@ -1,7 +1,7 @@
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.matching import (
+from code_intelligence.agent.resolution.matching import (
     _find_exact_technical_model_mentions,
     _find_exact_technical_module_mentions,
 )

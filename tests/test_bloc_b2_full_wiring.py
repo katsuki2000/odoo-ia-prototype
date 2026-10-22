@@ -44,7 +44,7 @@ def _one_evidence(claim="fake fact"):
 class TestFieldChangeImpactWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -73,7 +73,7 @@ class TestFieldChangeImpactWrapperRecordsEvidence:
 class TestButtonExecutionPathWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -101,7 +101,7 @@ class TestButtonExecutionPathWrapperRecordsEvidence:
 class TestTraceFullInheritanceWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -126,7 +126,7 @@ class TestTraceFullInheritanceWrapperRecordsEvidence:
 class TestDescribeWorkflowWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -151,7 +151,7 @@ class TestDescribeWorkflowWrapperRecordsEvidence:
 class TestEvaluateRecordRulesWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -178,7 +178,7 @@ class TestEvaluateRecordRulesWrapperRecordsEvidence:
 class TestListInvolvedModulesWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -205,7 +205,7 @@ class TestListInvolvedModulesWrapperRecordsEvidence:
 class TestAnalyzeServerActionsWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -220,10 +220,6 @@ class TestAnalyzeServerActionsWrapperRecordsEvidence:
         monkeypatch.setattr(
             "code_intelligence.agent.tools.analysis.find_server_action_nodes",
             lambda G, model_name: [("server_action:x.y", {"xml_id": "x.y", "code": "pass"})],
-        )
-        monkeypatch.setattr(
-            "code_intelligence.agent.tools.analysis._trace_invoked_methods_with_citations",
-            lambda G, model_name, code: ("", []),
         )
         monkeypatch.setattr(
             "code_intelligence.rules.server_actions.analyze_server_action_code",
@@ -242,7 +238,7 @@ class TestAnalyzeServerActionsWrapperRecordsEvidence:
 class TestAnalyzeSecurityLocksWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch, tmp_path):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -274,7 +270,7 @@ class TestAnalyzeSecurityLocksWrapperRecordsEvidence:
 class TestAnalyzeMethodOverrideChainWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -301,7 +297,7 @@ class TestAnalyzeMethodOverrideChainWrapperRecordsEvidence:
 class TestAnalyzeDataConstraintsWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
         from code_intelligence.agent import tools as ci_agent_tools
-        from code_intelligence.agent.tool_helpers import set_graph_ref
+        from code_intelligence.agent.tools.helpers import set_graph_ref
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")

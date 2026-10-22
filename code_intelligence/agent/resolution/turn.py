@@ -7,7 +7,7 @@ import weakref
 from copy import deepcopy
 from threading import RLock
 
-from ..matching import ResolvedConcept, _FUZZY_INDEX_CACHE
+from .matching import ResolvedConcept, _FUZZY_INDEX_CACHE
 from .candidates import _TIEBREAK_RARITY_CACHE
 
 _GRAPH_VERSIONS = weakref.WeakKeyDictionary()
@@ -44,11 +44,9 @@ def _graph_version(graph):
 
 
 def resolve_turn(question, graph, state, *, language=None, llm=None):
-    from ..resolver import resolve_business_term
+    from .resolver import resolve_business_term
     configuration = {key: value for key, value in os.environ.items()
-                     if key.startswith('RESOLVER_SEMANTIC_') or key in {
-                         'LOCAL_LLM_MODEL', 'LOCAL_LLM_BASE_URL', 'LOCAL_EMBEDDING_MODEL',
-                         'LOCAL_EMBEDDING_BASE_URL', 'EMBEDDING_BACKEND', 'EMBEDDING_MODEL'}}
+                     if key.startswith(('RESOLVER_SEMANTIC_', 'AWS_', 'KAGGLE_')) or key in {'LLM_TARGET', 'EMBEDDING_BACKEND'}}
     history = [(getattr(message, 'type', ''), getattr(message, 'content', str(message)))
                for message in state.get('chat_history', [])]
     signature = hashlib.sha256(json.dumps([question.strip(), language, id(graph), _graph_version(graph),

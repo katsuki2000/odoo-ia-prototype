@@ -1,7 +1,7 @@
 """Select targets from one bounded lexical/semantic candidate set."""
 
 from typing import List
-from ..matching import ResolvedConcept, _fuzzy_match_graph
+from .matching import ResolvedConcept, _fuzzy_match_graph
 from .arbitration import QUOTED_LABEL_MARKER, _llm_arbitrate
 from .candidates import (
     HYBRID_SEMANTIC_LIMIT, SHORTLIST_FUZZY_LIMIT, WIDENED_CANDIDATE_THRESHOLD,

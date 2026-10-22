@@ -9,7 +9,6 @@ Final code rendering uses authorized observations, not a fresh disk read.
 import pytest
 
 from code_intelligence.agent.tools.introspection import read_precise_source_code, read_source_code
-from code_intelligence.agent.dispatch_guards import verify_citations, substitute_or_strip_code_blocks
 
 
 from pathlib import Path
@@ -42,57 +41,3 @@ class TestIncludeCitationFlag:
     def test_llm_facing_tool_sets_the_flag(self):
         out = read_source_code.invoke({"filepath": PURCHASE_ORDER_FP, "line_start": 960, "line_end": 968})
         assert out.startswith("Source: ")
-
-
-class TestCitationIsMechanicallyVerifiable:
-    def test_verify_citations_confirms_a_read_source_code_only_citation(self):
-        """A scoped citation returned by the reader must be verifiable."""
-        raw_tool_output = read_source_code.invoke(
-            {"filepath": PURCHASE_ORDER_FP, "line_start": 960, "line_end": 968}
-        )
-        final_answer = (
-            "La méthode _approval_allowed détermine si la commande peut être "
-            "approuvée ([purchase_order.py:L960-L968]"
-            f"(file://{PURCHASE_ORDER_FP}#L960-L968))."
-        )
-        result = verify_citations(final_answer, raw_tool_output)
-        assert result.is_fully_verified
-        assert result.unverified_scoped_citations == []
-
-    def test_narrower_citation_within_the_read_range_still_verified(self):
-        """A subset of a read range remains a verifiable citation."""
-        raw_tool_output = read_source_code.invoke(
-            {"filepath": PURCHASE_ORDER_FP, "line_start": 955, "line_end": 970}
-        )
-        final_answer = (
-            f"Voir [purchase_order.py:L960-L961](file://{PURCHASE_ORDER_FP}#L960-L961)."
-        )
-        result = verify_citations(final_answer, raw_tool_output)
-        assert result.is_fully_verified
-
-    def test_unrelated_citation_still_flagged(self):
-        """A citation absent from the observations must stay unverified."""
-        raw_tool_output = read_source_code.invoke(
-            {"filepath": PURCHASE_ORDER_FP, "line_start": 960, "line_end": 968}
-        )
-        final_answer = f"Voir [x.py:L1-L5](file:///nonexistent/path/x.py#L1-L5)."
-        result = verify_citations(final_answer, raw_tool_output)
-        assert not result.is_fully_verified
-        assert result.unverified_scoped_citations
-
-
-class TestSubstituteOrStripCodeBlocksUnaffected:
-    def test_substitution_does_not_embed_a_citation_line_in_the_fence(self):
-        """A generated citation alone cannot authorize code reconstruction."""
-        answer = (
-            "Voici la méthode:\n"
-            f"[purchase_order.py:L960-L968](file://{PURCHASE_ORDER_FP}#L960-L968)\n"
-            "```python\n"
-            "def _approval_allowed(self):\n"
-            "    return True\n"
-            "```\n"
-        )
-        fixed = substitute_or_strip_code_blocks(answer)
-        assert "Source:" not in fixed
-        assert "```" not in fixed
-        assert "bloc de code omis" in fixed

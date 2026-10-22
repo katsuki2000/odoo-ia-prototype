@@ -9,7 +9,6 @@ import pytest
 from pydantic import ValidationError
 
 from api.schemas import AskRequestV1
-from code_intelligence.agent.investigation_schemas import QuestionIntent
 from code_intelligence.agent.loop import code_intelligence_agent
 from core.graph.graph_nodes import ci_evidence_decision
 from core.routing.routing import route, route_decision

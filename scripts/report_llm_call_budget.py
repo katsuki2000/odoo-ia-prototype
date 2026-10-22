@@ -9,6 +9,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
+from config.settings import CI_MAX_HOPS
+from core.guardrails import REACT_RECURSION_LIMIT
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, MAX_HOPS_PER_QUESTION
 
 
@@ -103,8 +105,8 @@ def build_budget_report(log_filepath: Path = None) -> str:
 
     lines.append(
         f"\n*Plafond de sauts par question  : `code_intelligence` applique "
-        f"`CI_MAX_HOPS=4` (rag/graph.py), `donnees_erp` applique "
-        f"`REACT_RECURSION_LIMIT=6`, `documentaire` ne fait jamais de hop (0 par construction). "
+        f"`CI_MAX_HOPS={CI_MAX_HOPS}` (config/settings.py), `donnees_erp` applique "
+        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentaire` ne fait jamais de hop (0 par construction). "
         f"Valeur generique de reference : `MAX_HOPS_PER_QUESTION={MAX_HOPS_PER_QUESTION}` "
         f"(core.session.reasoning_trace_logger).*\n"
     )
@@ -113,11 +115,10 @@ def build_budget_report(log_filepath: Path = None) -> str:
     lines.append(
         "- `documentaire` (RAG simple) sert de plancher de comparaison : 0 hop, 1-2 appels LLM "
         "(1 en generation structuree, +1 seulement si le fallback texte-brut est declenche).\n"
-        "- `donnees_erp` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` (6) allers-retours "
+        f"- `donnees_erp` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) allers-retours "
         "outil+LLM, plus 1 appel de synthese forcee si la limite est atteinte sans reponse finale.\n"
-        "- `code_intelligence` est la branche la plus couteuse : 1 appel resolveur (seulement en cas "
-        "d'arbitrage LLM ambigu), jusqu'a `CI_MAX_HOPS` (4) appels de selection d'outil, et 1-2 appels "
-        "de synthese (le second uniquement en cas de retry anti-repetition).\n"
+        f"- `code_intelligence` est la branche la plus couteuse : boucle unique, jusqu'a `CI_MAX_HOPS` ({CI_MAX_HOPS}) "
+        "appels d'outils, un appel LLM par tour plus la reponse finale.\n"
     )
 
     return "\n".join(lines)

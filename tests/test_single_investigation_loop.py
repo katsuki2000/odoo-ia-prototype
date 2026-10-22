@@ -18,6 +18,8 @@ from unittest.mock import patch
 import sys
 import types
 
+from code_intelligence.agent.tools.execution import UnknownPrincipalError, _override_user_groups_arg
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -73,14 +75,10 @@ class Tool:
 
 class ExecutionBoundaryTests(unittest.TestCase):
     def setUp(self):
-        def override(name, arguments, groups, principals, requester_groups_known):
-            if arguments.get('principal_id') and arguments['principal_id'] not in principals:
-                raise PermissionError()
-            return arguments
-        self.namespace = functions('code_intelligence/agent/tool_execution.py', {'execute_tool_calls'}, {
+        self.namespace = functions('code_intelligence/agent/tools/execution.py', {'execute_tool_calls'}, {
             'DispatchContext': Context, 'json': json, 'time': time, 'logger': logging.getLogger(__name__),
             'ToolMessage': lambda **kwargs: SimpleNamespace(**kwargs),
-            'UnknownPrincipalError': PermissionError, '_override_user_groups_arg': override,
+            'UnknownPrincipalError': UnknownPrincipalError, '_override_user_groups_arg': _override_user_groups_arg,
             'MAX_TOTAL_OBSERVATION_CHARS': 35000, 'PER_TOOL_OBSERVATION_CAPS': {},
             'DEFAULT_OBSERVATION_CAP': 2500, 'DISCOVERY_TOOLS': {'search_instance_objects'}, 'NOT_FOUND_MARKER': 'was not found in the indexed knowledge graph',
             '_truncate_observation_for_budget': lambda ctx, text, cap: text[:cap],
@@ -192,7 +190,7 @@ class ExecutionBoundaryTests(unittest.TestCase):
 
 class RequestContextTests(unittest.TestCase):
     def setUp(self):
-        self.namespace = functions('code_intelligence/agent/tool_helpers.py', {
+        self.namespace = functions('code_intelligence/agent/tools/helpers.py', {
             'tool_context', 'get_graph_ref', 'get_llm_ref', 'get_current_question', '_require_graph',
         }, {'contextmanager': contextmanager, 'Optional': __import__('typing').Optional,
             '_graphRef': ContextVar('test_graph', default=None),
@@ -229,9 +227,8 @@ class RoutingTests(unittest.TestCase):
         route = functions('core/routing/routing.py', {'route'}, {
             'RAGState': dict, 'time': time, 'QueryRoute': routes, 'logger': logging.getLogger(__name__),
         })['route']
-        with patch.dict(sys.modules, {'code_intelligence.agent.investigation_llm': None}):
-            self.assertEqual(route({'source_mode': 'systeme'})['route'], 'system')
-            self.assertEqual(route({'source_mode': 'documentation'})['route'], 'documentation')
+        self.assertEqual(route({'source_mode': 'systeme'})['route'], 'system')
+        self.assertEqual(route({'source_mode': 'documentation'})['route'], 'documentation')
 
     def test_active_agent_has_no_resolver_planner_or_predispatch(self):
         tree = ast.parse((ROOT / 'code_intelligence/agent/loop.py').read_text())

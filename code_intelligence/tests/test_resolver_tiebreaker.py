@@ -1,8 +1,8 @@
 import networkx as nx
 
-from code_intelligence.agent.matching import _find_exact_technical_module_mentions
+from code_intelligence.agent.resolution.matching import _find_exact_technical_module_mentions
 from code_intelligence.agent.resolution import candidates as candidate_selection
-from code_intelligence.agent.resolver import (
+from code_intelligence.agent.resolution.resolver import (
     _arbitration_candidates,
     _candidate_contexts,
     _deterministic_tiebreak,

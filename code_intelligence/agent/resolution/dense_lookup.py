@@ -7,7 +7,7 @@ import logging
 from typing import NamedTuple, Optional
 
 from .candidates import HYBRID_SEMANTIC_LIMIT
-from ..semantic_retrieval import (
+from .semantic_retrieval import (
     SemanticRetrievalStatus,
     retrieve_semantic_model_candidates_scored,
 )

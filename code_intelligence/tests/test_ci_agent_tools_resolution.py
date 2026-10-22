@@ -9,9 +9,8 @@ the upstream LLM did not follow the system-prompt hint.
 import networkx as nx
 import pytest
 
-from code_intelligence.agent import tool_helpers as ci_agent_tools
-from code_intelligence.agent import tools as _ci_tools
-ci_agent_tools.who_has_access_to = _ci_tools.who_has_access_to
+from code_intelligence.agent.tools.access import who_has_access_to
+from code_intelligence.agent.tools.helpers import _resolve_model_param, set_graph_ref
 
 
 @pytest.fixture
@@ -23,8 +22,8 @@ def sample_graph_with_alias_target() -> nx.DiGraph:
 
 
 def test_resolve_model_param_passes_through_valid_technical_name(sample_graph_with_alias_target):
-    ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
-    assert ci_agent_tools._resolve_model_param("account.move") == "account.move"
+    set_graph_ref(sample_graph_with_alias_target)
+    assert _resolve_model_param("account.move") == "account.move"
 
 
 def test_resolve_model_param_returns_term_unchanged_when_alias_disabled(sample_graph_with_alias_target):
@@ -32,13 +31,13 @@ def test_resolve_model_param_returns_term_unchanged_when_alias_disabled(sample_g
     # "avoir" does not resolve without a dense backend in test context;
     # _resolve_model_param returns the term unchanged so the downstream
     # tool surfaces a "model not found" message to the LLM.
-    ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
-    assert ci_agent_tools._resolve_model_param("avoir") == "avoir"
+    set_graph_ref(sample_graph_with_alias_target)
+    assert _resolve_model_param("avoir") == "avoir"
 
 
 def test_resolve_model_param_resolves_business_term_via_fuzzy(sample_graph_with_alias_target):
-    ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
-    assert ci_agent_tools._resolve_model_param("matériel") == "custom.asset.loan"
+    set_graph_ref(sample_graph_with_alias_target)
+    assert _resolve_model_param("matériel") == "custom.asset.loan"
 
 
 def test_resolve_model_param_leaves_unresolvable_term_unchanged(sample_graph_with_alias_target):
@@ -47,8 +46,8 @@ def test_resolve_model_param_leaves_unresolvable_term_unchanged(sample_graph_wit
     the downstream tool's own "model not found" check then surfaces the
     error to the LLM.
     """
-    ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
-    result = ci_agent_tools._resolve_model_param("xyzabc123nonsense")
+    set_graph_ref(sample_graph_with_alias_target)
+    result = _resolve_model_param("xyzabc123nonsense")
     assert result == "xyzabc123nonsense"
 
 
@@ -61,7 +60,7 @@ def test_qui_a_acces_a_passes_exact_technical_name_through(sample_graph_with_ali
     term, the tool receives it unchanged and surfaces a model-not-found
     message -- the LLM can then retry with a candidate name.
     """
-    ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
+    set_graph_ref(sample_graph_with_alias_target)
 
     captured = {}
 
@@ -77,7 +76,7 @@ def test_qui_a_acces_a_passes_exact_technical_name_through(sample_graph_with_ali
         "code_intelligence.rules.access_evaluator.who_has_access_to", _fake_impl
     )
 
-    ci_agent_tools.who_has_access_to.invoke({"model_name": "account.move", "permission": "read"})
+    who_has_access_to.invoke({"model_name": "account.move", "permission": "read"})
     assert captured["model_name"] == "account.move", (
         "_resolve_model_param must pass a valid technical name through unchanged."
     )

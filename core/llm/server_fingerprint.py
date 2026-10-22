@@ -40,7 +40,8 @@ def _ollama_details(base_url: Optional[str], model: Optional[str], http_get: Any
     """Details natifs d'Ollama (lecture seule, au mieux) : version, digest / quantification, contexte charge."""
     root = (base_url or "").rstrip("/")
     root = root[:-3] if root.endswith("/v1") else root
-    headers = {"ngrok-skip-browser-warning": "1"}
+    from config import settings
+    headers = dict(settings.LLM_EXTRA_HEADERS)
     details: Dict[str, Any] = {}
 
     def fetch(path: str) -> Optional[Dict[str, Any]]:
@@ -104,17 +105,17 @@ def get_inference_fingerprint(
     """Interroge le serveur (liste des modeles + un appel d'un token) et retourne l'empreinte."""
     from config import settings
 
-    provider = provider or settings.LLM_PROVIDER or "local"
-    base_url = base_url or settings.LOCAL_LLM_BASE_URL
-    model = model or settings.LOCAL_LLM_MODEL
+    provider = provider or "ollama"
+    base_url = base_url or settings.LLM_BASE_URL
+    model = model or settings.LLM_MODEL
     llm: Dict[str, Any] = {"provider": provider, "configured_model": model, "endpoint_hash": _host_hash(base_url)}
     result: Dict[str, Any] = {
         "probed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "llm": llm,
         "embedding": {
             "backend": embedding_backend or settings.EMBEDDING_BACKEND,
-            "configured_model": embedding_model or settings.LOCAL_EMBEDDING_MODEL,
-            "endpoint_hash": _host_hash(getattr(settings, "LOCAL_EMBEDDING_BASE_URL", None)),
+            "configured_model": embedding_model or settings.EMBEDDING_MODEL,
+            "endpoint_hash": _host_hash(getattr(settings, "EMBEDDING_BASE_URL", None)),
         },
     }
     client_injected = client is not None
@@ -122,7 +123,7 @@ def get_inference_fingerprint(
     try:
         if client is None:
             from openai import OpenAI
-            client = OpenAI(base_url=base_url, api_key=api_key or settings.LOCAL_LLM_API_KEY, timeout=timeout, max_retries=0)
+            client = OpenAI(base_url=base_url, api_key=api_key or settings.LLM_API_KEY, timeout=timeout, max_retries=0)
         stage = "models"
         try:  # certains serveurs d'inference n'exposent pas /models : non bloquant
             llm["served_models"] = sorted((_model_entry(m) for m in client.models.list().data), key=lambda e: str(e.get("id")))

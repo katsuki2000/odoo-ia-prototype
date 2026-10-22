@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from ..matching import (
+from .matching import (
     ResolvedConcept,
     _find_exact_technical_model_mentions,
     _find_exact_technical_module_mentions,

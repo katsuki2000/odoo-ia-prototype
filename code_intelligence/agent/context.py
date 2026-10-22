@@ -4,16 +4,15 @@ import logging
 import time
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 from config.settings import CI_MAX_HOPS
-from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
+from code_intelligence.utils import _TRUNCATION_MARKER
 
 logger = logging.getLogger(__name__)
 _EXECUTION_FAILURE_NOTICE = (
     "\n\n[ATTENTION] Une ou plusieurs analyses n'ont pas pu "
-    "s'exécuter correctement pour cette question (panne technique d'un outil "
-    "ou du modèle de langage). La réponse ci-dessus peut donc être incomplète ; "
+    "s'exécuter correctement pour cette question. La réponse ci-dessus peut donc être incomplète ; "
     "n'y voyez pas une absence confirmée d'information.")
 _CI_TOOL_DISPLAY_NAMES = {
     'analyze_security_locks': 'Verrous de sécurité (code Python)',
@@ -22,7 +21,6 @@ _CI_TOOL_DISPLAY_NAMES = {
     'who_has_access_to': "Matrice d'accès (ACL)",
     'requester_acl_summary': 'Verdict ACL du demandeur',
     'evaluate_record_rules': "Règles d'enregistrement (ir.rule)",
-    'can_view_amount_v2': 'Vérification déterministe du montant',
     'analyze_data_constraints': 'Contraintes de données (Semgrep)',
     'field_change_impact': 'Impact de modification de champ',
     'button_execution_path': "Chemin d'exécution du bouton",
@@ -46,22 +44,17 @@ class DispatchContext:
     trace_id: str
     hop_cap: int
     requester_groups_known: bool = False
-    requester_acl_verdicts: Dict[str, Optional[Dict[str, bool]]] = field(default_factory=dict)
     tool_observations: List[str] = field(default_factory=list)
     tool_observation_models: List[str] = field(default_factory=list)
     tool_observation_tools: List[str] = field(default_factory=list)
     omitted_items: List[Any] = field(default_factory=list)
     seen_calls: Set[Any] = field(default_factory=set)
-    system_prompt_suffix: str = ''
     hop_count: int = 0
     hop_index: int = 0
     llm_call_count: int = 0
     llm_wait: float = 0.0
     per_hop_times: List[float] = field(default_factory=list)
     synthesis_time: float = 0.0
-    security_distinction_reminder_sent: bool = False
-    matched_dispatchers: List[str] = field(default_factory=list)
-    intent: Optional[str] = None
     security_principals: Dict[str, List[str]] = field(default_factory=dict)
     fallback_reason: Optional[str] = None
     final_message_preview: Optional[str] = None
@@ -69,20 +62,6 @@ class DispatchContext:
     @property
     def hop_budget_exhausted(self) -> bool:
         return self.hop_count >= self.hop_cap
-
-    def record_observation(self, tool_name: str, tool_args: dict, observation: str,
-                           model_name: Optional[str], call_key: Optional[Any], elapsed_s: float) -> None:
-        self.tool_observations.append(observation)
-        self.tool_observation_models.append(model_name)
-        self.tool_observation_tools.append(tool_name)
-        self.hop_count += 1
-        if call_key is not None:
-            self.seen_calls.add(call_key)
-        self.trace_logger.log_hop(
-            trace_id=self.trace_id, hop_index=self.hop_index, tool_name=tool_name,
-            tool_args=tool_args, observation=observation, elapsed_ms=elapsed_s * 1000)
-        self.hop_index += 1
-
 
 def build_early_refusal_response(answer: str, trace_logger, trace_id: str, question: str,
                                 start_time: float, state: dict, hop_cap: int) -> dict:
@@ -128,32 +107,6 @@ def _resolve_user_group_xmlids(group_ids) -> list:
             except Exception as error:
                 logger.error('Group ID resolution failed (%s); unresolved groups remain unknown.', type(error).__name__)
         return [_GROUP_XMLID_CACHE[group] for group in group_ids if group in _GROUP_XMLID_CACHE]
-
-
-_MODEL_KEYED_TOOLS = frozenset({
-    'analyze_security_locks', 'analyze_server_actions', 'who_has_access_to', 'evaluate_record_rules',
-    'describe_workflow', 'trace_full_inheritance', 'list_involved_modules', 'analyze_data_constraints',
-})
-
-
-def _tool_call_key(tool_name: str, tool_args: Dict[str, Any]) -> Optional[Tuple]:
-    modelName = tool_args.get('model_name')
-    if not modelName:
-        return None
-    principalId = tool_args.get('principal_id')
-    if tool_name == 'analyze_method_override_chain':
-        methodName = tool_args.get('method_name')
-        return (tool_name, modelName, methodName) if methodName else None
-    if tool_name == 'button_execution_path':
-        button = tool_args.get('button_name') or tool_args.get('button_identifier')
-        if not button:
-            return None
-        return (tool_name, modelName, button, principalId) if principalId else (tool_name, modelName, button)
-    if tool_name == 'evaluate_record_rules':
-        return tool_name, modelName, principalId, tool_args.get('permission') or 'read'
-    if tool_name in _MODEL_KEYED_TOOLS:
-        return (tool_name, modelName, principalId) if principalId else (tool_name, modelName)
-    return None
 
 
 def _truncate_observation(text: str, limit: int) -> str:

@@ -34,9 +34,10 @@ from code_intelligence.graph.loader import get_code_intelligence_graph
 from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.agent.tools.access import evaluate_record_rules, evaluate_rules_raw
 from code_intelligence.agent.tools.structure import button_execution_path
-from code_intelligence.agent.context import DispatchContext, _tool_call_key
-from code_intelligence.agent.dispatch_guards import _override_user_groups_arg, UnknownPrincipalError
-from code_intelligence.agent.loop import execute_tool_calls
+from code_intelligence.agent.context import DispatchContext
+from code_intelligence.agent.tools.execution import (
+    UnknownPrincipalError, _override_user_groups_arg, execute_tool_calls,
+)
 
 
 SAL_Q1_PRINCIPALS = {
@@ -65,6 +66,7 @@ def _make_ctx(G, security_principals=None, resolved_user_group_xmlids=None):
     return DispatchContext(
         G=G, concept=FakeConcept(), question="SAL-Q1", tool_map={t.name: t for t in ALL_CI_TOOLS},
         resolved_user_group_xmlids=resolved_user_group_xmlids,
+        requester_groups_known=resolved_user_group_xmlids is not None,
         trace_logger=FakeTraceLogger(), trace_id="test", hop_cap=6,
         security_principals=security_principals or {},
     )
@@ -111,11 +113,6 @@ class TestSalQ1TwoPrincipals:
         applicable_block_portal = portal_obs.split("Règles de Groupe ignorées")[0]
         assert "sale_order_rule_portal" in applicable_block_portal
         assert "sale_order_personal_rule" not in applicable_block_portal
-
-    def test_two_principals_are_not_deduped_as_the_same_call(self):
-        k1 = _tool_call_key("evaluate_record_rules", {"model_name": "sale.order", "principal_id": "salesperson"})
-        k2 = _tool_call_key("evaluate_record_rules", {"model_name": "sale.order", "principal_id": "portal_user"})
-        assert k1 != k2
 
     def test_direct_rule_evaluation_matches_reference_answer(self, G):
         r1 = evaluate_rules_raw("sale.order", "write", json.dumps(SAL_Q1_PRINCIPALS["salesperson"]))

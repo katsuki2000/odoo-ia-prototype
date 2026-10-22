@@ -2,14 +2,14 @@ import pytest
 
 import networkx as nx
 
-from code_intelligence.agent.semantic_retrieval import (
+from code_intelligence.agent.resolution.semantic_retrieval import (
     SemanticRetrieval,
     SemanticRetrievalStatus,
     configured_semantic_model_candidates,
     rank_semantic_model_candidates,
     retrieve_semantic_model_candidates,
 )
-from code_intelligence.agent import semantic_retrieval as semantic_module
+from code_intelligence.agent.resolution import semantic_retrieval as semantic_module
 from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
 
 
@@ -74,32 +74,9 @@ def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypat
     ) == []
 
 
-def test_configured_retrieval_falls_back_to_default_embeddings_for_local_light(monkeypatch):
-    import sys
-    import types
-
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_light")
-    monkeypatch.setattr(
-        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
-        lambda **_kwargs: None,
-    )
-    fake_module = types.ModuleType("chromadb.utils.embedding_functions")
-    fake_module.DefaultEmbeddingFunction = FakeEmbeddingFunction
-    monkeypatch.setitem(sys.modules, "chromadb.utils.embedding_functions", fake_module)
-
-    candidates = configured_semantic_model_candidates(
-        "Ou gerer une commande client ?",
-        _graph_with_translated_models(),
-        "fr",
-    )
-
-    assert candidates == ["sale.order", "purchase.order"]
-
-
 def test_configured_retrieval_is_enabled_when_variable_is_unset(monkeypatch):
     monkeypatch.delenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", raising=False)
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_light")
+    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: FakeEmbeddingFunction(),
@@ -124,7 +101,7 @@ def test_configured_retrieval_fails_open_when_provider_raises(monkeypatch):
 
 
 def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
-    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import resolver
     from code_intelligence.agent.resolution import candidates, fuzzy_lookup
 
     monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
@@ -265,7 +242,7 @@ def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
 
 
 def test_embedding_function_receives_no_forced_model_when_unset(monkeypatch):
-    from code_intelligence.agent.semantic_retrieval import build_semantic_embedding_function
+    from code_intelligence.agent.resolution.semantic_retrieval import build_semantic_embedding_function
 
     captured = {}
     monkeypatch.delenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", raising=False)
@@ -281,7 +258,7 @@ def test_embedding_function_receives_no_forced_model_when_unset(monkeypatch):
 
 
 def test_resolver_model_override_wins_over_global_embedding_model(monkeypatch):
-    from code_intelligence.agent.semantic_retrieval import build_semantic_embedding_function
+    from code_intelligence.agent.resolution.semantic_retrieval import build_semantic_embedding_function
 
     captured = {}
     monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", "resolver-model")
@@ -383,3 +360,34 @@ def test_ranking_keeps_the_best_document_per_model_without_duplicates():
     ranked = rank_semantic_model_candidates("Ou gerer une commande client ?", _graph_with_menu(), FakeEmbeddingFunction())
     assert ranked.count("sale.order") == 1
     assert set(ranked) == {"sale.order", "res.partner"}
+
+
+def test_warm_up_persists_the_index_so_the_first_question_embeds_no_document(monkeypatch, tmp_path):
+    from code_intelligence.agent.resolution.semantic_retrieval import warm_semantic_index
+
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(semantic_module.settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path))
+    warming = RecordingEmbeddingFunction()
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function", lambda **_kwargs: warming,
+    )
+
+    statuses = warm_semantic_index(_graph_with_translated_models(), ["fr"])
+
+    assert statuses == [SemanticRetrievalStatus.SUCCESS]
+    first_question = RecordingEmbeddingFunction()
+    _rank(_graph_with_translated_models(), first_question, tmp_path)
+    assert first_question.embedded_documents() == []
+
+
+def test_warm_up_failure_is_a_status_not_an_exception(monkeypatch, tmp_path):
+    from code_intelligence.agent.resolution.semantic_retrieval import warm_semantic_index
+
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(semantic_module.settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **_kwargs: RecordingEmbeddingFunction(fail_on_call=1),
+    )
+
+    assert warm_semantic_index(_graph_with_translated_models(), []) == [SemanticRetrievalStatus.ERROR]

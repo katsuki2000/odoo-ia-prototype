@@ -17,7 +17,6 @@ import networkx as nx
 from code_intelligence.rules.record_rules import evaluate_record_rules
 from code_intelligence.rules.access_evaluator import who_has_access_to
 from code_intelligence.rules.server_actions import analyze_server_action_code
-from code_intelligence.agent.dispatch_guards import verify_citations
 
 
 def _build_test_graph() -> nx.DiGraph:
@@ -45,33 +44,11 @@ def _build_test_graph() -> nx.DiGraph:
     return G
 
 
-def test_evaluate_record_rules_output_carries_verifiable_xml_id():
-    """The rule_xml_id evaluate_record_rules names in its own summary_text
-    must itself be extractable as ground truth by sourcing_guard -- a
-    synthesis LLM copying it verbatim must pass verification."""
+def test_evaluate_record_rules_output_includes_xml_id():
     G = _build_test_graph()
     result = evaluate_record_rules(G, "sale.order", permission="read", user_groups=["sales_team.group_sale_salesman"])
 
     assert "xml_id: sale.rule_user" in result.summary_text
-
-    simulated_answer = "Accès conditionné par la règle (xml_id: sale.rule_user)."
-    verification = verify_citations(simulated_answer, result.summary_text)
-    assert verification.is_fully_verified
-    assert not verification.unverified_xml_ids
-
-
-def test_evaluate_record_rules_flags_fabricated_xml_id():
-    """A citation the LLM invents (not present in the tool's own output)
-    must still be flagged, even though the tool's real output is now
-    correctly citable -- this is the negative-control counterpart to the
-    happy path above."""
-    G = _build_test_graph()
-    result = evaluate_record_rules(G, "sale.order", permission="read", user_groups=["sales_team.group_sale_salesman"])
-
-    simulated_answer = "Accès conditionné par (xml_id: invented_module.not_a_real_rule)."
-    verification = verify_citations(simulated_answer, result.summary_text)
-    assert not verification.is_fully_verified
-    assert "invented_module.not_a_real_rule" in verification.unverified_xml_ids
 
 
 def test_who_has_access_to_group_id_output_carries_verifiable_xml_id():
@@ -82,9 +59,6 @@ def test_who_has_access_to_group_id_output_carries_verifiable_xml_id():
 
     assert "xml_id: sales_team.group_sale_salesman" in result.summary_text
 
-    simulated_answer = "Le groupe a accès (xml_id: sales_team.group_sale_salesman)."
-    verification = verify_citations(simulated_answer, result.summary_text)
-    assert verification.is_fully_verified
 
 
 def test_who_has_access_to_all_permissions_output_carries_verifiable_xml_id():
@@ -96,9 +70,6 @@ def test_who_has_access_to_all_permissions_output_carries_verifiable_xml_id():
 
     assert "xml_id: sales_team.group_sale_salesman" in result.summary_text
 
-    simulated_answer = "Droits accordés (xml_id: sales_team.group_sale_salesman)."
-    verification = verify_citations(simulated_answer, result.summary_text)
-    assert verification.is_fully_verified
 
 
 def test_analyze_server_action_code_output_carries_verifiable_xml_id():
@@ -110,7 +81,3 @@ def test_analyze_server_action_code_output_carries_verifiable_xml_id():
     )
 
     assert "xml_id: custom_module.action_force_done" in result.summary_text
-
-    simulated_answer = "Cette action (xml_id: custom_module.action_force_done) contourne les droits."
-    verification = verify_citations(simulated_answer, result.summary_text)
-    assert verification.is_fully_verified

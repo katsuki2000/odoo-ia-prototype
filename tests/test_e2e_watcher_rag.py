@@ -92,7 +92,7 @@ def test_e2e_live_add_delete_query_cycle():
                 
                 # Explicit documentary anchor required: doc_rag (generate()) is no
                 # longer an automatic fallback, only an explicit user-requested branch
-                # (todo/contexte.txt section 666) -- has_documentary_anchor() must match.
+                # (todo/contexte.txt section 666) -- the explicit-document matcher must match.
                 response = query_graph("Selon la documentation, quel est le code secret de validation ?")
                 assert isinstance(response, AssistantResponse)
                 assert "ALPHA-9988-OMEGA" in response.answer

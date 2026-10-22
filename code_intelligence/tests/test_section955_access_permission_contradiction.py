@@ -1,27 +1,16 @@
 """
-Section 955 (todo/contexte.txt sections 952/954): synthesis-inversion
-correction for who_has_access_to verdicts.
+Regression tests for the active synthesis correction applied to
+who_has_access_to verdicts.
 
 STK-Q1's root cause (confirmed in section 954 by rejouer who_has_access_to
 directly against the graph, no LLM involved) was NOT a data/tool/truncation
 defect -- the observation was already correct on both permissions, the LLM's
-own prose asserted the exact opposite. This is deliberately out of scope for
-H3/EvidenceSufficiencyStatus.CONFLICTING (see that status's own docstring):
+own prose asserted the exact opposite. This is deliberately out of scope for H3/EvidenceSufficiencyStatus.CONFLICTING:
 CONFLICTING is reserved for two VALID findings disagreeing with each other,
-not a single unambiguous fact the synthesis inverted. It belongs to the same
-splice-out-and-replace family as _correct_can_view_amount_contradictions.
+not a single unambiguous fact the synthesis inverted.
 """
 
 from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions
-from code_intelligence.rules.security_locks import _backfill_missing_approval_guard_facts
-from code_intelligence.rules.button_path import (
-    correct_button_role_contradictions,
-    correct_button_visibility_contradictions,
-)
-from code_intelligence.agent.postprocess import (
-    _strip_unexpected_script_sentences,
-    _strip_unsourced_examples,
-)
 
 
 # The exact STK-Q1 verbatim from captures/bloc_n1_verbatim.json (section 952/954).
@@ -80,22 +69,6 @@ def test_no_observation_facts_is_a_no_op():
     final_answer = "Une r\u00e9ponse quelconque sans rapport avec who_has_access_to."
     assert _correct_access_permission_contradictions(final_answer, "") == final_answer
     assert _correct_access_permission_contradictions(final_answer, "no fact here") == final_answer
-
-
-def test_button_visibility_expression_is_not_inverted():
-    raw = (
-        "Button 'Approve Order' on 'purchase.order': Calls 'button_approve()'. "
-        "Required Groups: [purchase.group_purchase_manager]. "
-        "Visibility: invisible='state != 'to approve''"
-    )
-    answer = (
-        "2. **Condition de visibilité erronée** : `state != 'to approve'` "
-        "empêche l'affichage au statut to approve."
-    )
-    corrected = correct_button_visibility_contradictions(answer, raw)
-    assert "Condition de visibilité inversée" not in corrected
-    assert "Condition de visibilité erronée" not in corrected
-    assert "state == 'to approve'" in corrected
 
 
 def test_sentence_about_a_different_model_is_left_untouched():
@@ -166,101 +139,3 @@ def test_section956_embedded_model_period_does_not_truncate_the_sentence():
         "L'utilisateur NE PEUT PAS consulter `stock.quant` (voir le fait d\u00e9terministe ci-dessous). "
         "[Source: Graphe de Connaissances Code Intelligence]"
     )
-
-
-def test_approval_guard_facts_are_backfilled_when_synthesis_drops_them():
-    observation = (
-        "def _approval_allowed(self):\n"
-        "return (self.company_id.po_double_validation == 'one_step' or "
-        "(self.company_id.po_double_validation == 'two_step' and "
-        "self.amount_total < self.company_id.po_double_validation_amount) or "
-        "self.user_has_groups('purchase.group_purchase_manager'))"
-    )
-    answer = _backfill_missing_approval_guard_facts(
-        "Les ACL des deux groupes sont identiques.",
-        observation,
-        "Qu'est-ce qui distingue un simple acheteur d'un manager sur une commande d'achat ?",
-    )
-
-    assert "_approval_allowed()" in answer
-    assert "one_step" in answer
-    assert "two_step" in answer
-    assert "purchase.group_purchase_manager" in answer
-
-
-def test_button_role_contradiction_is_clarified_from_execution_path():
-    answer = "Le manager peut utiliser confirm_reminder_mail() pour finaliser la commande."
-    observation = (
-        "Button 'Confirm Receipt Date' on 'purchase.order': Calls "
-        "'confirm_reminder_mail()'. Required Groups: [base.group_no_one]."
-    )
-
-    corrected = correct_button_role_contradictions(answer, observation)
-
-    assert "ne permet pas d'attribuer" in corrected
-    assert "base.group_no_one" in corrected
-    assert "Le manager peut utiliser confirm_reminder_mail()" not in corrected
-
-
-def test_orphaned_markdown_heading_is_removed_after_button_role_correction():
-    answer = (
-        "### Différences\n\n"
-        "3. **Gestion des états avancés**\n"
-        "- Le manager peut utiliser confirm_reminder_mail() pour finaliser la commande.\n\n"
-        "### En résumé\n\n"
-        "Le manager garde des privilèges supplémentaires."
-    )
-    observation = (
-        "Button 'Confirm Receipt Date' on 'purchase.order': Calls "
-        "'confirm_reminder_mail()'. Required Groups: [base.group_no_one]."
-    )
-
-    corrected = correct_button_role_contradictions(answer, observation)
-
-    assert "Gestion des états avancés" not in corrected
-    assert "### En résumé" in corrected
-
-
-def test_unexpected_han_sentence_is_removed_without_affecting_french_prose():
-    answer = (
-        "La suppression est bloquée pour les états purchase et done. "
-        "Ces états indiquent que la ligne est active ou已完成, et doit être annulée.\n\n"
-        "La contrainte SQL reste applicable."
-    )
-
-    cleaned = _strip_unexpected_script_sentences(answer)
-
-    assert "purchase et done" in cleaned
-    assert "已完成" not in cleaned
-    assert "La contrainte SQL reste applicable." in cleaned
-
-
-def test_unsourced_example_block_is_removed_from_the_final_answer():
-    answer = (
-        "La règle limite la consultation aux abonnés.\n\n"
-        "**Exemple :** Si un équipement est assigné à un contact, il est visible."
-    )
-
-    cleaned = _strip_unsourced_examples(answer, "Règle: message_partner_ids contient partner_id.")
-
-    assert cleaned == "La règle limite la consultation aux abonnés."
-
-
-def test_pur_q4_visibility_error_claim_is_removed():
-    raw = (
-        "Button 'Approve Order' on 'purchase.order': Calls 'button_approve()'. "
-        "Required Groups: [purchase.group_purchase_manager]. "
-        "Visibility: invisible='state != 'to approve''. (visible quand state == 'to approve')"
-    )
-    answer = (
-        "### Raisons de l'absence du bouton 'Approve Order'\n\n"
-        "Le bouton n'est pas visible pour deux raisons principales :\n\n"
-        "1. **Restriction de groupe** : Le bouton est uniquement disponible pour les membres du groupe Administrator.\n\n"
-        "2. **Condition de visibilité** : Bien que le statut 'to approve' devrait théoriquement rendre le bouton visible, "
-        "une erreur dans la logique de visibilité (`invisible='state != 'to approve''`) pourrait également contribuer à ce comportement."
-    )
-    corrected = correct_button_visibility_contradictions(answer, raw)
-    assert "erreur dans la logique de visibilité" not in corrected
-    assert "pour la raison principale suivante :" in corrected
-    assert "Restriction de groupe" in corrected
-    assert "state == 'to approve'" in corrected

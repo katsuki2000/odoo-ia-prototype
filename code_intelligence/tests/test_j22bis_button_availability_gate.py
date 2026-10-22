@@ -163,7 +163,7 @@ def test_override_user_groups_arg_applies_to_button_execution_path():
     user_groups_json the LLM proposed for button_execution_path and
     replace it with the real, resolved demandeur groups -- same treatment
     already locked in for evaluate_record_rules ."""
-    from core.graph.graph import _override_user_groups_arg
+    from code_intelligence.agent.tools.execution import _override_user_groups_arg
 
     llm_guessed_args = {"button_name": "Valider", "model_name": "account.move", "user_groups_json": '["made_up_group"]'}
     real_groups = ["account.group_account_manager"]
@@ -175,7 +175,7 @@ def test_override_user_groups_arg_applies_to_button_execution_path():
 
 
 def test_override_user_groups_arg_is_noop_for_unrelated_tools():
-    from core.graph.graph import _override_user_groups_arg
+    from code_intelligence.agent.tools.execution import _override_user_groups_arg
 
     args = {"model_name": "account.move"}
     result = _override_user_groups_arg("who_has_access_to", args, ["account.group_account_manager"])

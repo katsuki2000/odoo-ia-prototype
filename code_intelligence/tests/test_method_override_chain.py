@@ -35,7 +35,6 @@ from code_intelligence.rules.override_unguarded import (
     detect_unguarded_super,
     resolve_method_override_chain,
 )
-from code_intelligence.rules.overrides import find_methods_with_unguarded_super
 from code_intelligence.extractor.python import extract_odoo_models_from_file
 
 
@@ -332,65 +331,3 @@ def test_real_corpus_hr_expense_commercial_partner_id_not_flagged():
         module="hr_expense",
     )
     assert warning is None
-
-
-# ---------------------------------------------------------------------
-# find_methods_with_unguarded_super: the pre-dispatch noise-reduction
-# filter, added 2026-08-06 after the cascade-only guard alone was found
-# to fire on every ordinary multiply-overridden method (write, create,
-# action_post...) and blow past CI_MAX_HOPS on the real corpus
-# (17 hops on Q1.1/Q1.2/Q5.1 in the benchmark rerun).
-# ---------------------------------------------------------------------
-
-def test_find_methods_with_unguarded_super_keeps_only_flagged_methods(tmp_path):
-    """Two candidate methods share a real >1-site override cascade: one
-    has the unguarded-super shape (must be kept), the other is a clean
-    cascade with no issue (must be dropped) -- mirrors the real
-    account.move situation (many ordinary overridden methods, one real bug)."""
-    import networkx as nx
-
-    vip_file = tmp_path / "vip.py"
-    vip_file.write_text(VIP_SHAPE_SOURCE)
-    clean_base_file = tmp_path / "clean_base.py"
-    clean_base_file.write_text("class X:\n    def write(self, vals):\n        return super().write(vals)\n")
-    clean_ext_file = tmp_path / "clean_ext.py"
-    clean_ext_file.write_text(
-        "class X:\n    def write(self, vals):\n        res = super().write(vals)\n        return res\n"
-    )
-
-    G = nx.DiGraph()
-    G.add_node(
-        "method:account.move.action_valider_avoir",
-        node_type="Method",
-        override_sites=[
-            {"module": "base_mod", "filepath": str(vip_file), "lineno": 5, "end_lineno": 11},
-            {"module": "vip_mod", "filepath": str(vip_file), "lineno": 5, "end_lineno": 11},
-        ],
-    )
-    G.add_node(
-        "method:account.move.write",
-        node_type="Method",
-        override_sites=[
-            {"module": "base_mod", "filepath": str(clean_base_file), "lineno": 2, "end_lineno": 3},
-            {"module": "ext_mod", "filepath": str(clean_ext_file), "lineno": 2, "end_lineno": 4},
-        ],
-    )
-
-    flagged = find_methods_with_unguarded_super(
-        G, "account.move", ["action_valider_avoir", "write"]
-    )
-
-    assert flagged == ["action_valider_avoir"]
-
-
-def test_real_corpus_unguarded_super_filter_matches_full_report():
-    """On the real 3-module VIP corpus, the cheap filter must agree with
-    the full composite tool's own finding: action_valider_avoir flagged,
-    nothing else invented."""
-    G = _build_real_registry_and_graph()
-    from code_intelligence.agent.tool_helpers import find_methods_with_override_cascade
-
-    candidates = find_methods_with_override_cascade(G, "account.move")
-    flagged = find_methods_with_unguarded_super(G, "account.move", candidates)
-
-    assert "action_valider_avoir" in flagged

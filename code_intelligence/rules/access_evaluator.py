@@ -317,7 +317,7 @@ def who_has_access_to(
 
         header = f"Access Matrix for '{model_name}':"
         from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
-        from code_intelligence.agent.tool_helpers import get_current_question
+        from code_intelligence.agent.tools.helpers import get_current_question
         # Section 950 (todo/contexte.txt section 948, point 1): the 4
         # permission blocks used to be flat-joined and left to the
         # generic, position-blind head-truncation in

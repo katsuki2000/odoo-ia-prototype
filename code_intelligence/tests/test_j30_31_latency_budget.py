@@ -11,21 +11,13 @@ Unit tests for J30-J31 (Performance — latency budget & real measurement):
 from unittest.mock import MagicMock
 from config.settings import (
     LATENCY_BUDGET_P90_SECONDS,
-    LATENCY_BUDGET_RESOLVER_MS,
-    LATENCY_BUDGET_PER_HOP_MS,
-    LATENCY_BUDGET_SYNTHESIS_MS,
-    LATENCY_BUDGET_XMLRPC_MS,
 )
 from core.graph.graph import CI_MAX_HOPS, _invoke_with_rate_limit
 
 
 def test_latency_budget_constants_exist():
-    """J30-J31: verify all required latency budget constants are configured."""
+    """J30-J31: verify the latency budget constant is configured."""
     assert LATENCY_BUDGET_P90_SECONDS > 0
-    assert LATENCY_BUDGET_RESOLVER_MS > 0
-    assert LATENCY_BUDGET_PER_HOP_MS > 0
-    assert LATENCY_BUDGET_SYNTHESIS_MS > 0
-    assert LATENCY_BUDGET_XMLRPC_MS > 0
     assert CI_MAX_HOPS == 20  # sections 907/908: raised from 6 for dispatch_evaluate_record_rules_for_personas' worst case (2 personas x 4 permissions)
 
 

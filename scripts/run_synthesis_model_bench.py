@@ -8,7 +8,7 @@ Compare synthesis models on frozen tool evidence (todo/contexte.txt, section 985
 capture runs the real agent once per question with the configured LLM and
 freezes the exact synthesis prompt. replay sends those frozen prompts to each
 model, N samples each, and scores the answers deterministically. Without
---model, replay uses LOCAL_LLM_MODEL from the environment.
+--model, replay uses LLM_MODEL from the environment.
 """
 
 import argparse
@@ -98,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--model", action="append", help="[provider:]model, repeatable (e.g. ollama:qwen3:14b).")
     rep.add_argument("--samples", type=int, default=3)
     rep.add_argument("--temperature", type=float, default=0.0)
-    rep.add_argument("--base-url", default=None, help="OpenAI-compatible endpoint; defaults to LOCAL_LLM_BASE_URL.")
+    rep.add_argument("--base-url", default=None, help="OpenAI-compatible endpoint; defaults to LLM_BASE_URL.")
     rep.add_argument("--allow-thinking", action="store_true", help="Do not append /no_think for Qwen3 models.")
     rep.add_argument("--report-stem", default=str(DEFAULT_REPORT_STEM))
     rep.set_defaults(handler=run_replay)

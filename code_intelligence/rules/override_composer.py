@@ -358,7 +358,7 @@ def _compose_method_override_chain(
 
     from code_intelligence.rules.relevance_budget import assemble_relevance_ranked_blocks
     from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
-    from code_intelligence.agent.tool_helpers import get_current_question
+    from code_intelligence.agent.tools.helpers import get_current_question
 
     trailing_str = ("\n" + "\n".join(trailing_lines)) if trailing_lines else ""
     overhead = len(header_text) + 1 + len(trailing_str)

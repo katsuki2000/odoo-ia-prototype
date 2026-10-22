@@ -6,9 +6,8 @@ from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, SourceReference, source_display_title
 from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
-from core.routing.routing_keywords import _fold_accents
+from core.routing.routing_keywords import _fold_accents, has_explicit_doc_request
 from core.state import RAGState
-from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ def out_of_scope_decision(state: RAGState) -> str:
 
 
 def _has_explicit_doc_request(state: RAGState) -> bool:
-    return has_documentary_anchor(_fold_accents(state.get('question', '').lower()))
+    return has_explicit_doc_request(_fold_accents(state.get('question', '').lower()))
 
 
 def answered_by_documents(state: RAGState) -> bool:

@@ -1,12 +1,4 @@
-"""
-code_intelligence/tests/test_section942_noop_hook_and_workflow_grounding.py
-
-todo/contexte.txt section 939 / section 942 (Point R): deterministic AST-based
-detection of no-op hooks (empty body, pass, return True/False/None/{}/[],
-NotImplementedError), annotation of read_source_code observations, prompt
-grounding, and stripping of hallucinated business effects (such as tax
-recalculation during action_confirm).
-"""
+"""AST-based no-op hook notes in source reads and synthesis prompt grounding."""
 
 from pathlib import Path
 import networkx as nx
@@ -16,10 +8,6 @@ from code_intelligence.rules.source_callees import (
     format_noop_hook_note,
 )
 from code_intelligence.agent.tools.introspection import read_precise_source_code
-from code_intelligence.rules.workflow import (
-    _correct_noop_hook_hallucinations,
-    _backfill_action_confirm_workflow_details,
-)
 from code_intelligence.agent.prompts import (
     EFFECT_GROUNDING_RULE,
     CI_SYSTEM_PROMPT,
@@ -112,62 +100,6 @@ def test_read_precise_source_code_annotates_noop_hook(tmp_path: Path, monkeypatc
     assert "return True" in out
     assert "[NOTE DÉTERMINISTIQUE -- HOOK SANS EFFET / NO-OP]" in out
     assert "retourne True" in out
-
-
-def test_correct_noop_hook_hallucinations_strips_tax_claims():
-    raw_obs = (
-        "[NOTE DÉTERMINISTIQUE -- HOOK SANS EFFET / NO-OP]\n"
-        "La méthode 'validate_taxes_on_sales_order' est un hook sans effet / no-op (retourne True)."
-    )
-    answer = (
-        "### Ce qui se passe lors de la confirmation\n\n"
-        "- **Changement d’état** : passe à En cours.\n"
-        "- **Validation des taxes** : les taxes sont recalculées et validées pour chaque ligne.\n"
-        "- **Abonnement du client** : le client est abonné.\n\n"
-        "En résumé, la confirmation transforme la commande, applique les taxes, et notifie le client."
-    )
-    cleaned = _correct_noop_hook_hallucinations(answer, raw_obs)
-    assert "Validation des taxes" not in cleaned
-    assert "les taxes sont recalculées" not in cleaned
-    assert "applique les taxes" not in cleaned
-    assert "- **Changement d’état** : passe à En cours." in cleaned
-    assert "- **Abonnement du client** : le client est abonné." in cleaned
-
-    # When no no-op hook in observations, leaves answer intact
-    unchanged = _correct_noop_hook_hallucinations(answer, "No hooks here")
-    assert unchanged == answer
-
-
-def test_backfill_action_confirm_workflow_details():
-    raw_obs = (
-        "def _can_be_confirmed(self):\n"
-        "    return self.state in {'draft', 'sent'}\n"
-    )
-    q = "Que se passe-t-il exactement quand on confirme une commande de vente (action_confirm) ?"
-    answer = (
-        "### Ce qui se passe lors de la confirmation\n\n"
-        "- **Changement d’état** : la commande passe de *Brouillon* ou *Envoyée* à *En cours* (état « sale »).\n"
-        "- **Abonnement du client** : le client est abonné."
-    )
-    fixed = _backfill_action_confirm_workflow_details(answer, raw_obs, question=q)
-    assert "Vérification préalable" in fixed
-    assert "Validation analytique" in fixed
-    assert "Changement d’état et date" in fixed
-    assert "Brouillon" in fixed
-    assert "Envoyée" in fixed
-
-    # Section 967: gate on folded_ans removed (root cause fix) -- the
-    # precondition/analytic-validation detail is now always appended
-    # when the "Changement d'état" bullet is present, redundancy
-    # tolerated (even if the answer already explained it in its own words).
-    already_good = (
-        "### Confirmation\n\n"
-        "- **Vérification préalable** : le système vérifie que les commandes sont à l'état brouillon ou envoyée.\n"
-        "- **Changement d'état** : passe à l'état sale."
-    )
-    res_good = _backfill_action_confirm_workflow_details(already_good, raw_obs, question=q)
-    assert res_good != already_good
-    assert "Validation analytique" in res_good
 
 
 def test_effect_grounding_rule_in_prompts():

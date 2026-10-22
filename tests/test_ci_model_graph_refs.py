@@ -5,7 +5,7 @@ import unittest
 import networkx as nx
 
 from code_intelligence.graph.nodes import ParsedModule, ResolvedSymbolRegistry, add_security_group_nodes, add_menu_nodes
-from code_intelligence.agent.tool_helpers import find_server_action_nodes
+from code_intelligence.agent.tools.helpers import find_server_action_nodes
 
 
 def make_acl(reference):

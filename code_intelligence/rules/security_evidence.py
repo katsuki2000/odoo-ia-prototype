@@ -4,18 +4,14 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
 from code_intelligence.agent.context import _truncate_observation
-from code_intelligence.agent.tool_helpers import get_current_question
 from code_intelligence.rules.relevance_budget import (
     _protected_prefix_end, _rerank_by_relevance, _waterfill_with_protected_minimum,
 )
-
-if TYPE_CHECKING:
-    from code_intelligence.rules.security import PythonSecurityLockAnalysis
 
 logger = logging.getLogger(__name__)
 _EXCEPTION_MESSAGES_MARKER = '  - Security lock messages'
@@ -103,6 +99,8 @@ def build_security_lock_evidence(filepath: str, hardcoded_logins: List[str], exc
 
 def format_security_locks_summary(analysis: Any, code: str, filepath: str) -> str:
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER, format_file_link, format_xml_id_citation
+    from code_intelligence.agent.tools.helpers import get_current_question
+
     fileLink = format_file_link(filepath, 1, max(1, len(code.splitlines())))
     lines = [f'Analyse des verrous Python ({fileLink}) [Confiance: {confidence_label(analysis.confidence)}]:']
     if analysis.has_hardcoded_logins:

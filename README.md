@@ -2,7 +2,7 @@
 
 MIRO AI is an intelligent AI assistant connected in real time to an Odoo 17 ERP database via XML-RPC. It features a hybrid multi-agent routing system (LangGraph) capable of handling documentary knowledge questions (RAG vector search), real-time live ERP database queries, and deep Code Intelligence analysis (governance, security, workflow inspection).
 
-The system is designed for private inference on a locally controlled Ollama or vLLM server. Kaggle is a temporary development host; AWS is the planned LLM host.
+The system is designed for private inference on a locally controlled Ollama or vLLM server. The LLM host is selected by `LLM_TARGET` in `.env`: `aws` (default, production) or `kaggle` (temporary development host, removable by deleting its entry in `config/settings.py`).
 
 ---
 
@@ -18,7 +18,7 @@ The system is designed for private inference on a locally controlled Ollama or v
 
 ### LLM and Embedding Providers
 
-* **100% Local Mode (Recommended)** : No external API keys required. Uses a local inference engine (such as [Ollama](https://ollama.com/) or [vLLM](https://github.com/vllm-project/vllm)) and ChromaDB's built-in ONNX embedding model (`all-MiniLM-L6-v2`) running locally on CPU.
+Inference uses private OpenAI-compatible endpoints configured in `.env` (Ollama or vLLM on the AWS instance or reachable from it; the Kaggle endpoint is optional). There is no cloud-provider fallback.
 
 
 ## Complete Setup Guide (New Machine)
@@ -60,14 +60,13 @@ Copy the example configuration or create your `.env`:
 cp .env.example .env
 ```
 
-**For 100% Local execution (Ollama / vLLM)**:
+The `.env` holds only **secrets and server addresses** (`JWT_SECRET`, `ODOO_ADMIN_PASSWORD`, the LLM server address). Every other setting has its default in `config/settings.py`; add a variable of the same name to `.env` only to override it.
+
+**Inference server (Ollama / vLLM)**: there is no implicit server; set the address of the target in `.env` (an unset address makes the application refuse to start the LLM client):
 ```dotenv
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://localhost:11434/v1
-LOCAL_LLM_MODEL=gpt-oss:20b
-LOCAL_LLM_API_KEY=ollama
-EMBEDDING_BACKEND=local_light
+AWS_OLLAMA_HOST=http://<aws-instance-address>:11434
 ```
+To use the temporary Kaggle host instead, set `LLM_TARGET=kaggle` and `KAGGLE_OLLAMA_HOST=https://<ngrok-tunnel>`.
 
 ### Step 4 : Install Odoo 17 (if not already present)
 
@@ -264,8 +263,8 @@ odoo-ia-prototype/
 │   ├── contexte.txt            # Chronological change log
 │   ├── plan.md                 # Project roadmap
 │   └── rules.md                # Development rules and guidelines
-├── .env                        # Local environment variables (gitignored)
-├── .env_exemple                # Reference environment template
+├── .env                        # Secrets and server addresses only (gitignored)
+├── .env.example                # Template of the .env
 ├── pytest.ini                  # Pytest runner configuration
 └── requirements.txt            # Pinned Python package dependencies
 ```
@@ -274,17 +273,19 @@ odoo-ia-prototype/
 
 ## Configuration Reference
 
-### Environment Variables (`.env`)
+### Settings (`config/settings.py`)
+
+Every variable below has its default in `config/settings.py` (or `config/google_drive.py`); an environment variable of the same name, set in `.env` or the shell, overrides it. Only secrets and server addresses belong in `.env`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LLM_PROVIDER` | No | `local` | Local OpenAI-compatible backend (`local`, Ollama, vLLM, LM Studio) |
-| `LOCAL_LLM_BASE_URL` | If local | `http://localhost:11434/v1` | Local OpenAI-compatible API base URL |
-| `LOCAL_LLM_MODEL` | If local | `gpt-oss:20b` | Model name on the local engine (e.g. `llama3.1`, `qwen2.5:14b`) |
-| `LOCAL_LLM_API_KEY` | If local | `ollama` | API key placeholder for local endpoint |
-| `EMBEDDING_BACKEND` | No | `local_light` | Embedding engine: `local_light` (Chroma ONNX), `ollama`, `local` |
-| `LOCAL_EMBEDDING_BASE_URL` | If ollama embed | `http://localhost:11434/v1` | Local embedding server URL |
-| `LOCAL_EMBEDDING_MODEL` | If ollama embed | `bge-m3:latest` | Local embedding model name (e.g. `bge-m3:latest`) |
+| `LLM_TARGET` | No | `aws` | Inference host: `aws` (production) or `kaggle` (temporary dev host) |
+| `<TARGET>_OLLAMA_HOST` | Yes | none | Ollama server address, read with the prefix of the target (`AWS_` or `KAGGLE_`) |
+| `<TARGET>_OLLAMA_MODEL` | No | `qwen3:14b` | Chat model served by Ollama (e.g. `gpt-oss:20b`) |
+| `<TARGET>_LLM_BASE_URL` / `<TARGET>_LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
+| `EMBEDDING_BACKEND` | No | `local_server` | Backend name of the private embedding endpoint (Ollama through its OpenAI-compatible API) |
+| `<TARGET>_EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
+| `<TARGET>_EMBEDDING_MODEL` | No | `bge-m3:latest` | Embedding model served by the configured endpoint |
 | `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `true` | Adds instance-label semantic candidates to bounded LLM arbitration |
 | `RESOLVER_SEMANTIC_EMBEDDING_BACKEND` | No | `EMBEDDING_BACKEND` | Optional embedding backend override for business-term retrieval |
 | `RESOLVER_SEMANTIC_EMBEDDING_MODEL` | No | `EMBEDDING_MODEL` | Optional embedding model override for business-term retrieval |
@@ -302,7 +303,7 @@ odoo-ia-prototype/
 
 | Problem | Cause | Solution |
 |---|---|---|
-| `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the configured local server or check `LOCAL_LLM_BASE_URL` |
+| `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the Ollama server or check `<TARGET>_OLLAMA_HOST` |
 | `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
 | `active_graph.json` not found | Graph has not been built on this machine | Run `python3 scripts/rebuild_graph.py` |
 | MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |

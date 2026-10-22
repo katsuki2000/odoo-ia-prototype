@@ -10,6 +10,7 @@ from core.graph.graph import (
     THRESHOLD_QUERY_TERMS, THRESHOLD_QUERY_TERMS_FOLDED,
     route,
 )
+from core.routing.routing_keywords import has_explicit_doc_request
 from core.routing.source_selection import SourceSelection
 
 
@@ -59,6 +60,23 @@ def test_folded_lists_are_precomputed_and_match_source_length():
     assert len(DOC_KEYWORDS_FOLDED) == len(DOC_KEYWORDS)
     assert len(DOC_ANCHORS_FOLDED) == len(DOC_ANCHORS)
     assert len(THRESHOLD_QUERY_TERMS_FOLDED) == len(THRESHOLD_QUERY_TERMS)
+
+
+@pytest.mark.parametrize("question", [
+    "selon le wiki",
+    "dans le wiki interne",
+    "consulter la documentation",
+    "voir le guide utilisateur",
+    "quelle est la procédure ?",
+    "quelle est la politique interne ?",
+    "où est documenté ce processus ?",
+])
+def test_explicit_doc_request_keeps_documentary_anchors(question):
+    assert has_explicit_doc_request(_fold_accents(question.lower()))
+
+
+def test_explicit_doc_request_requires_a_documentary_anchor():
+    assert not has_explicit_doc_request(_fold_accents("Comment approuver cette commande ?".lower()))
 
 
 # ── Routing consumes the selector signal; accents never change the decision ──

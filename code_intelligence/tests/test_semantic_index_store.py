@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from code_intelligence.agent.semantic_index_store import SemanticIndexStore, text_key
+from code_intelligence.agent.resolution.semantic_index_store import SemanticIndexStore, text_key
 
 
 def test_saved_vectors_are_loaded_back(tmp_path):

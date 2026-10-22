@@ -14,7 +14,7 @@ import networkx as nx
 import pytest
 
 from code_intelligence.agent.tools import ALL_CI_TOOLS
-from code_intelligence.agent.tool_helpers import set_graph_ref
+from code_intelligence.agent.tools.helpers import set_graph_ref
 from code_intelligence.agent.tools.structure import describe_navigation_path
 from core.evidence.evidence_collector import (
     _turn_evidence_ctx,

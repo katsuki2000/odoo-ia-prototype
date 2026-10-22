@@ -645,7 +645,7 @@ def _compose_data_constraints_summary(
             "The findings below do not establish that other constraints are absent. "
             f"Errors: {'; '.join(analysis_errors)}"
         )
-    from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
+    from code_intelligence.agent.tools.helpers import _is_custom_module_filepath
     def _constraint_priority(m: SemgrepMatch) -> tuple:
         is_custom = _is_custom_module_filepath(m.filepath)
         has_constrain = (

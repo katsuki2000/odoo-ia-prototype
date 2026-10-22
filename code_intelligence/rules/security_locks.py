@@ -1,79 +1,14 @@
-"""Legacy answer corrections and explicit sensitive-evidence disclosure policy."""
+"""Explicit sensitive-evidence disclosure policy."""
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass
 from typing import List, Optional, Set, Tuple
 
 import networkx as nx
 
-from code_intelligence.utils import (
-    _split_before_first_fact_marker,
-    _LOCK_CONDITION_LINE_RE, _AMOUNT_CMP_RE,
-)
-from code_intelligence.rules.group_resolver import _fold_accents
-
 logger = logging.getLogger(__name__)
-_OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")
-
-
-def _amount_present_in_text(amount: str, text: str) -> bool:
-    spaced = f'{amount[:-3]} {amount[-3:]}' if len(amount) > 3 else amount
-    return any(re.search(r'(?<!\d)' + re.escape(candidate) + r'(?!\d)', text)
-               for candidate in {amount, spaced})
-
-
-def _backfill_missing_approval_guard_facts(final_answer: str, raw_tool_output: str, question: str) -> str:
-    """Legacy API; not part of the active answer pipeline."""
-    if '_approval_allowed' not in raw_tool_output:
-        return final_answer
-    guardStart = raw_tool_output.find('_approval_allowed')
-    nextMethod = raw_tool_output.find('\ndef ', guardStart + len('_approval_allowed'))
-    guardOutput = raw_tool_output[guardStart:nextMethod if nextMethod != -1 else guardStart + 4000]
-    if not any(term in _fold_accents(question.lower()) for term in ('acl', 'groupe', 'manager', 'acheteur', 'permission')):
-        return final_answer
-    facts, tokens = [], []
-    if re.search(r"po_double_validation\s*==\s*['\"]one_step['\"]", guardOutput):
-        facts.append("`po_double_validation == 'one_step'`")
-        tokens.append('one_step')
-    if re.search(r"po_double_validation\s*==\s*['\"]two_step['\"]", guardOutput):
-        facts.append("`po_double_validation == 'two_step'` avec un montant total inférieur au seuil configuré `po_double_validation_amount`")
-        tokens.extend(('two_step', 'po_double_validation_amount'))
-    match = re.search(r"(?:user_has_groups|has_group)\s*\(\s*['\"]([^'\"]+)['\"]\s*\)", guardOutput)
-    if match:
-        facts.append(f"l'appartenance au groupe `{match.group(1)}`")
-        tokens.append(match.group(1))
-    if not facts or all(token in final_answer for token in tokens):
-        return final_answer
-    return (final_answer.rstrip() + '\n\n[FAIT DÉTERMINISTIQUE] Le garde applicatif `_approval_allowed()` '
-            "autorise l'approbation si au moins une des conditions suivantes est vraie : " + '; '.join(facts) + '.')
-
-
-def _backfill_fiscal_lock_scope_fact(final_answer: str, raw_tool_output: str, question: str) -> str:
-    """Legacy API; not part of the active answer pipeline."""
-    folded = _fold_accents(question.lower())
-    if not ('lock date' in folded or 'cloture' in folded or 'fiscalyear_lock_date' in folded):
-        return final_answer
-    required = ('_get_user_fiscal_lock_date', 'period_lock_date', 'fiscalyear_lock_date', 'group_account_manager')
-    if not all(token in raw_tool_output for token in required):
-        return final_answer
-    marker = '[FAIT DÉTERMINISTIQUE -- PORTÉE DES DATES DE CLÔTURE]'
-    if marker in final_answer:
-        return final_answer
-    for pattern in (
-        r"^.*(?:peut poster|peut publier|autorisé.*date.*clôture|jusqu'à cette date).*$\n?",
-        r"^.*(?:Accès au niveau|date de clôture finale|L'administrateur a accès|Si la date de l'écriture dépasse).*$\n?",
-        r'^.*(?:société mère|société parente).*$\n?',
-    ):
-        final_answer = re.sub(pattern, '', final_answer, flags=re.MULTILINE | re.IGNORECASE).rstrip()
-    return final_answer + (
-        '\n\n**Réponse : non.** La date de clôture d’exercice reste bloquante, y compris pour le Billing Administrator.'
-        '\n\n' + marker + " Non : l'exemption de `account.group_account_manager` dans `_get_user_fiscal_lock_date()` "
-        'ne concerne que `period_lock_date` (verrou de période). Elle conserve `fiscalyear_lock_date` comme date '
-        'effective ; `_check_fiscalyear_lock_date()` bloque donc aussi le Billing Administrator lorsque la date '
-        "de l'écriture est antérieure ou égale à la clôture d'exercice.")
 
 
 _OMITTED_MARKER = 'ELEMENT OMITTED FOR AUTHORIZATION REASON'

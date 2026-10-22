@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.resolver import resolve_business_term, AMBIGUITY_GAP_THRESHOLD
+from code_intelligence.agent.resolution.resolver import resolve_business_term, AMBIGUITY_GAP_THRESHOLD
 
 
 @pytest.fixture

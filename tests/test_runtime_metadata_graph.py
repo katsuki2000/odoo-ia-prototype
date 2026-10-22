@@ -136,25 +136,29 @@ class RuntimeExportTests(unittest.TestCase):
         self.assertTrue(method['locations_only'])
         self.assertNotIn('end_lineno', method['override_sites'][0])
 
-    def test_exported_class_sites_feed_real_ast_source_search(self):
-        spec = importlib.util.spec_from_file_location('_runtime_source_search_test', ROOT / 'code_intelligence/agent/source_search.py')
+    def test_exported_class_sites_feed_bounded_source_search(self):
+        spec = importlib.util.spec_from_file_location('_runtime_source_search_test', ROOT / 'code_intelligence/agent/tools/source_search.py')
         source = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = source
         spec.loader.exec_module(source)
         class Nodes(dict):
             def __call__(self, data=False):
                 return self.items() if data else self.keys()
-        graph = types.SimpleNamespace(nodes=Nodes({node['id']: node for node in self.snapshot()['nodes']}))
-        with patch.object(source, 'python_fragments', wraps=source.python_fragments) as parse:
-            result = source.search_source_fragments(graph, [ROOT], 'approve', model='x.case', module='custom')
-        self.assertEqual(sum('class FakeEnvironment:' in call.args[0] for call in parse.call_args_list), 1)
-        method = next(item for item in result['candidates'] if item['symbol'] == 'BaseCase.approve')
-        text = Path(method['filepath']).read_text().splitlines()
-        self.assertIn('def approve(self):', text[method['line_start'] - 1])
-        self.assertIn('return True', text[method['line_end'] - 1])
-        self.assertIn('custom', method['modules'])
-        self.assertIn('x.case', method['models'])
-        self.assertEqual(method['sha256'], hashlib.sha256(Path(method['filepath']).read_bytes()).hexdigest())
+        model = next(node for node in self.snapshot()['nodes'] if node['id'] == 'model:x.case')
+        graph = types.SimpleNamespace(nodes=Nodes({model['id']: model}))
+        result = source.search_source_fragments(
+            graph, [ROOT], 'FakeEnvironment', model='x.case', module='custom',
+        )
+        candidate = next(
+            item for item in result['candidates']
+            if item['filepath'] == str(Path(__file__).resolve())
+        )
+        self.assertIn('custom', candidate['modules'])
+        self.assertIn('x.case', candidate['models'])
+        self.assertEqual(
+            candidate['sha256'],
+            hashlib.sha256(Path(candidate['filepath']).read_bytes()).hexdigest(),
+        )
 
     def test_security_xmlids_and_edges_are_preserved(self):
         snapshot = self.snapshot()

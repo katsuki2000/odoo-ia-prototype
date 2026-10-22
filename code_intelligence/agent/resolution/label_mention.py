@@ -5,7 +5,7 @@ import unicodedata
 from collections import defaultdict
 from typing import Dict, Set
 
-from ..matching import _FUZZY_INDEX_CACHE, _paired_exact_field_model_matches
+from .matching import _FUZZY_INDEX_CACHE, _paired_exact_field_model_matches
 
 MIN_LABEL_WORDS = 2
 _WORD = re.compile(r"\w+")

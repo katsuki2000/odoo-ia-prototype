@@ -1,8 +1,6 @@
 """Centralized system prompts and prompt builders for the Code Intelligence agent node."""
 
 from typing import List, Optional
-from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
-from code_intelligence.agent.dispatch_guards import tools_lack_deeper_coverage
 from code_intelligence.rules.button_path import DISPLAY_CAUSES_MARKER
 from code_intelligence.rules.navigation import ORPHAN_ACTION_MARKER
 
@@ -105,16 +103,6 @@ def build_business_context_prompt(question: str, concept, G) -> str:
     resolved_info = []
     if concept.resolved_models:
         resolved_info.append(f"Target Models: {', '.join(concept.resolved_models)}")
-        if G is not None and not concept.resolved_modules:
-            candidate_mods = rank_custom_modules_for_models(G, concept.resolved_models, question)
-            for mod_name in candidate_mods[:1]:
-                mod_node = f"module:{mod_name}"
-                mod_models = [
-                    p.replace("model:", "") for p in G.predecessors(mod_node)
-                    if p.startswith("model:") and "tester" not in p
-                ]
-                if len(mod_models) >= 1:
-                    resolved_info.append(f"Module '{mod_name}' defines/extends models: {', '.join(sorted(mod_models))}")
     if concept.resolved_modules:
         resolved_info.append(f"Target Modules: {', '.join(concept.resolved_modules)}")
         if G is not None:
@@ -197,14 +185,9 @@ _ANTI_FABRICATION_RULE = (
 )
 
 _COVERAGE_CAVEAT = (
-    " IMPORTANT COVERAGE CAVEAT: the observations above come only from access/permission-layer "
-    "tools (group membership, ACL, ir.rule, security-lock heuristics) -- no workflow analysis, "
-    "method-override trace, or direct source-code read was performed this turn. If none of these "
-    "observations show an explicit restriction, you must NOT conclude that no restriction exists "
-    "at all, and must NOT open the answer with an unqualified 'Oui'/'Non'/'Yes'/'No'. State plainly "
-    "that the access/permission layer shows no restriction, but that workflow-level or "
-    "application-level checks (e.g. date locks, state-based blocks, other Python guards) were not "
-    "verified in this pass, so the answer is incomplete rather than a definitive verdict."
+    " An ACL or record-rule result alone does not prove that an operation is unrestricted. "
+    "Do not claim that no restriction exists unless relevant workflow and application behavior "
+    "was also inspected."
 )
 
 _SYNTHESIS_LANGUAGE_AND_CITATION = (
@@ -371,7 +354,7 @@ def build_synthesis_prompt(
     security_principals: Optional[dict] = None,
 ) -> str:
     """Build the final synthesis prompt given to the plain LLM once observations are collected."""
-    coverage_caveat = _COVERAGE_CAVEAT if tools_lack_deeper_coverage(tool_observation_tools) else ""
+    coverage_caveat = _COVERAGE_CAVEAT
     persona_guidance = ""
     if security_principals:
         p_names = ", ".join(f"'{p}'" for p in security_principals.keys())
@@ -416,7 +399,7 @@ def build_persona_prompt_block(security_principals: dict) -> str:
     """Section 888/889 (mecanisme), 899 (texte durci) : indique au LLM quelles
     personas hypothetiques cette question nomme, et comment evaluer l'acces
     pour chacune -- via `principal_id`, jamais en fournissant `user_groups_json`
-    lui-meme (toujours ignore, voir dispatch_guards.py::_override_user_groups_arg).
+    lui-meme, qui est remplace a la frontiere d'execution des outils.
 
     Chaine vide si `security_principals` est vide/absent -- `loop.py` n'ajoute
     alors rien au prompt, comportement de production inchange (889, exigence 5).

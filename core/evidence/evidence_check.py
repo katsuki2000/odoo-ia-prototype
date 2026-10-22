@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from code_intelligence.agent.matching import ResolvedConcept
+    from code_intelligence.agent.resolution.matching import ResolvedConcept
 
 
 def check_evidence(concept: "ResolvedConcept") -> str:

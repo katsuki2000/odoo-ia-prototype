@@ -1,7 +1,7 @@
 
 import networkx as nx
 
-from code_intelligence.agent.dispatch_guards import _override_user_groups_arg
+from code_intelligence.agent.tools.execution import _override_user_groups_arg
 from code_intelligence.agent.tools.introspection import (
     _explain_decision_path_impl,
     read_precise_source_code,

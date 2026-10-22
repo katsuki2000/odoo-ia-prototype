@@ -1,13 +1,6 @@
 """Odoo source code extractors."""
 
 from .csv import OdooAccessEntry, parse_access_control_csv
-from .js import (
-    JS_HAS_GROUP_PATTERN,
-    OWL_T_IF_HAS_GROUP_PATTERN,
-    SESSION_HAS_GROUP_PATTERN,
-    OdooClientGroupCheck,
-    parse_client_group_checks,
-)
 from .manifest import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,

@@ -13,12 +13,11 @@ from code_intelligence.agent.context import (
     CI_MAX_HOPS, DispatchContext, _resolve_user_group_xmlids,
     build_early_refusal_response,
 )
-from code_intelligence.agent.dispatch_guards import _maybe_build_application_layer_reminder
-from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.resolution.matching import ResolvedConcept
 from code_intelligence.agent.postprocess import build_final_response
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_persona_prompt_block
-from code_intelligence.agent.tool_execution import execute_tool_calls
-from code_intelligence.agent.tool_helpers import tool_context
+from code_intelligence.agent.tools.execution import execute_tool_calls
+from code_intelligence.agent.tools.helpers import tool_context
 from code_intelligence.graph import get_code_intelligence_graph
 from core.guardrails import (
     OUT_OF_SCOPE_ANSWER, is_massive_extraction_request,
@@ -89,7 +88,7 @@ def run_react_loop(ctx, llm, history):
 
     system = CI_SYSTEM_PROMPT + SYSTEM_INVESTIGATION_PROMPT + build_persona_prompt_block(ctx.security_principals)
     def prepareMessages(state):
-        reminder = _maybe_build_application_layer_reminder(ctx.question, ctx.tool_observation_tools) or ''
+        reminder = ''
         if getattr(ctx.G, 'graph', {}).get('generation_mode') == 'runtime_metadata':
             reminder += '\nThis graph is an explicitly scoped runtime snapshot. Use inspect_runtime_model for dated metadata and source reads for behavior. Views/buttons are declarations, not requester-effective visibility. Do not infer missing workflows, call chains or access verdicts from this reduced graph.'
         return [SystemMessage(content=system + '\n' + reminder), *state['messages']]
@@ -138,8 +137,7 @@ class CodeIntelligenceAgentRunner:
         language = state.get('language')
         graph = get_code_intelligence_graph(
             translation_languages=[language] if language else None, request_language=language)
-        from code_intelligence.agent.source_tools import search_system, read_source_fragment
-        from code_intelligence.agent.tools import ALL_CI_TOOLS
+        from code_intelligence.agent.tools import ALL_CI_TOOLS, read_source_fragment, search_system
         from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
         tools = [search_system, read_source_fragment,
                  *ALL_CI_TOOLS, *TYPED_ORM_LANGCHAIN_TOOLS]

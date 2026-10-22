@@ -11,8 +11,14 @@ def test_warm_up_loads_the_graph(monkeypatch):
         "code_intelligence.graph.loader.get_code_intelligence_graph",
         lambda **kwargs: calls.append(kwargs) or graph,
     )
+    warmed = []
+    monkeypatch.setattr(
+        "code_intelligence.agent.resolution.semantic_retrieval.warm_semantic_index",
+        lambda warm_graph, languages: warmed.append((warm_graph, languages)) or [],
+    )
     main.warm_up_code_intelligence_graph()
     assert calls == [{}]
+    assert warmed == [(graph, ["fr"])]
 
 
 def test_warm_up_failure_does_not_stop_the_api(monkeypatch):

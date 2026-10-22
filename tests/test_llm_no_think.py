@@ -1,7 +1,6 @@
 import pytest
 
 from core.llm import llm_client
-from code_intelligence.agent.investigation_llm import build_intent_classification_messages
 from code_intelligence.agent.resolution import arbitration
 
 
@@ -10,12 +9,6 @@ def test_with_no_think_appends_the_marker_only_when_configured(monkeypatch, mark
     monkeypatch.setattr(llm_client, "LLM_NO_THINK_MARKER", marker)
 
     assert llm_client.with_no_think("prompt") == expected
-
-
-def test_intent_classification_system_prompt_carries_the_marker(monkeypatch):
-    monkeypatch.setattr(llm_client, "LLM_NO_THINK_MARKER", "/no_think")
-
-    assert build_intent_classification_messages("question")[0].content.endswith("/no_think")
 
 
 def test_arbitration_system_prompt_carries_the_marker(monkeypatch):

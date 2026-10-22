@@ -17,8 +17,8 @@ This file covers:
   2. The exact reported scenario end-to-end through resolve_business_term().
 """
 
-from code_intelligence.agent.matching import rank_by_specificity, _specificity_score
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.matching import rank_by_specificity, _specificity_score
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 
 
 class _FakeGraph:

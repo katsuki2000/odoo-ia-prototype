@@ -22,7 +22,7 @@ lines AND xml_id: citations, while a group present in NEITHER source is
 still correctly flagged (no loss of protection against real hallucination).
 """
 
-from code_intelligence.agent.access_guards import _flag_ungrounded_group_xmlids
+from code_intelligence.agent.provenance import _flag_ungrounded_group_xmlids
 
 
 # has_group()-only source (analyze_security_locks' own line format).

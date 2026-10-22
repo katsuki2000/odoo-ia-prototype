@@ -118,7 +118,7 @@ def test_b2_auxiliary_tools(tmp_path, monkeypatch):
     f_path.write_text("\n".join([f"line {i}" for i in range(300)]), encoding="utf-8")
 
     err_res = read_precise_source_code(str(f_path), 1, 250)
-    assert "exceeds maximum safeguard limit" in err_res
+    assert "exceeds the maximum allowed size" in err_res
 
     valid_res = read_precise_source_code(str(f_path), 10, 20)
     assert "10 | line 9" in valid_res

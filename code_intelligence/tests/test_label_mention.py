@@ -1,10 +1,10 @@
 import networkx as nx
 import pytest
 
-from code_intelligence.agent import resolver
+from code_intelligence.agent.resolution import resolver
 from code_intelligence.agent.resolution.dense_lookup import DenseResolution
 from code_intelligence.agent.resolution.label_mention import quoted_model_labels
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 
 
 def _add_model(graph, name, *labels):

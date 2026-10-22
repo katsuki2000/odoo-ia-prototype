@@ -16,7 +16,7 @@ from core.graph.graph import (
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )
 from code_intelligence.agent.tools import evaluate_rules_raw
-from code_intelligence.agent.tool_helpers import set_graph_ref
+from code_intelligence.agent.tools.helpers import set_graph_ref
 
 TEST_AMOUNT = 80000
 

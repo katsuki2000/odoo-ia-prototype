@@ -44,10 +44,6 @@ from core.evidence.source_refs import parse_code_graph_source
 from core.evaluation.preflight import BackendUnavailable, require_backends
 import config.settings as settings
 from config.settings import LATENCY_BUDGET_P90_SECONDS
-from code_intelligence.agent.security_principal_detection import (
-    detect_security_principals_from_question,
-)
-
 BANKS_DIR = project_root / "tests"
 BANK_SUFFIX = "_question_bank.json"
 
@@ -157,14 +153,11 @@ def select_question(item, technical=False):
 
 
 def build_agent_state(item, technical=False):
-    """Agent input state for one bank question. Personas are either declared
-    by the bank (section 889) or detected deterministically from the technical
-    question text (section 896), never guessed by the LLM. The bank language is
-    passed like the API passes the request language."""
+    """Build agent input from the bank's declared personas and language."""
     state = {"question": select_question(item, technical), "chat_history": []}
     if item.get("language"):
         state["language"] = item["language"]
-    principals = item.get("security_principals") or detect_security_principals_from_question(item["question"])
+    principals = item.get("security_principals")
     if principals:
         state["security_principals"] = principals
     return state

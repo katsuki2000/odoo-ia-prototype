@@ -3,7 +3,7 @@
 import json
 from langchain_core.tools import tool
 
-from code_intelligence.agent.tool_helpers import _require_graph
+from code_intelligence.agent.tools.helpers import _require_graph
 from .runtime_graph import runtime_model_facts
 
 

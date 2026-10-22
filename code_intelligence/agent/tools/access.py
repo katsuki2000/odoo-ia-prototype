@@ -11,7 +11,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from code_intelligence.agent.tool_helpers import (
+from code_intelligence.agent.tools.helpers import (
     _require_graph,
     WILDCARD_MODEL_ERROR_MSG,
     _is_wildcard_model,
@@ -60,10 +60,7 @@ def evaluate_record_rules(
     declared by the harness for THIS question (see the system prompt's
     [PERSONAS DE LA QUESTION] section, if present). Never invent one.
     Leave empty to evaluate as the real demandeur. user_groups_json is
-    always ignored/overridden server-side either way -- see
-    dispatch_guards.py::_override_user_groups_arg (todo/contexte.txt
-    section 888/889) -- this parameter only exists so the schema exposes
-    principal_id to the model; it is not read here."""
+    assigned by the server-side execution boundary, never trusted from the model."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
     result = evaluate_rules_raw(model_name, permission, user_groups_json)

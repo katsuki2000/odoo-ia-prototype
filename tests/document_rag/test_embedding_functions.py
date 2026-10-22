@@ -9,17 +9,11 @@ from document_rag.vectorstore.embedding_functions import (
 )
 
 
-def test_resolve_embedding_function_local_light_returns_none():
-    """Verify that local_light returns None to trigger Chroma's ONNX all-MiniLM-L6-v2."""
-    fn = resolve_embedding_function(backend="local_light")
-    assert fn is None
-
-
 def test_resolve_embedding_function_local_server_returns_instance():
     """Verify that local_server returns LocalServerEmbeddingFunction."""
-    with patch("config.settings.LOCAL_EMBEDDING_BASE_URL", "http://localhost:11434/v1"), \
-         patch("config.settings.LOCAL_EMBEDDING_MODEL", "all-minilm:latest"), \
-         patch("config.settings.LOCAL_EMBEDDING_API_KEY", "ollama"):
+    with patch("config.settings.EMBEDDING_BASE_URL", "http://localhost:11434/v1"), \
+         patch("config.settings.EMBEDDING_MODEL", "all-minilm:latest"), \
+         patch("config.settings.EMBEDDING_API_KEY", "ollama"):
         fn = resolve_embedding_function(backend="local_server")
         assert isinstance(fn, LocalServerEmbeddingFunction)
         assert fn.model == "all-minilm:latest"
@@ -28,15 +22,16 @@ def test_resolve_embedding_function_local_server_returns_instance():
 
 def test_resolve_embedding_function_ollama_and_openai_synonyms():
     """Verify synonyms 'ollama' and 'openai_compatible' return LocalServerEmbeddingFunction."""
-    for backend in ("ollama", "openai_compatible", "vllm", "tei"):
+    for backend in ("ollama", "openai_compatible", "vllm"):
         fn = resolve_embedding_function(backend=backend)
         assert isinstance(fn, LocalServerEmbeddingFunction)
 
 
 def test_resolve_embedding_function_unknown_raises():
     """Verify unknown embedding backend raises ValueError."""
-    with pytest.raises(ValueError, match="Unknown EMBEDDING_BACKEND"):
-        resolve_embedding_function(backend="invalid_backend")
+    for backend in ("local_light", "local", "tei", "invalid_backend"):
+        with pytest.raises(ValueError, match="Unknown EMBEDDING_BACKEND"):
+            resolve_embedding_function(backend=backend)
 
 
 def test_local_server_embedding_function_openai_format():
@@ -81,18 +76,6 @@ def test_local_server_embedding_function_ollama_native_format():
         results = fn(["single document"])
         assert len(results) == 1
         assert list(results[0]) == [0.7, 0.8, 0.9]
-
-
-def test_resolve_embedding_function_local_custom_model():
-    """Verify backend='local' dynamically instantiates LocalSentenceTransformerEmbeddingFunction with custom model."""
-    with patch("document_rag.vectorstore.embedding_functions.LocalSentenceTransformerEmbeddingFunction") as mock_cls:
-        mock_instance = MagicMock()
-        mock_cls.return_value = mock_instance
-
-        fn = resolve_embedding_function(backend="local", embedding_model="BAAI/bge-m3")
-        assert fn == mock_instance
-        mock_cls.assert_called_once_with(model_name="BAAI/bge-m3")
-
 
 
 def _ok_response(embeddings):
@@ -165,8 +148,8 @@ def test_local_server_batches_and_preserves_order():
 
 
 def test_local_server_timeout_configurable_by_env(monkeypatch):
-    monkeypatch.setenv("LOCAL_EMBEDDING_TIMEOUT", "120")
+    monkeypatch.setenv("EMBEDDING_TIMEOUT", "120")
     assert _local_server_fn().timeout == 120.0
-    monkeypatch.delenv("LOCAL_EMBEDDING_TIMEOUT")
+    monkeypatch.delenv("EMBEDDING_TIMEOUT")
     assert _local_server_fn().timeout == 30.0
     assert _local_server_fn(timeout=5).timeout == 5.0

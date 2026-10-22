@@ -92,20 +92,19 @@ class ResolverDecisionTests(unittest.TestCase):
     def setUp(self):
         self.modules = dict(sys.modules)
         self.settings = types.ModuleType('config.settings')
-        self.settings.LOCAL_EMBEDDING_BASE_URL = 'https://configured.example/v1'
-        self.settings.LOCAL_EMBEDDING_MODEL = 'configured-default'
-        self.settings.LOCAL_EMBEDDING_API_KEY = 'fixture'
-        self.settings.EMBEDDING_MODEL_NAME = 'local-default'
+        self.settings.EMBEDDING_BASE_URL = 'https://configured.example/v1'
+        self.settings.EMBEDDING_MODEL = 'configured-default'
+        self.settings.EMBEDDING_API_KEY = 'fixture'
         self.settings.DEFAULT_EMBEDDING_BACKEND = 'local_server'
         self.settings.SEMANTIC_INDEX_CACHE_DIR = None
         config = types.ModuleType('config')
         config.settings = self.settings
         sys.modules['config'] = config
         sys.modules['config.settings'] = self.settings
-        cards = load_source('code_intelligence/agent/node_cards.py')
-        projection = load_source('code_intelligence/agent/node_projection.py', {
+        cards = load_source('code_intelligence/agent/resolution/node_cards.py')
+        projection = load_source('code_intelligence/agent/resolution/node_projection.py', {
             'CARD_NODE_TYPES': cards.CARD_NODE_TYPES, 'object_ref_of': cards.object_ref_of})
-        self.semantic = load_source('code_intelligence/agent/semantic_retrieval.py', {
+        self.semantic = load_source('code_intelligence/agent/resolution/semantic_retrieval.py', {
             'settings': self.settings, 'SemanticIndexStore': Store,
             'build_node_cards': cards.build_node_cards, 'ModelProjector': projection.ModelProjector,
             'text_key': lambda text: hashlib.sha256(text.encode()).hexdigest()})
@@ -120,21 +119,23 @@ class ResolverDecisionTests(unittest.TestCase):
 
     def embedding_module(self):
         return load_source('document_rag/vectorstore/embedding_functions.py', {
-            'EmbeddingFunction': object, 'Documents': list, 'Embeddings': list,
-            'assert_local_endpoint': lambda *_args: None})
+            'EmbeddingFunction': object, 'Documents': list, 'Embeddings': list})
 
     def test_server_override_is_respected(self):
         module = self.embedding_module()
         provider = module.resolve_embedding_function('local_server', 'resolver-specific')
         self.assertEqual(provider.model, 'resolver-specific')
-        self.assertEqual(provider.endpoint, self.settings.LOCAL_EMBEDDING_BASE_URL + '/embeddings')
+        self.assertEqual(provider.endpoint, self.settings.EMBEDDING_BASE_URL + '/embeddings')
 
     def test_server_default_is_preserved(self):
         provider = self.embedding_module().resolve_embedding_function('local_server')
         self.assertEqual(provider.model, 'configured-default')
 
-    def test_light_backend_remains_disabled_provider(self):
-        self.assertIsNone(self.embedding_module().resolve_embedding_function('local_light', 'unused'))
+    def test_unselected_local_embedding_backends_are_rejected(self):
+        module = self.embedding_module()
+        for backend in ('local_light', 'local'):
+            with self.subTest(backend=backend), self.assertRaisesRegex(ValueError, 'Unknown EMBEDDING_BACKEND'):
+                module.resolve_embedding_function(backend, 'unused')
 
     def test_identity_separates_servers_with_same_model_tag(self):
         self.assertNotEqual(self.semantic._embedding_name(self.provider), self.semantic._embedding_name(Provider('https://two.example/v1/embeddings')))
@@ -251,13 +252,13 @@ class ResolverDecisionTests(unittest.TestCase):
         self.assertEqual(result.resolved_models, ['alpha.record'])
 
     def test_turn_reuses_exact_decision_and_preserves_abstention(self):
-        resolver = types.ModuleType('_audit.agent.resolver')
+        resolver = types.ModuleType('_audit.agent.resolution.resolver')
         calls = []
         def resolve(*args, **kwargs):
             calls.append(True)
             return Concept('question', is_resolved=False, diagnostics={'arbitration_attempts': '1'})
         resolver.resolve_business_term = resolve
-        sys.modules['_audit.agent.resolver'] = resolver
+        sys.modules['_audit.agent.resolution.resolver'] = resolver
         module = load_source('code_intelligence/agent/resolution/turn.py', {
             'ResolvedConcept': Concept, '_FUZZY_INDEX_CACHE': {}, '_TIEBREAK_RARITY_CACHE': {}})
         concept, reused = module.resolve_turn('question', self.graph, {}, llm=object())
@@ -272,7 +273,7 @@ class ResolverDecisionTests(unittest.TestCase):
     def test_document_manager_keeps_server_default_not_local_model(self):
         module = load_source('document_rag/vectorstore/chroma_manager.py', {
             'load_dotenv': lambda *_args: None, 'CHROMA_PATH': '.', 'DOCS_COLLECTION_NAME': 'fixture',
-            'SERVER_EMBEDDING_BACKENDS': {'local_server'}, 'EmbeddingFunction': object,
+            'EmbeddingFunction': object,
             'chromadb': types.SimpleNamespace(PersistentClient=lambda **kwargs: types.SimpleNamespace(get_or_create_collection=lambda **kwargs: kwargs)),
             'resolve_embedding_function': lambda **kwargs: kwargs})
         with tempfile.TemporaryDirectory() as path, patch.dict('os.environ', {'EMBEDDING_BACKEND': 'local_server', 'EMBEDDING_MODEL': 'unrelated-local-name'}):

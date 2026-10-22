@@ -2,8 +2,8 @@ from pathlib import Path
 
 import networkx as nx
 
-from code_intelligence.agent.matching import _build_fuzzy_index, _fuzzy_match_graph
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.resolution.matching import _build_fuzzy_index, _fuzzy_match_graph
+from code_intelligence.agent.resolution.resolver import resolve_business_term
 from code_intelligence.graph.instance_fingerprint import build_instance_fingerprint
 from code_intelligence.graph.loader import _translation_cache_matches
 from code_intelligence.graph.translations import (

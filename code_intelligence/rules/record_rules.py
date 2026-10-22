@@ -338,7 +338,7 @@ def evaluate_record_rules(
     # protecting the applicable-rules/conclusion blocks -- a no-op when
     # everything already fits.
     from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
-    from code_intelligence.agent.tool_helpers import get_current_question
+    from code_intelligence.agent.tools.helpers import get_current_question
     body_budget = max(0, PER_TOOL_OBSERVATION_CAPS.get("evaluate_record_rules", 3000) - len(header_text) - 1)
     body = assemble_relevance_ranked_blocks(
         body_blocks, body_budget, question=get_current_question(), separator="\n",

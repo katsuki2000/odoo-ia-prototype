@@ -24,7 +24,7 @@ def load(name, path, **values):
 
 fixtures = importlib.import_module(
     (__package__ + '.' if __package__ else '') + 'test_runtime_metadata_graph')
-source = load('_coverage_source_search', ROOT / 'code_intelligence/agent/source_search.py')
+source = load('_coverage_source_search', ROOT / 'code_intelligence/agent/tools/source_search.py')
 
 
 class Nodes(dict):
@@ -170,16 +170,10 @@ class RuntimeSourceCoverageTests(unittest.TestCase):
         self.assertEqual(len(functionLookups), 2)
 
     def test_small_search_budget_is_reported_not_complete_coverage(self):
-        result = self.search('helperceiling', limits=source.SearchLimits(maxFiles=1))
+        result = self.search('helperceiling', limits=source.SearchLimits(max_files=1))
         self.assertFalse(result['complete_scan'])
         self.assertTrue(result['coverage']['budget_exhausted'])
         self.assertFalse(result['candidates'])
-
-    def test_direct_model_files_precede_helper_context_in_search_budget(self):
-        result = self.search('approve', limits=source.SearchLimits(maxFiles=2))
-        self.assertTrue(result['coverage']['budget_exhausted'])
-        self.assertTrue(result['candidates'])
-        self.assertTrue(all(row['filepath'] in {str(self.basePath), str(self.customPath)} for row in result['candidates']))
 
 
 if __name__ == '__main__':

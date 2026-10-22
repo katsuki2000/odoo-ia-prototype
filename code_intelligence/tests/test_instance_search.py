@@ -1,8 +1,8 @@
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.instance_search import find_instance_candidates
-from code_intelligence.agent.semantic_retrieval import SEMANTIC_RETRIEVAL_ENABLED_ENV
+from code_intelligence.agent.tools.instance_search import find_instance_candidates
+from code_intelligence.agent.resolution.semantic_retrieval import SEMANTIC_RETRIEVAL_ENABLED_ENV
 
 
 @pytest.fixture(autouse=True)

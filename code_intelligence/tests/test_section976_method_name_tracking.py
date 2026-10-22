@@ -29,7 +29,7 @@ from code_intelligence.rules.security_evidence import (
     _method_family_bonus,
 )
 from code_intelligence.rules.relevance_budget import _rerank_by_relevance
-from code_intelligence.agent.tool_helpers import set_current_question
+from code_intelligence.agent.tools.helpers import tool_context
 
 
 _PUR_Q5_CODE = '''
@@ -167,16 +167,14 @@ class TestPurQ5EndToEndReranking:
     3rd/5 -- here 3rd/3 -- under fuzzy scoring alone per section 972)."""
 
     def test_deletion_message_ranks_first_for_pur_q5_question(self):
-        set_current_question(
+        question = (
             "Quelles regles empechent de supprimer une commande d'achat ou "
             "une de ses lignes selon leur etat, et quelle contrainte SQL "
             "distincte s'applique sur les lignes elles-memes ?"
         )
-        try:
+        with tool_context(None, None, question):
             result = analyze_python_security_locks(_PUR_Q5_CODE, "purchase_order.py")
             summary = format_security_locks_summary(result, _PUR_Q5_CODE, "purchase_order.py")
-        finally:
-            set_current_question(None)
 
         deletion_idx = summary.find("you must cancel it first")
         invoiceable_idx = summary.find("no invoiceable line")

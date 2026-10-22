@@ -17,7 +17,7 @@ sys.path.insert(0, str(project_root))
 
 from core.graph.graph import get_code_intelligence_graph
 from code_intelligence.agent.tools import ALL_CI_TOOLS
-from code_intelligence.agent.tool_helpers import set_graph_ref
+from code_intelligence.agent.tools.helpers import set_graph_ref
 
 G = get_code_intelligence_graph()
 set_graph_ref(G)

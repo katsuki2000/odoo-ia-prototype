@@ -34,7 +34,7 @@ class ErrorRouteStructureTests(unittest.TestCase):
 
     def test_detailed_health_does_not_expose_llm_endpoint(self):
         function = find_function(load_tree('api/routes_system.py'), 'health_check_v1')
-        self.assertNotIn('LOCAL_LLM_BASE_URL', ast.unparse(function))
+        self.assertNotIn('LLM_BASE_URL', ast.unparse(function))
         self.assertNotIn('local endpoint:', ast.unparse(function))
         self.assertIn('not checked', ast.unparse(function))
 

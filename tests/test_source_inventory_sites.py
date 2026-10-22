@@ -8,7 +8,7 @@ import types
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location('_class_sites_source_search', ROOT / 'code_intelligence/agent/source_search.py')
+SPEC = importlib.util.spec_from_file_location('_class_sites_source_search', ROOT / 'code_intelligence/agent/tools/source_search.py')
 source = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = source
 SPEC.loader.exec_module(source)

@@ -20,7 +20,7 @@ import networkx as nx
 import pytest
 
 from code_intelligence.agent.tools import ALL_CI_TOOLS, analyze_data_constraints
-from code_intelligence.agent.tool_helpers import find_model_source_filepaths, set_graph_ref
+from code_intelligence.agent.tools.helpers import find_model_source_filepaths, set_graph_ref
 from code_intelligence.rules.data_constraints import (
     SemgrepMatch,
     _conditional_check_facts,

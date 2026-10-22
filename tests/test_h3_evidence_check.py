@@ -8,7 +8,7 @@ least-evidenced hypothesis from  section 60/61).
 
 This file locks check_evidence() itself -- the RESOLU/NON_RESOLU decision.
 """
-from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.resolution.matching import ResolvedConcept
 from core.evidence.evidence_check import check_evidence
 
 

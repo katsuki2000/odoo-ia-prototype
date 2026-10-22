@@ -13,7 +13,7 @@ import json
 
 from langchain_core.tools import tool
 
-from code_intelligence.agent.tool_helpers import (
+from code_intelligence.agent.tools.helpers import (
     _require_graph,
     _resolve_model_param,
 )
@@ -49,16 +49,13 @@ def button_execution_path(
     declared by the harness for THIS question (see the system prompt's
     [PERSONAS DE LA QUESTION] section, if present). Never invent one.
     Leave empty to evaluate as the real demandeur. user_groups_json is
-    always ignored/overridden server-side either way -- see
-    dispatch_guards.py::_override_user_groups_arg (todo/contexte.txt
-    section 888/889) -- this parameter only exists so the schema exposes
-    principal_id to the model; it is not read here."""
+    assigned by the server-side execution boundary, never trusted from the model."""
     from code_intelligence.rules.button_path import button_execution_path as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     try:
         user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         user_groups = None
     result = _impl(G, button_name, model_name, user_groups=user_groups)
     record_evidence(result.evidence)
@@ -95,7 +92,7 @@ def describe_navigation_path(model_name: str, button_label_or_name: str = "", us
     model_name = _resolve_model_param(model_name)
     try:
         user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         user_groups = None
     result = _impl(G, model_name, button_label_or_name, user_groups=user_groups)
     record_evidence(result.evidence)
