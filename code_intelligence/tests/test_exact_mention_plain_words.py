@@ -65,7 +65,7 @@ def test_application_is_not_a_marker():
     assert _find_exact_technical_module_mentions("dans l'application maintenance, qui valide ?", graph) == []
 
 
-@pytest.mark.parametrize("name", ["hr_holidays", "custom_credit_note_approval", "point_of_sale"])
+@pytest.mark.parametrize("name", ["hr_holidays", "miro_credit_note_approval", "point_of_sale"])
 def test_underscored_module_is_exact_without_marker(name):
     graph = _graph_with_modules(name)
 

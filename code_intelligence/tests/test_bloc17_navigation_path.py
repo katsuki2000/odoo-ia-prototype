@@ -31,13 +31,13 @@ def _build_menu_graph(model_name="custom.purchase.request", with_button=False, m
     G.add_edge("menu:sale.menu_sale_config", "menu:base.menu_root", edge_type="CHILD_OF")
 
     leaf_groups = menu_groups or []
-    G.add_node("menu:custom_purchase_request.menu_requests", node_type="Menu",
-                name="Demandes d'achat", xml_id="custom_purchase_request.menu_requests",
-                sequence=30, filepath="/repo/custom_purchase_request/views/menu.xml",
+    G.add_node("menu:ext_purchase_request.menu_requests", node_type="Menu",
+                name="Demandes d'achat", xml_id="ext_purchase_request.menu_requests",
+                sequence=30, filepath="/repo/ext_purchase_request/views/menu.xml",
                 groups=leaf_groups)
-    G.add_edge("menu:custom_purchase_request.menu_requests", "menu:sale.menu_sale_config",
+    G.add_edge("menu:ext_purchase_request.menu_requests", "menu:sale.menu_sale_config",
                 edge_type="CHILD_OF")
-    G.add_edge("menu:custom_purchase_request.menu_requests", f"model:{model_name}",
+    G.add_edge("menu:ext_purchase_request.menu_requests", f"model:{model_name}",
                 edge_type="OPENS_MODEL", via="act_window")
 
     if with_button:
@@ -49,7 +49,7 @@ def _build_menu_graph(model_name="custom.purchase.request", with_button=False, m
                     model=model_name, state_value="submitted")
         G.add_edge(f"state:{model_name}.draft", f"state:{model_name}.submitted",
                     edge_type="TRANSITIONS_VIA", method_name="action_submit",
-                    label_bouton="Soumettre", groupe_requis=["custom_purchase_request.group_requester"])
+                    label_bouton="Soumettre", groupe_requis=["ext_purchase_request.group_requester"])
 
     return G
 
@@ -62,8 +62,8 @@ def test_not_found_when_model_absent():
 
 
 def test_empty_when_model_exists_but_no_menu_opens_it():
-    """The 'aucun chemin UI' verdict -- confirmed real on custom_purchase_request
-    /custom_asset_loan in todo/bloc17_jour1_perimetre.md."""
+    """The 'aucun chemin UI' verdict -- confirmed real on ext_purchase_request
+    /asset_loan in todo/bloc17_jour1_perimetre.md."""
     G = nx.DiGraph()
     G.add_node("model:custom.asset.loan", node_type="Model", name="custom.asset.loan")
     res = describe_navigation_path(G, "custom.asset.loan")
@@ -78,27 +78,27 @@ def test_found_builds_full_breadcrumb_root_to_leaf():
     res = describe_navigation_path(G, "custom.purchase.request")
     assert res.status == QueryStatus.FOUND
     assert res.menu_breadcrumb == ["Ventes", "Configuration", "Demandes d'achat"]
-    assert res.menu_xml_id == "custom_purchase_request.menu_requests"
+    assert res.menu_xml_id == "ext_purchase_request.menu_requests"
     assert all(isinstance(e, Evidence) for e in res.evidence)
 
 
 def test_found_prefers_unrestricted_menu_over_restricted_one():
-    G = _build_menu_graph(menu_groups=["custom_purchase_request.group_requester"])
+    G = _build_menu_graph(menu_groups=["ext_purchase_request.group_requester"])
     # A second, unrestricted menu also opens the same model.
-    G.add_node("menu:custom_purchase_request.menu_requests_alt", node_type="Menu",
-                name="Demandes d'achat (public)", xml_id="custom_purchase_request.menu_requests_alt",
+    G.add_node("menu:ext_purchase_request.menu_requests_alt", node_type="Menu",
+                name="Demandes d'achat (public)", xml_id="ext_purchase_request.menu_requests_alt",
                 sequence=5, filepath="", groups=[])
-    G.add_edge("menu:custom_purchase_request.menu_requests_alt", "model:custom.purchase.request",
+    G.add_edge("menu:ext_purchase_request.menu_requests_alt", "model:custom.purchase.request",
                 edge_type="OPENS_MODEL", via="act_window")
 
     res = describe_navigation_path(G, "custom.purchase.request")
     assert res.status == QueryStatus.FOUND
-    assert res.menu_xml_id == "custom_purchase_request.menu_requests_alt"
+    assert res.menu_xml_id == "ext_purchase_request.menu_requests_alt"
     assert res.menu_groups == []
 
 
 def test_found_menu_restricted_and_user_not_in_group_is_unavailable():
-    G = _build_menu_graph(menu_groups=["custom_purchase_request.group_requester"])
+    G = _build_menu_graph(menu_groups=["ext_purchase_request.group_requester"])
     res = describe_navigation_path(
         G, "custom.purchase.request", user_groups=["base.group_user"]
     )
@@ -128,7 +128,7 @@ def test_found_with_button_delegates_to_button_execution_path():
 
 
 def test_found_combines_menu_and_button_required_groups_for_availability():
-    G = _build_menu_graph(with_button=True, menu_groups=["custom_purchase_request.group_requester"])
+    G = _build_menu_graph(with_button=True, menu_groups=["ext_purchase_request.group_requester"])
     res = describe_navigation_path(
         G, "custom.purchase.request", button_label_or_name="Soumettre",
         user_groups=["base.group_user"],

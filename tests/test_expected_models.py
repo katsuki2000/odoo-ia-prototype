@@ -50,7 +50,7 @@ def test_shipped_file_is_consistent():
         assert all(m.count(".") >= 1 and m == m.strip() for m in models | tolerated[qid]), qid
 
 
-def test_file_is_compatible_with_compare_resolution_pipelines_expected_format():
+def test_every_entry_is_a_list_of_model_names():
     data = json.loads(DEFAULT_PATH.read_text(encoding="utf-8"))
     for qid, models in data.items():
         if not qid.startswith("_"):

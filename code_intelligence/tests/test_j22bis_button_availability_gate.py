@@ -132,7 +132,7 @@ def test_tolerant_group_resolution_short_name_matches_required_group():
     like who_has_access_to and evaluate_record_rules already tolerate."""
     G = _build_graph_with_button(
         "custom.reimbursement.request",
-        required_groups=["custom_credit_note_visibility_rules.group_avoir_national"],
+        required_groups=["miro_credit_note_visibility_rules.group_avoir_national"],
     )
     res = button_execution_path(
         G, "Valider", "custom.reimbursement.request",
@@ -148,7 +148,7 @@ def test_tolerant_group_resolution_fuzzy_display_name_matches_required_group():
     elsewhere in the module."""
     G = _build_graph_with_button(
         "custom.reimbursement.request",
-        required_groups=["custom_credit_note_visibility_rules.group_avoir_national"],
+        required_groups=["miro_credit_note_visibility_rules.group_avoir_national"],
         button_group_display_name="Avoirs - Visibilite Nationale",
     )
     res = button_execution_path(

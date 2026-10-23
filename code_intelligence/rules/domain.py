@@ -1,13 +1,14 @@
 """
-code_intelligence/deterministic/domain_parser.py
-
-Safe AST parser and normalizer for Odoo ir.rule domain_force expressions.
-Converts Python domain expressions into prefix-notation token streams
-without ever executing arbitrary code.
+Safe AST parser, normalizer, and evaluator for Odoo ir.rule domain_force expressions.
+Converts Python domain expressions into prefix-notation token streams and evaluates
+them safely using Kleene three-valued logic (True / False / None) without executing arbitrary code.
 """
 
 import ast
-from typing import Any, List
+import logging
+from typing import Any, Dict, List, Optional, Tuple
+
+_logger = logging.getLogger(__name__)
 
 _DOMAIN_COMPARISON_OPS = {"=", "!=", ">", ">=", "<", "<=", "in", "not in", "like", "ilike"}
 _DOMAIN_LOGICAL_OPS = {"&", "|", "!"}
@@ -174,21 +175,6 @@ def _normalize_domain_tokens(tokens: List[Any]) -> List[Any]:
     if missing > 0:
         return ["&"] * missing + tokens
     return tokens
-
-# ── Domain Evaluator ─────────────────────────────────────────────────────
-
-"""
-code_intelligence/deterministic/domain_evaluator.py
-
-Safe evaluator for Odoo ir.rule domain_force expressions using Kleene
-three-valued logic (True / False / None).
-"""
-
-import logging
-from typing import Any, Dict, List, Optional, Tuple
-
-
-_logger = logging.getLogger(__name__)
 
 
 def _resolve_dynamic_ref(ref: _DynamicRef, context: Dict[str, Any]) -> Any:

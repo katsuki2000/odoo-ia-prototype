@@ -2,6 +2,8 @@ import pytest
 
 import networkx as nx
 
+from config import settings
+
 from code_intelligence.agent.resolution.semantic_retrieval import (
     SemanticRetrieval,
     SemanticRetrievalStatus,
@@ -65,7 +67,7 @@ def test_semantic_ranking_uses_instance_translations():
 
 
 def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", False)
 
     assert configured_semantic_model_candidates(
         "commande client",
@@ -74,8 +76,8 @@ def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypat
     ) == []
 
 
-def test_configured_retrieval_is_enabled_when_variable_is_unset(monkeypatch):
-    monkeypatch.delenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", raising=False)
+def test_configured_retrieval_runs_when_the_setting_is_enabled(monkeypatch):
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: FakeEmbeddingFunction(),
@@ -89,7 +91,7 @@ def test_configured_retrieval_is_enabled_when_variable_is_unset(monkeypatch):
 
 
 def test_configured_retrieval_fails_open_when_provider_raises(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
 
     def _boom(**_kwargs):
         raise RuntimeError("embedding server unreachable")
@@ -121,7 +123,7 @@ def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
 
 
 def test_retrieval_status_is_disabled_when_switched_off(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", False)
 
     result = retrieve_semantic_model_candidates("commande", _graph_with_translated_models(), "fr")
 
@@ -130,7 +132,7 @@ def test_retrieval_status_is_disabled_when_switched_off(monkeypatch):
 
 
 def test_retrieval_status_is_error_when_provider_raises(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
 
     def _boom(**_kwargs):
         raise RuntimeError("embedding server unreachable")
@@ -144,7 +146,7 @@ def test_retrieval_status_is_error_when_provider_raises(monkeypatch):
 
 
 def test_retrieval_status_is_error_when_no_provider_is_configured(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: None,
@@ -156,7 +158,7 @@ def test_retrieval_status_is_error_when_no_provider_is_configured(monkeypatch):
 
 
 def test_retrieval_status_is_no_candidates_when_graph_has_no_labels(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: FakeEmbeddingFunction(),
@@ -169,7 +171,7 @@ def test_retrieval_status_is_no_candidates_when_graph_has_no_labels(monkeypatch)
 
 
 def test_retrieval_status_is_success_with_candidates(monkeypatch):
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **_kwargs: FakeEmbeddingFunction(),
@@ -239,35 +241,17 @@ def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_embedding_function_receives_no_forced_model_when_unset(monkeypatch):
+def test_embedding_function_receives_no_forced_model(monkeypatch):
     from code_intelligence.agent.resolution.semantic_retrieval import build_semantic_embedding_function
 
     captured = {}
-    monkeypatch.delenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", raising=False)
-    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
         lambda **kwargs: captured.update(kwargs) or FakeEmbeddingFunction(),
     )
 
     assert isinstance(build_semantic_embedding_function(), FakeEmbeddingFunction)
-    assert captured == {"embedding_model": None}
-
-
-def test_resolver_model_override_wins_over_global_embedding_model(monkeypatch):
-    from code_intelligence.agent.resolution.semantic_retrieval import build_semantic_embedding_function
-
-    captured = {}
-    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", "resolver-model")
-    monkeypatch.setenv("EMBEDDING_MODEL", "global-model")
-    monkeypatch.setattr(
-        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
-        lambda **kwargs: captured.update(kwargs) or FakeEmbeddingFunction(),
-    )
-
-    build_semantic_embedding_function()
-
-    assert captured["embedding_model"] == "resolver-model"
+    assert captured == {}
 
 
 def test_query_embedding_is_computed_once_for_repeated_ranking():
@@ -362,7 +346,7 @@ def test_ranking_keeps_the_best_document_per_model_without_duplicates():
 def test_warm_up_persists_the_index_so_the_first_question_embeds_no_document(monkeypatch, tmp_path):
     from code_intelligence.agent.resolution.semantic_retrieval import warm_semantic_index
 
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(semantic_module.settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path))
     warming = RecordingEmbeddingFunction()
     monkeypatch.setattr(
@@ -380,7 +364,7 @@ def test_warm_up_persists_the_index_so_the_first_question_embeds_no_document(mon
 def test_warm_up_failure_is_a_status_not_an_exception(monkeypatch, tmp_path):
     from code_intelligence.agent.resolution.semantic_retrieval import warm_semantic_index
 
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", True)
     monkeypatch.setattr(semantic_module.settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(
         "document_rag.vectorstore.embedding_functions.resolve_embedding_function",

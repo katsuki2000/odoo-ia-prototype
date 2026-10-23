@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from code_intelligence.rules import data_constraints
+from config import settings
 
 RULES_DIR = Path(data_constraints.__file__).resolve().parent.parent / "semgrep_rules"
 CONFIG = RULES_DIR / "sql_constraints.yaml"
@@ -23,8 +24,8 @@ def test_semgrep_runs_without_telemetry_or_version_check():
 
 
 def test_semgrep_timeout_uses_the_configured_constant():
-    assert _run_with_captured_subprocess().kwargs["timeout"] == data_constraints.SEMGREP_TIMEOUT_SECONDS
+    assert _run_with_captured_subprocess().kwargs["timeout"] == settings.SEMGREP_TIMEOUT_SECONDS
 
 
 def test_semgrep_timeout_leaves_room_for_a_loaded_machine():
-    assert data_constraints.SEMGREP_TIMEOUT_SECONDS >= 120
+    assert settings.SEMGREP_TIMEOUT_SECONDS >= 120

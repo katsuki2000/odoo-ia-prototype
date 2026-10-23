@@ -8,24 +8,16 @@ Elle répond soit sur le fonctionnement métier de l'instance en utilisant des t
 ### Questions prioritaires
 
 1. **Accès et approbations** — qui peut consulter, modifier, confirmer ou approuver ; pourquoi une action est-elle refusée ?
-2. **Procédures métier** — comment saisir, confirmer, valider, payer ou annuler une opération dans l'interface.
+2. **Procédures métier** — comment saisir, proceder,  confirmer, valider, payer ou annuler une opération dans l'interface.
 3. **Explication des blocages** — pourquoi une facture, une commande ou une autre opération ne passe-t-elle pas à l'étape suivante ?
 4. **État et indicateurs** — combien de ventes, quelles commandes, quels stocks ou quelles factures, dans le périmètre autorisé de l'utilisateur.
 
 Les questions peuvent être formulées en français ou anglais courant, sans connaître les noms techniques des modèles ou des champs. Si un terme métier est ambigu, MIRO doit demander une précision plutôt que choisir arbitrairement.
 
-### Critères de validation avant livraison
-
-- Rejouer les tests unitaires ciblés de classification et les tests de non-régression du routage.
-- Rejouer le protocole d'évaluation 
-- ÇA MARCHE SUR DES INSTANCES ODOO differentes
- Ceci est un PoC , tant que ça fonctionne sur un perimetre, ça va
-**Cadrage** : le llm ne repond pas à partir de ses propres connaissances tant que ce n'est pas explicitement demandé par l'utilisateur, meme dans ce cas , il doit le preciser
-
 
 ## 2. Principes
 
-1. **Le LLM donne des reponses verifiables.** Le LLM connaît Odoo 17 mais pas ce qui est spécifique à l'ERP. Les faits établis en consultant l'ERP et les documents sont injectés au prompt : le LLM s'appuie sur ses connaissances générales répond en fonction de ce qui a été trouvé sur l'instance, il precise s'il n'a vraiment rien trouvé.
+1. **Le LLM donne des reponses verifiables.** Le LLM connaît Odoo 17 mais pas ce qui est spécifique à l'ERP. Les faits établis en consultant l'ERP et les documents sont injectés au prompt : le LLM s'appuie sur ses connaissances générales répond en fonction de ce qui a été trouvé sur l'instance, il precise que sa reponse vient de ses connaissances s'il n'a vraiment rien trouvé.
 
 2. **Un routage de sources explicite.** 
 Le choix vient de l'utilisateur (mode choisi dans l'interface« selon le système » ou

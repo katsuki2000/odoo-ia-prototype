@@ -3,8 +3,8 @@ from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 code_intelligence/tests/test_f08_j36_graph_dependency_loading.py
 
 Regression lock for the 2026-08-07 J36 fix in
-rag/graph.py::get_code_intelligence_graph(): custom_* modules that
-_inherit a REAL Odoo core module (e.g. custom_expense_risk_base extends
+rag/graph.py::get_code_intelligence_graph(): custom modules that
+_inherit a REAL Odoo core module (e.g. acme_expense_risk_base extends
 hr.expense via depends=['hr_expense']) must have that direct dependency's
 own module loaded too, or the extended model's BASE declaration (and its
 real fields) never enters the graph and every tool call against it returns
@@ -15,7 +15,7 @@ code_intelligence/active_graph.json.stale_pre_f08_j36_fix_20260807 for
 comparison).
 
 Unlike test_j36_sprint_d_expense_risk_replay.py -- which builds its graph
-by hand from only the 3 custom_expense_risk_* modules and therefore never
+by hand from only the 3 acme_expense_risk_* modules and therefore never
 loads hr_expense either, so it could not have caught this gap even though
 its name suggests it covers J36 (it predates the fix, 2026-08-06) -- this
 file rebuilds the graph through get_code_intelligence_graph() itself, the
@@ -91,7 +91,7 @@ def test_hr_expense_base_model_is_loaded(rebuilt_graph):
 def test_real_base_field_impact_reaches_custom_cascade(rebuilt_graph):
     """total_amount is declared on the REAL hr_expense module (see
     odoo-17.0/addons/hr_expense/models/hr_expense.py), not on any
-    custom_* module. Before the fix hr_expense was never loaded, so this
+    custom module. Before the fix hr_expense was never loaded, so this
     field did not exist in the graph at all and this call returned
     NOT_FOUND. It must now show the real cross-module cascade into the
     custom risk-scoring field (this is the EXP_07 case from
@@ -102,7 +102,7 @@ def test_real_base_field_impact_reaches_custom_cascade(rebuilt_graph):
 
 def test_employee_id_is_the_real_base_field_not_a_phantom_reference(rebuilt_graph):
     """employee_id is declared on hr.expense itself, in the hr_expense
-    module (required=True there) -- not invented by any custom_* module.
+    module (required=True there) -- not invented by any custom module.
     If the base module were still unloaded, this upstream trigger for
     alerte_conformite would not resolve to a real field declaration at
     all (this is the EXP_04/EXP_05 case from

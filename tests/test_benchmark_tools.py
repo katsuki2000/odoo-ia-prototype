@@ -23,15 +23,15 @@ from code_intelligence.agent.tools import (
 from code_intelligence.agent.tools.helpers import set_graph_ref
 
 ADVERSARIAL_MODULES = [
-    "custom_credit_note_approval",
-    "custom_credit_note_approval_regional",
-    "custom_credit_note_approval_vip",
-    "custom_hr_leave_workflow",
-    "custom_purchase_request",
-    "custom_asset_loan",
-    "custom_automation_traps",
-    "custom_credit_note_visibility_rules",
-    "custom_expense_reimbursement_indirect",
+    "miro_credit_note_approval",
+    "miro_credit_note_approval_regional",
+    "miro_credit_note_approval_vip",
+    "miro_hr_leave_workflow",
+    "ext_purchase_request",
+    "asset_loan",
+    "miro_automation_traps",
+    "miro_credit_note_visibility_rules",
+    "miro_expense_reimbursement_indirect",
 ]
 
 

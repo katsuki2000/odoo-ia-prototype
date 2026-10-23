@@ -16,7 +16,7 @@ from code_intelligence.rules.record_rules import evaluate_record_rules
 
 def _build_test_6_knowledge_graph() -> nx.DiGraph:
     """
-    Constructs knowledge graph matching Adversarial Module 8 (custom_credit_note_visibility_rules):
+    Constructs knowledge graph matching Adversarial Module 8 (miro_credit_note_visibility_rules):
      - Model: account.move
      - Rule 1 (Global): Global multi-company rule (no groups)
      - Rule 2 (Regional Group): account.move <= 50,000 EUR (group_regional)
@@ -26,43 +26,43 @@ def _build_test_6_knowledge_graph() -> nx.DiGraph:
 
     # Nodes
     G.add_node("model:account.move", node_type="Model", name="account.move")
-    G.add_node("group:custom_credit_note_visibility_rules.group_regional", node_type="Group", name="Avoirs - Visibilité Régionale", xml_id="custom_credit_note_visibility_rules.group_regional")
-    G.add_node("group:custom_credit_note_visibility_rules.group_national", node_type="Group", name="Avoirs - Visibilité Nationale", xml_id="custom_credit_note_visibility_rules.group_national")
+    G.add_node("group:miro_credit_note_visibility_rules.group_regional", node_type="Group", name="Avoirs - Visibilité Régionale", xml_id="miro_credit_note_visibility_rules.group_regional")
+    G.add_node("group:miro_credit_note_visibility_rules.group_national", node_type="Group", name="Avoirs - Visibilité Nationale", xml_id="miro_credit_note_visibility_rules.group_national")
 
     # Global Rule
     G.add_node(
-        "rule:custom_credit_note_visibility_rules.rule_global_multi_company",
+        "rule:miro_credit_note_visibility_rules.rule_global_multi_company",
         node_type="Rule",
         name="Avoirs Global Multi-Company",
-        xml_id="custom_credit_note_visibility_rules.rule_global_multi_company",
+        xml_id="miro_credit_note_visibility_rules.rule_global_multi_company",
         domain_force="[('company_id', 'in', company_ids)]",
         perm_read=True,
     )
-    G.add_edge("model:account.move", "rule:custom_credit_note_visibility_rules.rule_global_multi_company", edge_type="RESTRICTED_BY")
+    G.add_edge("model:account.move", "rule:miro_credit_note_visibility_rules.rule_global_multi_company", edge_type="RESTRICTED_BY")
 
     # Regional Rule (limit 50,000)
     G.add_node(
-        "rule:custom_credit_note_visibility_rules.rule_regional_limit",
+        "rule:miro_credit_note_visibility_rules.rule_regional_limit",
         node_type="Rule",
         name="Avoirs Régionaux Plafond 50k",
-        xml_id="custom_credit_note_visibility_rules.rule_regional_limit",
+        xml_id="miro_credit_note_visibility_rules.rule_regional_limit",
         domain_force="[('amount_total', '<=', 50000)]",
         perm_read=True,
     )
-    G.add_edge("model:account.move", "rule:custom_credit_note_visibility_rules.rule_regional_limit", edge_type="RESTRICTED_BY")
-    G.add_edge("rule:custom_credit_note_visibility_rules.rule_regional_limit", "group:custom_credit_note_visibility_rules.group_regional", edge_type="APPLIES_TO_GROUP")
+    G.add_edge("model:account.move", "rule:miro_credit_note_visibility_rules.rule_regional_limit", edge_type="RESTRICTED_BY")
+    G.add_edge("rule:miro_credit_note_visibility_rules.rule_regional_limit", "group:miro_credit_note_visibility_rules.group_regional", edge_type="APPLIES_TO_GROUP")
 
     # National Rule (unlimited)
     G.add_node(
-        "rule:custom_credit_note_visibility_rules.rule_national_unlimited",
+        "rule:miro_credit_note_visibility_rules.rule_national_unlimited",
         node_type="Rule",
         name="Avoirs Nationaux Illimités",
-        xml_id="custom_credit_note_visibility_rules.rule_national_unlimited",
+        xml_id="miro_credit_note_visibility_rules.rule_national_unlimited",
         domain_force="[(1, '=', 1)]",
         perm_read=True,
     )
-    G.add_edge("model:account.move", "rule:custom_credit_note_visibility_rules.rule_national_unlimited", edge_type="RESTRICTED_BY")
-    G.add_edge("rule:custom_credit_note_visibility_rules.rule_national_unlimited", "group:custom_credit_note_visibility_rules.group_national", edge_type="APPLIES_TO_GROUP")
+    G.add_edge("model:account.move", "rule:miro_credit_note_visibility_rules.rule_national_unlimited", edge_type="RESTRICTED_BY")
+    G.add_edge("rule:miro_credit_note_visibility_rules.rule_national_unlimited", "group:miro_credit_note_visibility_rules.group_national", edge_type="APPLIES_TO_GROUP")
 
     return G
 
@@ -75,8 +75,8 @@ def test_q6_1_both_groups_user_can_view_80k():
     """
     G = _build_test_6_knowledge_graph()
     user_groups = [
-        "custom_credit_note_visibility_rules.group_regional",
-        "custom_credit_note_visibility_rules.group_national",
+        "miro_credit_note_visibility_rules.group_regional",
+        "miro_credit_note_visibility_rules.group_national",
     ]
 
     res = evaluate_record_rules(G, "account.move", user_groups=user_groups)
@@ -109,7 +109,7 @@ def test_regional_group_only_user_cannot_view_80k():
     Result: User CANNOT view 80,000 EUR credit note (exceeds 50,000 EUR limit).
     """
     G = _build_test_6_knowledge_graph()
-    user_groups = ["custom_credit_note_visibility_rules.group_regional"]
+    user_groups = ["miro_credit_note_visibility_rules.group_regional"]
 
     res = evaluate_record_rules(G, "account.move", user_groups=user_groups)
     assert res.can_view_amount(80000) is False
@@ -122,7 +122,7 @@ def test_group_membership_tolerates_missing_module_prefix():
     Regression guard for a real bug found during J4 benchmark analysis:
     calling evaluate_record_rules with unqualified group names
     (e.g. "group_avoir_national" instead of
-    "custom_credit_note_visibility_rules.group_avoir_national") silently
+    "miro_credit_note_visibility_rules.group_avoir_national") silently
     caused applicable group rules to be misclassified as "ignored
     (non-member)", inverting the access decision for Q6.1/Q6.2 even though
     the underlying AND/OR combination logic was correct. The LLM populating
@@ -184,13 +184,13 @@ def test_qui_a_acces_a_resolves_imprecise_group_against_acl():
     )
     G.add_edge("model:account.move", "access:test_acl", edge_type="GRANTED_BY")
     G.add_node(
-        "group:custom_credit_note_visibility_rules.group_avoir_national",
+        "group:miro_credit_note_visibility_rules.group_avoir_national",
         node_type="Group",
         name="Avoirs - Visibilite Nationale",
     )
     G.add_edge(
         "access:test_acl",
-        "group:custom_credit_note_visibility_rules.group_avoir_national",
+        "group:miro_credit_note_visibility_rules.group_avoir_national",
         edge_type="APPLIES_TO_GROUP",
     )
 

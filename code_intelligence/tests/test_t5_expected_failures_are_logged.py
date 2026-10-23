@@ -5,7 +5,6 @@ from unittest.mock import patch
 import networkx as nx
 import pytest
 
-from code_intelligence.graph.staleness import compute_file_hash
 from code_intelligence.rules.structure import _extract_ast_class_info
 from code_intelligence.rules.xml_view_finder import _resolve_field_name_from_view_string_override
 from code_intelligence.utils import parse_python_text, read_source_text
@@ -40,11 +39,6 @@ def test_parse_python_text_returns_a_module():
 def test_parse_python_text_logs_a_syntax_error(caplog):
     assert parse_python_text("def broken(:\n", "broken.py") is None
     assert any("broken.py" in message for message in _warnings(caplog))
-
-
-def test_compute_file_hash_logs_an_unreadable_path(tmp_path, caplog):
-    assert compute_file_hash(tmp_path) == ""
-    assert _warnings(caplog)
 
 
 def test_class_info_extraction_logs_a_syntax_error(tmp_path, caplog):

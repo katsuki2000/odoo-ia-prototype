@@ -20,14 +20,14 @@ evolution des tests de securite (et inversement).
 Specification des groupes -- reconstituee par lecture directe des modules
 sur disque (PAS supposee) :
 
-  - security/ir.model.access.csv (custom_credit_note_approval) :
+  - security/ir.model.access.csv (miro_credit_note_approval) :
     account.move n'est lisible/ecrivable QUE par le groupe
     account.group_account_invoice ("Billing") -- sans ce groupe, l'ACL
     refuse tout acces avant meme l'evaluation d'un ir.rule.
-  - security/security_groups.xml (custom_credit_note_visibility_rules) :
+  - security/security_groups.xml (miro_credit_note_visibility_rules) :
     definit group_avoir_regional ("Avoirs - Visibilite Regionale") et
     group_avoir_national ("Avoirs - Visibilite Nationale").
-  - security/ir_rule_layered.xml (custom_credit_note_visibility_rules) :
+  - security/ir_rule_layered.xml (miro_credit_note_visibility_rules) :
     regle regionale plafonnee a 50000e (group_avoir_regional), regle
     nationale illimitee (group_avoir_national) -- combinees en OR entre
     elles pour un meme requeteur, comme documente dans
@@ -74,8 +74,8 @@ COMPANY_NAME = "Company Alpha"
 GROUP_XMLIDS = {
     "base_user": "base.group_user",
     "billing": "account.group_account_invoice",
-    "avoir_regional": "custom_credit_note_visibility_rules.group_avoir_regional",
-    "avoir_national": "custom_credit_note_visibility_rules.group_avoir_national",
+    "avoir_regional": "miro_credit_note_visibility_rules.group_avoir_regional",
+    "avoir_national": "miro_credit_note_visibility_rules.group_avoir_national",
 }
 
 # login -> cle logique des groupes requis (voir GROUP_XMLIDS)
@@ -111,7 +111,7 @@ def resolve_group_ids(client: OdooRpcClient, admin_uid: int) -> dict:
         raise OdooRpcError(
             "Could not resolve required group xml_id(s): "
             f"{missing} -- required modules "
-            "(custom_credit_note_approval, custom_credit_note_visibility_rules) "
+            "(miro_credit_note_approval, miro_credit_note_visibility_rules) "
             "may not be installed on this instance."
         )
     return resolved

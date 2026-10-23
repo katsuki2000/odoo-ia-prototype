@@ -18,13 +18,9 @@ Never commit credential JSON, index it as a document, or paste keys into chat. C
 GOOGLE_DRIVE_FOLDER_IDS=your_folder_id
 GOOGLE_APPLICATION_CREDENTIALS=path_to_external_credentials.json
 GOOGLE_DRIVE_APPROVED_FOR_RAG=true
-GOOGLE_DRIVE_SYNC_INTERVAL_SECONDS=300
-GOOGLE_DRIVE_TIMEOUT=30
-GOOGLE_DRIVE_MAX_BYTES=20971520
-GOOGLE_DRIVE_MAX_FILES=10000
 ```
 
-Replace placeholders. Folder IDs can be comma-separated. Keep one Drive corpus per collection; use separate storage/collections for distinct audiences or tenants. Changing the folder set authorizes reconciliation against the new set, including removal of old out-of-scope Drive chunks.
+The request timeout, the size and file-count limits and the sync interval are constants of `config/google_drive.py`. Replace placeholders. Folder IDs can be comma-separated. Keep one Drive corpus per collection; use separate storage/collections for distinct audiences or tenants. Changing the folder set authorizes reconciliation against the new set, including removal of old out-of-scope Drive chunks.
 
 ## Run
 

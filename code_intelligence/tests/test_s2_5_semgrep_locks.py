@@ -27,7 +27,7 @@ class TestHardcodedLockDetection:
                     if not email_ok:
                         raise UserError("Vous n'avez pas le permission de valider cette demande d'achat.")
         """)
-        analysis = analyze_python_security_locks(code, "custom_purchase_request/models/purchase_request.py")
+        analysis = analyze_python_security_locks(code, "ext_purchase_request/models/purchase_request.py")
         assert analysis.has_hardcoded_logins is True
         assert "direction@societe.com" in analysis.hardcoded_logins
         assert "daf@societe.com" in analysis.hardcoded_logins
@@ -51,7 +51,7 @@ class TestHardcodedLockDetection:
                         if rec.amount_total > 5000 and not self.env.user.has_group('account.group_account_manager'):
                             raise UserError("Seul un responsable comptable peut valider un avoir de plus de 5000e.")
         """)
-        analysis = analyze_python_security_locks(code, "custom_credit_note_approval/models/account_move.py")
+        analysis = analyze_python_security_locks(code, "miro_credit_note_approval/models/account_move.py")
         assert "account.group_account_manager" in analysis.required_groups
         assert "account.group_account_manager" in analysis.summary_text
 
@@ -148,14 +148,14 @@ class TestHardcodedLockDetection:
         assert analysis.required_groups == []
 
     def test_captures_nested_if_condition_for_raise_bloc9_05c(self):
-        """ gap (module 5/8, custom_asset_loan, 2026-08-10,
+        """ gap (module 5/8, asset_loan, 2026-08-10,
         ): a raise guarded by nested `if`s must carry
         its enclosing condition(s) alongside the message, outer to inner --
         otherwise the rule reads as unconditional and a "does this still
         apply with no linked purchase request?" question gets answered
         "yes, regardless of amount", the exact inverse of the ground truth
         (the whole condition short-circuits to False with nothing linked).
-        Mirrors the real custom_asset_loan/models/asset_loan.py source
+        Mirrors the real asset_loan/models/asset_loan.py source
         verbatim (two nested ifs: demande_achat_liee_id set AND its
         montant_estime > 2000, then a second if for the actual role clash)."""
         code = textwrap.dedent("""\
@@ -176,7 +176,7 @@ class TestHardcodedLockDetection:
                                 )
                         rec.etat = 'en_cours'
         """)
-        analysis = analyze_python_security_locks(code, "custom_asset_loan/models/asset_loan.py")
+        analysis = analyze_python_security_locks(code, "asset_loan/models/asset_loan.py")
         assert len(analysis.exception_messages) == 1
         assert len(analysis.exception_conditions) == 1
         condition = analysis.exception_conditions[0]
@@ -235,7 +235,7 @@ class TestHardcodedLockDetection:
                                 )
                         rec.etat = 'en_cours'
         """)
-        analysis = analyze_python_security_locks(code, "custom_asset_loan/models/asset_loan.py")
+        analysis = analyze_python_security_locks(code, "asset_loan/models/asset_loan.py")
         assert len(analysis.exception_guard_fields) == 1
         assert analysis.exception_guard_fields[0] == "rec.demande_achat_liee_id"
         assert "[GARDE DE LIEN:" in analysis.summary_text
@@ -288,16 +288,16 @@ class TestHardcodedLockDetection:
     def test_link_guard_field_not_fabricated_for_boolean_auth_check_bloc9_05c_rerun(self):
         """ gap, module 5/8 fix rerun (2026-08-11, cross-module
         contamination on ): a live run on a question
-        mentioning both custom_asset_loan AND custom_purchase_request
+        mentioning both asset_loan AND ext_purchase_request
         (legitimately, since asset_loan links to a purchase request) showed
         a fabricated "[GARDE DE LIEN: si 'not (user_ok or email_ok)'..."
-        annotation on custom_purchase_request's own, unrelated first gate --
+        annotation on ext_purchase_request's own, unrelated first gate --
         a boolean authorization check, not a relational-field presence
         check, so it can never be "vide/absent" the way a Many2one field
         can. Root cause: _detect_link_guard_field's second branch matched
         any test that was merely "not a Compare and not a BoolOp", which
         also matches an ast.UnaryOp like `not (a or b)`. Mirrors the real
-        custom_purchase_request/models/purchase_request.py source verbatim
+        ext_purchase_request/models/purchase_request.py source verbatim
         (both raises: the boolean gate, then the amount-and-not-email_ok
         gate) -- neither must ever produce a [GARDE DE LIEN] annotation."""
         code = textwrap.dedent("""\
@@ -318,7 +318,7 @@ class TestHardcodedLockDetection:
                         if rec.montant_estime > 10000 and not email_ok:
                             raise UserError("Au-dela de 10 000 euros, seule la Direction peut valider (liste restreinte).")
         """)
-        analysis = analyze_python_security_locks(code, "custom_purchase_request/models/purchase_request.py")
+        analysis = analyze_python_security_locks(code, "ext_purchase_request/models/purchase_request.py")
         assert len(analysis.exception_messages) == 2
         # The actual bug: no fabricated link-guard field/annotation for a
         # boolean authorization check.
@@ -348,7 +348,7 @@ class TestHardcodedLockDetection:
         (simple local assignments within action_valider's scope) by their
         defining expression, one level only, so the rendered condition is
         self-sufficient and no longer requires the LLM to guess. Mirrors
-        the real custom_purchase_request/models/purchase_request.py source
+        the real ext_purchase_request/models/purchase_request.py source
         verbatim."""
         code = textwrap.dedent("""\
             from odoo import models, fields, api
@@ -368,7 +368,7 @@ class TestHardcodedLockDetection:
                         if rec.montant_estime > 10000 and not email_ok:
                             raise UserError("Au-dela de 10 000 euros, seule la Direction peut valider (liste restreinte).")
         """)
-        analysis = analyze_python_security_locks(code, "custom_purchase_request/models/purchase_request.py")
+        analysis = analyze_python_security_locks(code, "ext_purchase_request/models/purchase_request.py")
         assert len(analysis.exception_conditions) == 2
         first_condition, second_condition = analysis.exception_conditions
         # Second condition (the 10000e threshold) must no longer mention
@@ -403,7 +403,7 @@ class TestHardcodedLockDetection:
                     if True:
                         raise ValidationError("Impossible de valider : le solde de conges restant est insuffisant.")
         """)
-        analysis = analyze_python_security_locks(code, "custom_hr_leave_workflow/models/hr_leave.py")
+        analysis = analyze_python_security_locks(code, "miro_hr_leave_workflow/models/hr_leave.py")
         assert len(analysis.exception_messages) == 1
         assert "Impossible de valider : le solde de conges restant est insuffisant." in analysis.exception_messages[0]
 
@@ -421,7 +421,7 @@ class TestDynamicDispatchDetection:
                     f = getattr(self, '_g_%s' % self.env['ir.config_parameter'].sudo().get_param('custom_reimb.mode'), None)
                     v = f() if f else False
         """)
-        analysis = analyze_python_security_locks(code, "custom_expense_reimbursement_indirect/models/reimbursement.py")
+        analysis = analyze_python_security_locks(code, "miro_expense_reimbursement_indirect/models/reimbursement.py")
         assert analysis.has_dynamic_dispatch is True
         assert "getattr" in analysis.dynamic_dispatch_types
         assert "file://" in analysis.summary_text
@@ -451,7 +451,7 @@ class TestDynamicDispatchDetection:
                     f = getattr(self, '_g_%s' % self.env['ir.config_parameter'].sudo().get_param('custom_reimb.mode'), None)
                     v = f() if f else False
         """)
-        analysis = analyze_python_security_locks(code, "custom_expense_reimbursement_indirect/models/reimbursement.py")
+        analysis = analyze_python_security_locks(code, "miro_expense_reimbursement_indirect/models/reimbursement.py")
         assert analysis.confidence == "low"
         assert "[Confiance: FAIBLE]" in analysis.summary_text
         assert "[Confiance: LOW]" not in analysis.summary_text

@@ -19,6 +19,7 @@ def settings_module(monkeypatch):
     odoo.models = types.SimpleNamespace(Model=object)
     odoo.fields = MagicMock()
     odoo.api = MagicMock()
+    odoo._ = lambda message, *args: message
     exceptions = types.ModuleType("odoo.exceptions")
     exceptions.UserError = _UserError
     odoo.exceptions = exceptions

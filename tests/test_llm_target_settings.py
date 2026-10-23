@@ -40,7 +40,7 @@ def test_default_target_is_aws_and_has_no_implicit_server():
 
 
 def test_aws_variables_drive_llm_and_embeddings():
-    values = load_settings({'AWS_OLLAMA_HOST': 'https://llm.internal:11434', 'AWS_OLLAMA_MODEL': 'qwen3:14b'})
+    values = load_settings({'AWS_OLLAMA_HOST': 'https://llm.internal:11434'})
     assert values['LLM_BASE_URL'] == 'https://llm.internal:11434/v1'
     assert values['EMBEDDING_BASE_URL'] == 'https://llm.internal:11434/v1'
     assert values['LLM_MODEL'] == 'qwen3:14b'
@@ -52,9 +52,10 @@ def test_unprefixed_variables_are_ignored():
     assert values['LLM_MODEL'] == 'qwen3:14b'
 
 
-def test_prefixed_variable_sets_the_model():
-    values = load_settings({'AWS_LLM_MODEL': 'from-aws'})
-    assert values['LLM_MODEL'] == 'from-aws'
+def test_models_are_constants_not_environment_settings():
+    values = load_settings({'AWS_LLM_MODEL': 'from-aws', 'AWS_OLLAMA_MODEL': 'from-aws', 'AWS_EMBEDDING_MODEL': 'from-aws'})
+    assert values['LLM_MODEL'] == 'qwen3:14b'
+    assert values['EMBEDDING_MODEL'] == 'bge-m3:latest'
 
 
 def test_kaggle_target_uses_its_own_host_and_header():

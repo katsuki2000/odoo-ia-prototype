@@ -97,6 +97,8 @@ class ResolverDecisionTests(unittest.TestCase):
         self.settings.EMBEDDING_API_KEY = 'fixture'
         self.settings.require_inference_server = lambda url: url
         self.settings.SEMANTIC_INDEX_CACHE_DIR = None
+        self.settings.RESOLVER_SEMANTIC_EMBEDDING_REVISION = ''
+        self.settings.EMBEDDING_TIMEOUT = 30.0
         config = types.ModuleType('config')
         config.settings = self.settings
         sys.modules['config'] = config
@@ -119,7 +121,8 @@ class ResolverDecisionTests(unittest.TestCase):
 
     def embedding_module(self):
         return load_source('document_rag/vectorstore/embedding_functions.py', {
-            'EmbeddingFunction': object, 'Documents': list, 'Embeddings': list})
+            'EmbeddingFunction': object, 'Documents': list, 'Embeddings': list,
+            'settings': self.settings})
 
     def test_server_override_is_respected(self):
         module = self.embedding_module()
@@ -141,7 +144,7 @@ class ResolverDecisionTests(unittest.TestCase):
 
     def test_revision_invalidates_provider_identity(self):
         first = self.semantic._embedding_name(self.provider)
-        with patch.dict('os.environ', {'RESOLVER_SEMANTIC_EMBEDDING_REVISION': 'next'}):
+        with patch.object(self.settings, 'RESOLVER_SEMANTIC_EMBEDDING_REVISION', 'next'):
             self.assertNotEqual(first, self.semantic._embedding_name(self.provider))
 
     def test_dimension_mismatch_is_an_error(self):

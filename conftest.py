@@ -12,9 +12,10 @@ import pytest
 UNREACHABLE_ODOO_URL = "http://127.0.0.1:9"
 EMBEDDING_PROBE_TIMEOUT_SECONDS = 5
 
-# Read at import time by config.settings: pinned before any test module is collected so the
-# hop budget the tests assert does not depend on the developer .env.
-os.environ["CI_MAX_HOPS"] = "20"
+# Modules import the hop budget from config.settings at import time: pin it before any test module is collected.
+from config import settings as _settings
+
+_settings.CI_MAX_HOPS = 20
 
 
 def _embedding_server_error():
@@ -51,7 +52,8 @@ def pytest_collection_modifyitems(items):
 def _disable_semantic_retrieval(monkeypatch):
     if os.environ.get("USE_REMOTE_EMBEDDINGS", "").lower() == "true":
         return
-    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
+    from config import settings
+    monkeypatch.setattr(settings, "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", False)
 
 
 @pytest.fixture(autouse=True)

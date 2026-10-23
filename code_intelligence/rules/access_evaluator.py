@@ -6,8 +6,12 @@ and combining with ir.rule record rules.
 """
 
 from dataclasses import dataclass, field
+import logging
+import re
 from typing import Any, Dict, List, Optional, Set
 import networkx as nx
+
+_access_logger = logging.getLogger(__name__)
 
 from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.group_resolver import (
@@ -408,11 +412,6 @@ def who_has_access_to(
 # correction against a known-good fact, not core/evidence_sufficiency.py's
 # CONFLICTING status (H3 proper), which is reserved for two VALID findings
 # disagreeing with each other -- see EvidenceSufficiencyStatus docstring.
-import logging
-import re
-
-_access_logger = logging.getLogger(__name__)
-
 _ACCESS_VERDICT_RE = re.compile(
     r"Group\s+'[^']*'(?:\s*\([^)]*\))?\s+(HAS|DOES NOT HAVE)\s+"
     r"(READ|WRITE|CREATE|UNLINK)\s+access\s+to\s+'([^']+)'",

@@ -7,7 +7,7 @@ Can run on ANY Odoo project / custom addons directory.
 
 Usage:
   python scripts/extract_modules.py /path/to/addons
-  python scripts/extract_modules.py /path/to/addons --prefix custom_
+  python scripts/extract_modules.py /path/to/addons --prefix miro_
   python scripts/extract_modules.py /path/to/addons --modules mod1 mod2
   python scripts/extract_modules.py /path/to/addons --output /path/to/output_dir
 """
@@ -148,7 +148,7 @@ def run_pipeline(addons_path: Path, module_names: list, output_dir: Path):
 def main():
     parser = argparse.ArgumentParser(description="Generic Odoo Code Intelligence Extraction Pipeline")
     parser.add_argument("addons_path", type=Path, help="Path to Odoo addons directory")
-    parser.add_argument("--prefix", type=str, default=None, help="Filter modules by prefix (e.g. 'custom_')")
+    parser.add_argument("--prefix", type=str, default=None, help="Filter modules by prefix (e.g. 'miro_')")
     parser.add_argument("--modules", nargs="+", default=None, help="Explicit list of module names to extract")
     parser.add_argument("--output", type=Path, default=None, help="Output directory for generated graphs")
 

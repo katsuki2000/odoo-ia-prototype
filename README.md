@@ -60,7 +60,7 @@ Copy the example configuration or create your `.env`:
 cp .env.example .env
 ```
 
-The `.env` holds only **secrets and server addresses** (`JWT_SECRET`, `ODOO_ADMIN_PASSWORD`, the LLM server address). Every other setting has its default in `config/settings.py`; add a variable of the same name to `.env` only to override it.
+The `.env` holds only **secrets and server addresses** (`JWT_SECRET`, `ODOO_ADMIN_PASSWORD`, the LLM server address). Every other setting (models, thresholds, limits, internal paths) is a constant in `config/settings.py`: edit it there.
 
 **Inference server (Ollama / vLLM)**: there is no implicit server; set the address of the target in `.env` (an unset address makes the application refuse to start the LLM client):
 ```dotenv
@@ -108,7 +108,7 @@ addons_path = addons,<path-to-this-repository>/odoo_addons
 
 ### Step 7 : Verify the custom Odoo modules
 
-All custom modules (`miro_ai` and the 14 `custom_*` business modules) are bundled inside this repository in `odoo_addons/`. Because you added them to `addons_path` in Step 6, Odoo detects them automatically.
+All custom modules (`miro_ai`, `miro_ai_discuss`, the business modules and the bundled OCA modules) are bundled inside this repository in `odoo_addons/`, one folder per module. Business modules deliberately use different name prefixes (`miro_`, `acme_`, `ext_` or none): nothing in the code depends on a prefix. Because you added them to `addons_path` in Step 6, Odoo detects them automatically.
 
 ### Step 8 : Initialize Odoo and install modules
 
@@ -121,7 +121,11 @@ python3 odoo-bin -c odoo.conf -d odoo-dev -i base --stop-after-init
 # Install miro_ai module
 python3 odoo-bin -c odoo.conf -d odoo-dev -i miro_ai --stop-after-init
 
-# Install all custom business modules
+# Install maintenance, the business modules and the OCA modules that have all their dependencies here
+# (list: scripts/odoo_modules_to_install.txt ; external Python packages first:
+#  pip install cryptography mako odoo_test_helper odoorpc openupgradelib 'paramiko<4.0.0' pygount pysftp 'sentry_sdk<=1.9.0')
+python3 odoo-bin -c odoo.conf -d odoo-dev -i "$(paste -sd, ~/odoo-ia-prototype/scripts/odoo_modules_to_install.txt)" --stop-after-init
+```
 
 
 ### Step 9 : Seed ERP data and configure the instance
@@ -275,21 +279,16 @@ odoo-ia-prototype/
 
 ### Settings (`config/settings.py`)
 
-Every variable below has its default in `config/settings.py` (or `config/google_drive.py`); an environment variable of the same name, set in `.env` or the shell, overrides it. Only secrets and server addresses belong in `.env`.
+`config/` reads from the environment (`.env` or the shell) only secrets and addresses of the LLM server, the Odoo instance and the API, listed below. Everything else (models, thresholds, limits, Google Drive limits, internal paths) is a constant of `config/settings.py` or `config/google_drive.py`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `LLM_TARGET` | No | `aws` | Inference host: `aws` (production) or `kaggle` (temporary dev host) |
 | `<TARGET>_OLLAMA_HOST` | Yes | none | Ollama server address, read with the prefix of the target (`AWS_` or `KAGGLE_`) |
-| `<TARGET>_OLLAMA_MODEL` | No | `qwen3:14b` | Chat model served by Ollama (e.g. `gpt-oss:20b`) |
 | `<TARGET>_LLM_BASE_URL` / `<TARGET>_LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
 | `<TARGET>_EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
-| `<TARGET>_EMBEDDING_MODEL` | No | `bge-m3:latest` | Embedding model served by the configured endpoint |
-| `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `true` | Adds instance-label semantic candidates to bounded LLM arbitration |
-| `RESOLVER_SEMANTIC_EMBEDDING_MODEL` | No | `EMBEDDING_MODEL` | Optional embedding model override for business-term retrieval |
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
-| `RAG_DOCS_PATH` | No | `./document_rag/documents` | Path to source documents for RAG indexing |
 | `ODOO_URL` | No | `http://localhost:<http_port of odoo.conf>`, else `http://localhost:8069` | Odoo XML-RPC server URL (overrides odoo.conf) |
 | `ODOO_DB` | No | `db_name` of odoo.conf when it names a single database, else `odoo-dev` | Odoo database name (overrides odoo.conf) |
 | `ODOO_USERNAME` | No | `admin` | XML-RPC service username |

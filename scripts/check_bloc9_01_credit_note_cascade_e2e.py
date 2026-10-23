@@ -5,8 +5,8 @@ scripts/check_bloc9_01_credit_note_cascade_e2e.py
  generalization check, 1/8 -- replicates the check_j34_35_e2e.py
 method (live end-to-end run through code_intelligence_agent(), not just
 the isolated extraction-layer tests) on the "cascade avoirs" mechanism:
-custom_credit_note_approval (base) + custom_credit_note_approval_regional
-+ custom_credit_note_approval_vip, three modules that override the same
+miro_credit_note_approval (base) + miro_credit_note_approval_regional
++ miro_credit_note_approval_vip, three modules that override the same
 action_valider_avoir() on account.move in sequence.
 
 This mechanism is already exercised by scripts/run_adversarial_benchmark.py
@@ -69,11 +69,11 @@ QUESTIONS = [
             "la méthode action_valider_avoir et dans quel ordre s'exécutent-elles ?"
         ),
         "expected_markers": [
-            "custom_credit_note_approval_regional",
-            "custom_credit_note_approval_vip",
+            "miro_credit_note_approval_regional",
+            "miro_credit_note_approval_vip",
         ],
         "expected_markers_word_boundary": [
-            "custom_credit_note_approval",
+            "miro_credit_note_approval",
         ],
         "forbidden_markers": [
             "custom_credit_note_approval_global",
@@ -107,8 +107,8 @@ def check_raw_tool_output():
     result = tool.invoke({"model_name": "account.move", "method_name": "action_valider_avoir"})
     print(result)
     print("-" * 80)
-    modules = ["custom_credit_note_approval", "custom_credit_note_approval_regional",
-               "custom_credit_note_approval_vip"]
+    modules = ["miro_credit_note_approval", "miro_credit_note_approval_regional",
+               "miro_credit_note_approval_vip"]
     all_present = all(m in result for m in modules)
     for m in modules:
         print(f"[{'OK ' if m in result else 'MISSING'}] raw tool mentions module: {m}")
@@ -119,7 +119,7 @@ def _word_boundary_present(marker: str, text: str) -> bool:
     """Match marker as a whole token, not as a substring of a longer
     identifier -- plain `in` checks let a hallucinated module name like
     'custom_credit_note_approval_global' silently satisfy the marker
-    'custom_credit_note_approval' (found live, 2026-08-07)."""
+    'miro_credit_note_approval' (found live, 2026-08-07)."""
     return re.search(r'(?<![A-Za-z0-9_])' + re.escape(marker) + r'(?![A-Za-z0-9_])', text) is not None
 
 
@@ -257,10 +257,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[ - 1/8] custom_credit_note_approval(+regional+vip): E2E confirmed.")
+        print("[ - 1/8] miro_credit_note_approval(+regional+vip): E2E confirmed.")
         sys.exit(0)
     else:
-        print("[ - 1/8] custom_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 1/8] miro_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

@@ -4,6 +4,7 @@ from typing import List
 from .matching import ResolvedConcept, _fuzzy_match_graph
 from .arbitration import QUOTED_LABEL_MARKER, _llm_arbitrate
 from .candidates import (
+    AMBIGUITY_GAP_THRESHOLD,
     HYBRID_SEMANTIC_LIMIT, SHORTLIST_FUZZY_LIMIT, WIDENED_CANDIDATE_THRESHOLD,
     WIDENED_CANDIDATE_LIMIT, _candidate_contexts,
 )
@@ -33,10 +34,12 @@ def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_cand
                   and G.nodes['model:' + model].get('node_type') == 'Model']
     if not candidates:
         return None
-    if strict and len(candidates) == 1:
-        return ResolvedConcept(user_term=query_text, resolved_models=candidates,
+    clear_gap = strict and len(lexical) >= 1 and (len(lexical) == 1 or lexical[0][1] - lexical[1][1] >= AMBIGUITY_GAP_THRESHOLD) and not quoted_labels
+    if (strict and len(candidates) == 1) or clear_gap:
+        top_model = lexical[0][0]
+        return ResolvedConcept(user_term=query_text, resolved_models=[top_model],
                                confidence=round(lexical[0][1] / 100, 2), source_step='fuzzy_graph_match',
-                               is_resolved=True, reason='One strict graph-label candidate; no competing retrieved model.')
+                               is_resolved=True, reason='Decisive graph-label candidate; exceeds ambiguity gap.')
     contexts = _candidate_contexts(G, candidates)
     for model, label in quoted_labels.items():
         contexts[model] = '; '.join(filter(None, [f"{QUOTED_LABEL_MARKER}: {label}", contexts.get(model)]))

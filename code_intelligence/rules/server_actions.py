@@ -7,16 +7,21 @@ security analysis
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import json
 import logging
-from typing import TYPE_CHECKING, Any, List
+import re
+from typing import Any, List, Optional
 
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
-
-if TYPE_CHECKING:
-    from code_intelligence.rules.server_actions import ServerActionCodeAnalysis
+from core.output import confidence_label
+from code_intelligence.utils import (
+    SENSITIVE_BYPASS_MARKER,
+    format_xml_id_citation,
+    format_xml_id_citations,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -191,32 +196,6 @@ def interpret_server_action_with_llm(
 
     return analysis
 
-
-__all__ = [
-    "build_server_action_evidence",
-    "_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT",
-    "_build_interpretation_prompt",
-    "build_server_action_messages",
-    "_LLM_CONFIDENCE_CLOSED_SET",
-    "interpret_server_action_with_llm",
-]
-
-# ── Server Actions Analysis ──────────────────────────────────────────────
-
-import re
-from dataclasses import dataclass, field
-from typing import List, Optional
-import logging
-
-from core.evidence.evidence import Evidence
-from core.output import confidence_label
-from code_intelligence.utils import (
-    SENSITIVE_BYPASS_MARKER,
-    format_xml_id_citation,
-    format_xml_id_citations,
-)
-
-_logger = logging.getLogger(__name__)
 
 _build_server_action_evidence = build_server_action_evidence
 
@@ -436,11 +415,6 @@ __all__ = [
     "ServerActionCodeAnalysis",
     "analyze_server_action_code",
     "build_server_action_evidence",
+    "build_server_action_messages",
     "interpret_server_action_with_llm",
-    "_SUDO_PATTERN",
-    "_HARDCODED_ID_LIST_PATTERN",
-    "_HAS_GROUP_PATTERN",
-    "_GETATTR_PATTERN",
-    "_EVAL_PATTERN",
-    "_EXEC_PATTERN",
 ]

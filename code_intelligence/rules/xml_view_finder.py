@@ -15,7 +15,7 @@ import networkx as nx
 from code_intelligence.rules.button_path import ButtonExecutionPathResult
 from code_intelligence.rules.group_resolver import get_group_display_name
 from code_intelligence.rules.technical_groups import technical_groups_among
-from code_intelligence.utils import format_file_link, format_xml_id_citations
+from code_intelligence.utils import format_file_link, format_xml_id_citations, is_core_source
 
 _logger = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def _find_field_in_xml_views(
     if not view_matches:
         return None
 
-    view_matches.sort(key=lambda x: (0 if ("/addons/" not in x[1] or "oca" in x[1]) else 1, x[0]))
+    view_matches.sort(key=lambda x: (is_core_source(x[1]), x[0]))
     rec_id, xml_file, ln, end_line, attrs, link = view_matches[0]
 
     readonly_cond = attrs.get("readonly", "")

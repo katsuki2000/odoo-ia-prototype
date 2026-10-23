@@ -1,6 +1,6 @@
 """Retrieve semantic model candidates from labels in the active instance graph.
 
-The embedding model and backend are controlled by RESOLVER_SEMANTIC_* env vars.
+The embedding model and backend are those of the configured embedding server (`config/settings.py`).
 """
 
 import logging

@@ -1,0 +1,2720 @@
+[
+ {
+  "id": "CNA-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "account.move",
+    80.0
+   ],
+   [
+    "account.invoice.report",
+    80.0
+   ],
+   [
+    "ir.logging",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "CNA-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "stock.rule",
+    100.0
+   ],
+   [
+    "project.task",
+    90.4
+   ],
+   [
+    "ir.rule",
+    84.1
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "CNA-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "account.move",
+    80.0
+   ],
+   [
+    "ir.logging",
+    80.0
+   ],
+   [
+    "account.analytic.account",
+    80.0
+   ]
+  ],
+  "gap": 0.009999999999990905,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "CNV-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.demo_failure",
+    84.1
+   ],
+   [
+    "ir.demo_failure.wizard",
+    84.1
+   ]
+  ],
+  "gap": 15.89,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ]
+ },
+ {
+  "id": "CNV-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.demo_failure",
+    84.1
+   ],
+   [
+    "ir.demo_failure.wizard",
+    84.1
+   ]
+  ],
+  "gap": 15.89,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ]
+ },
+ {
+  "id": "HRL-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "res.users.deletion",
+    84.1
+   ],
+   [
+    "base.module.install.request",
+    84.1
+   ]
+  ],
+  "gap": 6.269999999999996,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "HRL-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "res.users.deletion",
+    84.1
+   ],
+   [
+    "base.module.install.request",
+    84.1
+   ]
+  ],
+  "gap": 6.269999999999996,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "HRL-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "hr.employee",
+    100.0
+   ],
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "res.users.deletion",
+    84.1
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PRQ-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.purchase.request",
+    90.4
+   ],
+   [
+    "res.users.identitycheck",
+    80.0
+   ],
+   [
+    "purchase.order",
+    80.0
+   ]
+  ],
+  "gap": 10.36999999999999,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "custom.purchase.request"
+   ]
+  ]
+ },
+ {
+  "id": "PRQ-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.purchase.request",
+    90.4
+   ],
+   [
+    "project.task",
+    90.4
+   ],
+   [
+    "res.users.identitycheck",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PRQ-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.purchase.request",
+    90.4
+   ],
+   [
+    "purchase.bill.union",
+    84.1
+   ],
+   [
+    "purchase.order",
+    83.7
+   ]
+  ],
+  "gap": 6.269999999999996,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ALN-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.asset.loan",
+    100.0
+   ],
+   [
+    "resource.resource",
+    80.0
+   ],
+   [
+    "custom.purchase.request",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "custom.asset.loan"
+   ]
+  ]
+ },
+ {
+  "id": "ALN-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.asset.loan",
+    100.0
+   ],
+   [
+    "project.task",
+    90.4
+   ],
+   [
+    "resource.resource",
+    80.0
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ALN-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.asset.loan",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "custom.purchase.request",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AUT-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "account.move",
+    100.0
+   ],
+   [
+    "res.partner",
+    100.0
+   ],
+   [
+    "stock.rule",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AUT-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "account.move",
+    100.0
+   ],
+   [
+    "res.partner",
+    100.0
+   ],
+   [
+    "stock.rule",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AUT-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "ir.rule",
+    84.1
+   ],
+   [
+    "ir.actions.report",
+    80.0
+   ],
+   [
+    "ir.ui.menu",
+    80.0
+   ]
+  ],
+  "gap": 4.099999999999994,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "REI-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "custom.reimbursement.request",
+    100.0
+   ],
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "payment.refund.wizard",
+    88.0
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "REI-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "custom.reimbursement.request",
+    88.0
+   ],
+   [
+    "res.users.deletion",
+    84.1
+   ]
+  ],
+  "gap": 2.339999999999989,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "REI-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "maintenance.request",
+    90.4
+   ],
+   [
+    "custom.reimbursement.request",
+    88.0
+   ],
+   [
+    "res.users.deletion",
+    84.1
+   ]
+  ],
+  "gap": 2.339999999999989,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "DDI-Q1",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.module.module.dependency",
+    90.4
+   ],
+   [
+    "ir.module.module.exclusion",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "DDI-Q2",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "project.task",
+    90.4
+   ],
+   [
+    "ir.module.module.dependency",
+    85.7
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "DDI-Q3",
+  "bank": "custom_b9",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "res.country.group",
+    90.4
+   ],
+   [
+    "account.tax.group",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "MNT-Q1",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ]
+  ],
+  "gap": 999,
+  "sans": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ]
+ },
+ {
+  "id": "MNT-Q2",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "maintenance.request",
+    100.0
+   ],
+   [
+    "maintenance.stage",
+    80.0
+   ],
+   [
+    "res.users.identitycheck",
+    80.0
+   ]
+  ],
+  "gap": 19.980000000000004,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "MNT-Q3",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "maintenance.equipment",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ],
+   [
+    "maintenance.equipment.category",
+    91.3
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "MNT-Q4",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "ir.default",
+    80.0
+   ],
+   [
+    "res.groups",
+    80.0
+   ],
+   [
+    "ir.module.category",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "MNT-Q5",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "maintenance.equipment",
+    100.0
+   ],
+   [
+    "maintenance.request",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PUR-Q1",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "purchase.order",
+    100.0
+   ],
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "purchase.order.line",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PUR-Q2",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.order.cancel",
+    84.1
+   ],
+   [
+    "calendar.attendee",
+    80.0
+   ]
+  ],
+  "gap": 15.89,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ]
+ },
+ {
+  "id": "PUR-Q3",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "purchase.order",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ],
+   [
+    "purchase.order.line",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PUR-Q4",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "purchase.order",
+    100.0
+   ],
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "purchase.order.line",
+    94.5
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ]
+ },
+ {
+  "id": "PUR-Q5",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "purchase.order",
+    100.0
+   ],
+   [
+    "purchase.order.line",
+    90.4
+   ],
+   [
+    "hr.resume.line.type",
+    85.7
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAL-Q1",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "sale.order",
+    95.7
+   ],
+   [
+    "sale.order.line",
+    94.1
+   ]
+  ],
+  "gap": 4.329999999999998,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAL-Q2",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ],
+   [
+    "sale.order.cancel",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAL-Q3",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAL-Q4",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ],
+   [
+    "sale.order.cancel",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAL-Q5",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "stock.backorder.confirmation",
+    90.9
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ]
+  ],
+  "gap": 9.069999999999993,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "STK-Q1",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "stock.move",
+    100.0
+   ],
+   [
+    "stock.move.line",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "STK-Q2",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "stock.quant",
+    100.0
+   ],
+   [
+    "stock.picking",
+    100.0
+   ],
+   [
+    "stock.lot",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "STK-Q3",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "ir.model.fields",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ],
+   [
+    "stock.picking",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "STK-Q4",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "ir.model.fields",
+    100.0
+   ],
+   [
+    "stock.picking",
+    100.0
+   ],
+   [
+    "res.users.log",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "STK-Q5",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "stock.lot",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "report.stock.quantity",
+    88.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ACC-Q1",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.model.access",
+    95.7
+   ],
+   [
+    "res.country.group",
+    85.7
+   ]
+  ],
+  "gap": 4.329999999999998,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ACC-Q2",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "account.move",
+    100.0
+   ],
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.property",
+    93.1
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ACC-Q3",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "account.move",
+    100.0
+   ],
+   [
+    "ir.module.category",
+    100.0
+   ],
+   [
+    "account.journal",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "ACC-Q4",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "account.move.line",
+    82.4
+   ],
+   [
+    "hr.resume.line.type",
+    79.5
+   ]
+  ],
+  "gap": 17.629999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ]
+ },
+ {
+  "id": "ACC-Q5",
+  "bank": "native_n1",
+  "lex_top3": [
+   [
+    "account.move",
+    100.0
+   ],
+   [
+    "account.journal",
+    100.0
+   ],
+   [
+    "account.payment",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PR-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "purchase.report",
+    100.0
+   ],
+   [
+    "custom.purchase.request",
+    91.5
+   ],
+   [
+    "res.users.identitycheck",
+    80.0
+   ]
+  ],
+  "gap": 8.549999999999997,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PR-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "custom.purchase.request",
+    100.0
+   ],
+   [
+    "custom.reimbursement.request",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PR-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "purchase.order",
+    100.0
+   ],
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "purchase.order"
+   ]
+  ]
+ },
+ {
+  "id": "PR-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "custom.purchase.request",
+    90.4
+   ],
+   [
+    "website.page",
+    80.0
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "PR-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order.line",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "sale.order",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AN-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "ir.module.type.rule",
+    84.1
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "ir.rule"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "ir.rule"
+   ]
+  ]
+ },
+ {
+  "id": "AN-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.country.state",
+    100.0
+   ],
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "res.users.deletion",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AN-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "ir.sequence",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AN-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.ui.menu",
+    100.0
+   ],
+   [
+    "res.config",
+    100.0
+   ],
+   [
+    "ir.model",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AN-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "sale.order.template",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "BTV-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.actions.server",
+    80.0
+   ],
+   [
+    "mail.template.preview",
+    80.0
+   ],
+   [
+    "hr.expense",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "BTV-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.country.state",
+    100.0
+   ],
+   [
+    "hr.expense.sheet",
+    80.0
+   ],
+   [
+    "hr.leave.type",
+    80.0
+   ]
+  ],
+  "gap": 19.97,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.country.state"
+   ]
+  ]
+ },
+ {
+  "id": "BTV-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "ir.cron",
+    80.0
+   ],
+   [
+    "ir.sequence",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "ir.model.data"
+   ]
+  ]
+ },
+ {
+  "id": "BTV-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.ui.view",
+    100.0
+   ],
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "ir.model.constraint",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "BTV-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.model.fields",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "ir.model.fields.selection",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SI-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "product.product",
+    100.0
+   ],
+   [
+    "stock.inventory.conflict",
+    90.9
+   ],
+   [
+    "stock.inventory.warning",
+    90.9
+   ]
+  ],
+  "gap": 9.069999999999993,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SI-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "product.template",
+    100.0
+   ],
+   [
+    "ir.actions.act_url",
+    81.8
+   ],
+   [
+    "project.update",
+    80.0
+   ]
+  ],
+  "gap": 18.159999999999997,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "product.template"
+   ]
+  ]
+ },
+ {
+  "id": "SI-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "stock.inventory.conflict",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SI-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.country.state",
+    100.0
+   ],
+   [
+    "website.page",
+    80.0
+   ],
+   [
+    "website.menu",
+    80.0
+   ]
+  ],
+  "gap": 19.980000000000004,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "sale.blanket.order"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "sale.blanket.order"
+   ]
+  ]
+ },
+ {
+  "id": "SI-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "product.product",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "product.template",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SOT-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order.type",
+    100.0
+   ],
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "sale.order.type"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "sale.order.type"
+   ]
+  ]
+ },
+ {
+  "id": "SOT-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    80.0
+   ],
+   [
+    "res.country.group",
+    80.0
+   ],
+   [
+    "report.paperformat",
+    80.0
+   ]
+  ],
+  "gap": 0.009999999999990905,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SOT-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "sale.order.type",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "sale.order"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "sale.order"
+   ]
+  ]
+ },
+ {
+  "id": "SOT-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.mass.cancel.orders",
+    80.0
+   ],
+   [
+    "product.document",
+    80.0
+   ]
+  ],
+  "gap": 19.97,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "sale.order"
+   ]
+  ]
+ },
+ {
+  "id": "SOT-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "sale.order.line",
+    90.4
+   ],
+   [
+    "sale.order.type",
+    88.0
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AISO-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.property",
+    84.1
+   ],
+   [
+    "sale.advance.payment.inv",
+    84.1
+   ],
+   [
+    "ir.demo_failure",
+    84.1
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AISO-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "sale.order.line",
+    100.0
+   ],
+   [
+    "sale.order",
+    100.0
+   ],
+   [
+    "account.bank.statement.line",
+    93.1
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AISO-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "timesheets.analysis.report",
+    84.1
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AISO-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.country.group",
+    80.0
+   ],
+   [
+    "report.paperformat",
+    80.0
+   ],
+   [
+    "ir.cron",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AISO-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "invoice.blocking.reason",
+    84.1
+   ],
+   [
+    "ir.demo_failure",
+    84.1
+   ],
+   [
+    "ir.demo_failure.wizard",
+    84.1
+   ]
+  ],
+  "gap": 0.010000000000005116,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "DC-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "cleanup.purge.wizard.module",
+    93.1
+   ],
+   [
+    "cleanup.purge.wizard.menu",
+    93.1
+   ]
+  ],
+  "gap": 6.909999999999997,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "cleanup.purge.wizard.model"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "cleanup.purge.wizard.model"
+   ]
+  ]
+ },
+ {
+  "id": "DC-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "ir.demo_failure",
+    80.0
+   ],
+   [
+    "res.groups",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "ir.model"
+   ]
+  ]
+ },
+ {
+  "id": "DC-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "cleanup.purge.line.model",
+    100.0
+   ],
+   [
+    "cleanup.purge.line",
+    100.0
+   ],
+   [
+    "ir.module.module",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "cleanup.purge.line.model",
+    "cleanup.purge.line"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "cleanup.purge.line.model",
+    "cleanup.purge.line"
+   ]
+  ]
+ },
+ {
+  "id": "DC-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.default",
+    90.4
+   ],
+   [
+    "ir.model",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "DC-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "res.users.identitycheck",
+    90.4
+   ],
+   [
+    "res.users.deletion",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAC-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "product.product",
+    100.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "product.product",
+    "stock.location",
+    "ir.rule"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "product.product",
+    "stock.location",
+    "ir.rule"
+   ]
+  ]
+ },
+ {
+  "id": "SAC-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "product.template",
+    100.0
+   ],
+   [
+    "product.pricelist.item",
+    80.0
+   ],
+   [
+    "product.packaging",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "product.template"
+   ]
+  ]
+ },
+ {
+  "id": "SAC-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "sms.template",
+    83.3
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAC-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.ui.view",
+    100.0
+   ],
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.demo_failure",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "SAC-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "product.template",
+    100.0
+   ],
+   [
+    "stock.location",
+    90.4
+   ],
+   [
+    "stock.move",
+    90.4
+   ]
+  ],
+  "gap": 9.620000000000005,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AL-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "auditlog.rule",
+    100.0
+   ],
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "auditlog.http.session",
+    79.5
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "exact_technical_mention",
+   [
+    "auditlog.rule"
+   ]
+  ],
+  "avec": [
+   "exact_technical_mention",
+   [
+    "auditlog.rule"
+   ]
+  ]
+ },
+ {
+  "id": "AL-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.country.state",
+    100.0
+   ],
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "res.users.deletion",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AL-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.module.module",
+    100.0
+   ],
+   [
+    "ir.model",
+    100.0
+   ],
+   [
+    "ir.demo_failure",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "AL-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.rule",
+    100.0
+   ],
+   [
+    "fetchmail.server.folder",
+    80.0
+   ],
+   [
+    "ir.default",
+    80.0
+   ]
+  ],
+  "gap": 19.980000000000004,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "ir.rule"
+   ]
+  ]
+ },
+ {
+  "id": "AL-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "res.groups",
+    80.0
+   ],
+   [
+    "ir.actions.report",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "ir.model.data"
+   ]
+  ]
+ },
+ {
+  "id": "KPI-Q1",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "kpi.provider",
+    100.0
+   ],
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.model",
+    90.4
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "KPI-Q2",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.groups",
+    80.0
+   ],
+   [
+    "ir.config_parameter",
+    80.0
+   ],
+   [
+    "ir.actions.server",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ },
+ {
+  "id": "KPI-Q3",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.model.data",
+    100.0
+   ],
+   [
+    "ir.sequence",
+    80.0
+   ],
+   [
+    "ir.actions.report",
+    80.0
+   ]
+  ],
+  "gap": 19.989999999999995,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "ir.model.data"
+   ]
+  ]
+ },
+ {
+  "id": "KPI-Q4",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "res.users",
+    100.0
+   ],
+   [
+    "ir.actions.server",
+    80.0
+   ],
+   [
+    "ir.model.fields",
+    80.0
+   ]
+  ],
+  "gap": 19.97,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "fuzzy_graph_match",
+   [
+    "res.users"
+   ]
+  ]
+ },
+ {
+  "id": "KPI-Q5",
+  "bank": "oca_p3_1",
+  "lex_top3": [
+   [
+    "ir.profile",
+    80.0
+   ],
+   [
+    "ir.property",
+    80.0
+   ],
+   [
+    "res.partner.bank",
+    80.0
+   ]
+  ],
+  "gap": 0.0,
+  "sans": [
+   "unresolved",
+   []
+  ],
+  "avec": [
+   "unresolved",
+   []
+  ]
+ }
+]

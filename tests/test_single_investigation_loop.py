@@ -93,9 +93,18 @@ class ExecutionBoundaryTests(unittest.TestCase):
 
     def test_successful_analysis_registers_only_its_target(self):
         tool = Tool()
-        ctx = Context({'describe_workflow': tool})
+        graph = SimpleNamespace(has_node=lambda node: node == 'model:x_fixture.case')
+        ctx = Context({'describe_workflow': tool}, G=graph)
         self.call(ctx, 'describe_workflow', {'model_name': 'x_fixture.case'})
         self.assertEqual(ctx.concept.resolved_models, ['x_fixture.case'])
+        self.assertEqual(ctx.tool_observation_tools, ['describe_workflow'])
+
+    def test_model_absent_from_the_graph_is_not_registered_as_resolved(self):
+        graph = SimpleNamespace(has_node=lambda node: False)
+        ctx = Context({'describe_workflow': Tool()}, G=graph)
+        self.call(ctx, 'describe_workflow', {'model_name': 'x_invented.model'})
+        self.assertEqual(ctx.concept.resolved_models, [])
+        self.assertFalse(ctx.concept.is_resolved)
         self.assertEqual(ctx.tool_observation_tools, ['describe_workflow'])
 
     def test_discovery_does_not_become_behavior_evidence(self):
@@ -289,6 +298,7 @@ class NativeAgentSmokeTests(unittest.TestCase):
             'build_persona_prompt_block': lambda principals: '',
             '_maybe_build_application_layer_reminder': lambda *args: None,
             'invoke_with_rate_limit': lambda model, messages, **kwargs: (model.invoke(messages), 0),
+            'with_no_think': lambda prompt: prompt,
             'CI_MAX_HOPS': maxHops, 'LANGGRAPH_STEP_LIMIT_NOTICE': 'Sorry, need more steps to process this request.',
             'NO_EVIDENCE_ANSWER': 'No evidence',
             'FINAL_MESSAGE_PREVIEW_CHARS': 300,
@@ -325,11 +335,16 @@ class NativeAgentSmokeTests(unittest.TestCase):
         self.assertTrue(answer.startswith('Investigation incomplète'))
         self.assertEqual(ctx.fallback_reason, 'incomplete_investigation')
 
-    def test_native_loop_records_reason_and_preview_of_a_discarded_final_message(self):
+    def test_native_loop_keeps_a_final_message_given_without_any_tool(self):
         answer, ctx = self.runLoop(lambda turn, AIMessage: AIMessage(content='Which model do you mean?'))
-        self.assertEqual(answer, 'No evidence')
+        self.assertEqual(answer, 'Which model do you mean?')
         self.assertEqual(ctx.fallback_reason, 'no_analysis_observation')
         self.assertEqual(ctx.final_message_preview, 'Which model do you mean?')
+
+    def test_native_loop_replaces_an_empty_final_message(self):
+        answer, ctx = self.runLoop(lambda turn, AIMessage: AIMessage(content=''))
+        self.assertEqual(answer, 'No evidence')
+        self.assertEqual(ctx.fallback_reason, 'empty_final_message')
 
     def test_native_loop_records_no_fallback_reason_on_a_supported_answer(self):
         def answerForTurn(turn, AIMessage):

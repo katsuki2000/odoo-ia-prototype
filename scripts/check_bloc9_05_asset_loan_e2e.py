@@ -5,12 +5,12 @@ scripts/check_bloc9_05_asset_loan_e2e.py
  generalization check, 5/8 -- same method as modules 1/8-4/8
 (raw composite-tool output isolated from synthesis, then live end-to-end
 through code_intelligence_agent()), applied to the fifth mechanism:
-custom_asset_loan, a cross-model relational business rule (no has_group(),
+asset_loan, a cross-model relational business rule (no has_group(),
 no hardcoded emails -- a structurally different mechanism shape from
 modules 1/8-4/8, all of which gated on group membership and/or a
 privileged-login bypass list).
 
-Ground truth (custom_asset_loan/models/asset_loan.py, read directly from
+Ground truth (asset_loan/models/asset_loan.py, read directly from
 disk, not from real / text):
   - `action_demarrer`: for each record, IF the loan is linked to a
     purchase request (`demande_achat_liee_id` set) AND that linked
@@ -34,10 +34,10 @@ disk, not from real / text):
     purchase request. A plausible wrong read of the code is "beneficiary
     must always differ from someone" or "the rule applies to every loan
     regardless of amount".
-  - `custom_asset_loan` depends only on `custom_purchase_request`
-    (`__manifest__.py`), itself already a `custom_*`-prefixed module the
+  - `asset_loan` depends only on `ext_purchase_request`
+    (`__manifest__.py`), itself already a custom module the
     graph loads directly (not the real-core-Odoo-dependency gap,
-    which only concerned non-`custom_*` deps like `hr_expense`/
+    which only concerned non-custom deps like `hr_expense`/
     `hr_holidays`) -- no generalization gap expected on that front here,
     unlike modules 3/8 and (implicitly) 5/8 being the second and third
     real confirmations of that fix on genuinely different dependency
@@ -263,10 +263,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[ - 5/8] custom_asset_loan: E2E confirmed.")
+        print("[ - 5/8] asset_loan: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[ - 5/8] custom_asset_loan: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 5/8] asset_loan: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

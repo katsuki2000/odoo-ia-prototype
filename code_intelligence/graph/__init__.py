@@ -45,8 +45,6 @@ from .symbols import (
 from .staleness import (
     StalenessLevel,
     StalenessReport,
-    compute_file_hash,
-    build_file_hash_index,
     analyze_changes,
 )
 from .atomic_swap import atomic_write_json, atomic_read_json
@@ -60,9 +58,4 @@ from .version import (
 
 
 def get_code_intelligence_graph(**kwargs):
-    import os
-    path = os.getenv('CI_RUNTIME_GRAPH_PATH', '').strip()
-    if path:
-        from .runtime_graph import load_runtime_graph
-        return load_runtime_graph(path, os.getenv('CI_RUNTIME_GRAPH_INSTANCE', '').strip())
     return _get_legacy_graph(**kwargs)

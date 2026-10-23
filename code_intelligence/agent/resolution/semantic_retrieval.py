@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import math
-import os
 import threading
 import weakref
 from dataclasses import dataclass, field
@@ -21,7 +20,6 @@ logger = logging.getLogger(__name__)
 SEMANTIC_CANDIDATE_LIMIT = 15
 INDEXED_NODE_TYPES = ('Model', 'Menu')
 SEMANTIC_EMBEDDING_BATCH_SIZE = 64
-SEMANTIC_RETRIEVAL_ENABLED_ENV = 'RESOLVER_SEMANTIC_RETRIEVAL_ENABLED'
 SEMANTIC_STATUS_DIAGNOSTIC_KEY = 'semantic_retrieval'
 _SEMANTIC_INDEX_CACHE = weakref.WeakKeyDictionary()
 QUERY_EMBEDDING_CACHE_SIZE = 64
@@ -59,13 +57,13 @@ def _embedding_name(embedding_function) -> str:
     if endpoint.port:
         host += ':' + str(endpoint.port)
     address = urlunsplit((endpoint.scheme, host, endpoint.path, '', ''))
-    identity = [name, address, os.getenv('RESOLVER_SEMANTIC_EMBEDDING_REVISION', '')]
+    identity = [name, address, settings.RESOLVER_SEMANTIC_EMBEDDING_REVISION]
     return 'resolver-v2-' + hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
 def build_semantic_embedding_function():
     from document_rag.vectorstore.embedding_functions import resolve_embedding_function
-    return resolve_embedding_function(embedding_model=os.getenv('RESOLVER_SEMANTIC_EMBEDDING_MODEL'))
+    return resolve_embedding_function()
 
 
 def _validated_vector(vector, dimension=None):
@@ -151,7 +149,7 @@ def rank_semantic_model_candidates(query, graph, embedding_function, **options):
 
 
 def retrieve_semantic_model_candidates_scored(query, graph, language, *, limit=SEMANTIC_CANDIDATE_LIMIT):
-    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, 'true').casefold() not in {'1', 'true', 'yes'}:
+    if not settings.RESOLVER_SEMANTIC_RETRIEVAL_ENABLED:
         return [], SemanticRetrievalStatus.DISABLED
     try:
         provider = build_semantic_embedding_function()

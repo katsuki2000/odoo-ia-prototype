@@ -69,7 +69,7 @@ def test_group_double_indexing_produces_single_graph_node():
 def test_server_action_double_indexing_produces_single_graph_node():
     """Direct regression test for the Q5.1 duplicate reported in
     todo/revue_code_20260806_override_chain.md finding F5."""
-    mod_name = "custom_automation_traps"
+    mod_name = "miro_automation_traps"
     sa = OdooServerActionRecord(
         xml_id="ir_action_server_avoir_fournisseur_privilegie",
         filepath="fake/data/server_actions.xml",
@@ -94,7 +94,7 @@ def test_server_action_double_indexing_produces_single_graph_node():
 
 
 def test_base_automation_double_indexing_produces_single_graph_node():
-    mod_name = "custom_hr_leave_workflow"
+    mod_name = "miro_hr_leave_workflow"
     ba = OdooBaseAutomationRecord(
         xml_id="automation_conge_urgent",
         filepath="fake/data/automations.xml",

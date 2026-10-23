@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-E2E verification for custom_credit_note_visibility_rules.
+E2E verification for miro_credit_note_visibility_rules.
 """
 
 import json
@@ -129,7 +129,7 @@ def _resolve_group_ids():
     client, admin_uid = _get_admin_rpc_client()
     records = client.execute_kw(
         admin_uid, "ir.model.data", "search_read",
-        [[("module", "=", "custom_credit_note_visibility_rules"),
+        [[("module", "=", "miro_credit_note_visibility_rules"),
           ("name", "in", ["group_avoir_regional", "group_avoir_national"])]],
         {"fields": ["name", "res_id"]},
     )
@@ -147,7 +147,7 @@ def check_raw_tool_output(group_map):
     all_ok = True
     for label, ids in group_map.items():
         # evaluate_record_rules matches against group XML-IDs (e.g.
-        # 'custom_credit_note_visibility_rules.group_avoir_national'), not
+        # 'miro_credit_note_visibility_rules.group_avoir_national'), not
         # raw Odoo DB ids -- code_intelligence_agent() normally does this
         # translation itself (core/graph.py::_resolve_user_group_xmlids)
         # before any tool call. This raw check bypasses that agent layer on
@@ -269,7 +269,7 @@ def main():
 
     if region_id is None or national_id is None:
         print(f"[FAIL] Group ids not found (region={region_id}, national={national_id}). "
-              f"Is custom_credit_note_visibility_rules installed on the target Odoo instance?")
+              f"Is miro_credit_note_visibility_rules installed on the target Odoo instance?")
         sys.exit(1)
 
     group_map = {
@@ -284,10 +284,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline(group_map)
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[ - 2/8] custom_credit_note_visibility_rules: E2E confirmed.")
+        print("[ - 2/8] miro_credit_note_visibility_rules: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[ - 2/8] custom_credit_note_visibility_rules: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 2/8] miro_credit_note_visibility_rules: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

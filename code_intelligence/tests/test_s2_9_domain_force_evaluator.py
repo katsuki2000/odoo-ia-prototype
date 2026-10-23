@@ -9,7 +9,7 @@ Root cause covered:  08c  -- can_view_amount()
 fails OPEN (returns True) on any domain_force it cannot fully parse via
 its amount-only regex, because it never sees non-amount conditions like
 company_id at all. Fixtures below use the REAL domain_force strings from
-/home/user/odoo-17.0/addons/custom_deep_inheritance_security/security/
+/home/user/odoo-17.0/addons/deep_inheritance_security/security/
 security_rules.xml (module 08, custom_deep_document), not invented text:
 
   Rule 1 (global, "Cantonnement Societe"):
@@ -103,7 +103,7 @@ class TestEvaluateDomainForceDynamicRef:
 
 class TestEvaluateDomainForceRealModule08Rule1Global:
     """
-    Rule 1 from custom_deep_inheritance_security -- the exact global rule
+    Rule 1 from deep_inheritance_security -- the exact global rule
     behind the  08c fail-open: ['|', ('company_id', '=', False),
     ('company_id', '=', user.company_id.id)].
     """
@@ -152,7 +152,7 @@ class TestEvaluateDomainForceRealModule08Rule1Global:
 
 class TestEvaluateDomainForceRealModule08Rule2NestedAndOr:
     """
-    Rule 2 from custom_deep_inheritance_security -- nested AND/OR:
+    Rule 2 from deep_inheritance_security -- nested AND/OR:
     ['&', '|', ('amount', '<=', 50000), ('user_id', '=', user.id),
      ('company_id', '=', user.company_id.id)]
     i.e. (amount <= 50000 OR user_id == user.id) AND company_id == user.company_id.id
@@ -227,7 +227,7 @@ class TestEvaluateDomainForceRealModule08Rule2NestedAndOr:
 
 def _module08_global_rule() -> RuleDetail:
     return RuleDetail(
-        rule_xml_id="custom_deep_inheritance_security.rule_deep_document_company",
+        rule_xml_id="deep_inheritance_security.rule_deep_document_company",
         rule_name="Documents Profonds - Cantonnement Societe",
         domain_force="['|', ('company_id', '=', False), ('company_id', '=', user.company_id.id)]",
         groups=[],
@@ -236,7 +236,7 @@ def _module08_global_rule() -> RuleDetail:
 
 def _module08_group_rule() -> RuleDetail:
     return RuleDetail(
-        rule_xml_id="custom_deep_inheritance_security.rule_deep_document_complex_nested",
+        rule_xml_id="deep_inheritance_security.rule_deep_document_complex_nested",
         rule_name="Documents Profonds - Regle Imbriquee Complexe",
         domain_force=(
             "['&', '|', ('amount', '<=', 50000), ('user_id', '=', user.id), "

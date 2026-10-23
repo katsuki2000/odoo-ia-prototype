@@ -17,15 +17,12 @@ Critère de fin J37-J39 (from real_plan.md):
 """
 
 import json
-from pathlib import Path
 
 import networkx as nx
 
 from code_intelligence.graph.staleness import (
     StalenessLevel,
     analyze_changes,
-    build_file_hash_index,
-    compute_file_hash,
 )
 
 
@@ -70,44 +67,8 @@ def _make_graph_with_cross_module_edge() -> nx.DiGraph:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Level 1: File hash staleness detection
+# Level 1: File change detection
 # ──────────────────────────────────────────────────────────────────────────────
-
-def test_compute_file_hash_is_deterministic(tmp_path):
-    """Level 1: same content → same hash, always."""
-    f = tmp_path / "model.py"
-    f.write_text("class SaleOrder(models.Model): _name = 'sale.order'", encoding="utf-8")
-    h1 = compute_file_hash(f)
-    h2 = compute_file_hash(f)
-    assert h1 == h2
-    assert len(h1) == 64  # sha256 hex digest
-
-
-def test_compute_file_hash_changes_on_content_change(tmp_path):
-    """Level 1: different content → different hash."""
-    f = tmp_path / "model.py"
-    f.write_text("original", encoding="utf-8")
-    h_before = compute_file_hash(f)
-    f.write_text("modified", encoding="utf-8")
-    h_after = compute_file_hash(f)
-    assert h_before != h_after
-
-
-def test_build_file_hash_index_covers_all_files(tmp_path):
-    """Level 1: hash index covers every .py and .xml file in the module root."""
-    (tmp_path / "models").mkdir()
-    (tmp_path / "security").mkdir()
-    (tmp_path / "models" / "sale_order.py").write_text("class X: pass", encoding="utf-8")
-    (tmp_path / "security" / "ir.model.access.csv").write_text("id,model_id", encoding="utf-8")
-    (tmp_path / "security" / "rules.xml").write_text("<odoo/>", encoding="utf-8")
-    (tmp_path / "__manifest__.py").write_text("{'name': 'Sale'}", encoding="utf-8")
-
-    index = build_file_hash_index(tmp_path)
-    paths = {Path(p) for p in index}
-    assert any(p.name == "sale_order.py" for p in paths)
-    assert any(p.name == "rules.xml" for p in paths)
-    assert any(p.name == "__manifest__.py" for p in paths)
-
 
 def test_analyze_changes_reports_nothing_when_no_file_changed(tmp_path):
     """Level 1: nothing is stale when no file changed."""

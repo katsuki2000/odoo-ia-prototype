@@ -14,7 +14,7 @@ Odoo admin connection to resolve the demandeur's real group IDs to xml_ids
 Target module (found by inspecting /home/user/odoo-17.0/addons/*, see
 conversation of 2026-08-05 -- Q3.1 in scripts/run_adversarial_benchmark.py
 references "demande d'achat" without naming the module explicitly):
-  /home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py
+  /home/user/odoo-17.0/addons/ext_purchase_request/models/purchase_request.py
   model: custom.purchase.request
   _VALIDATEURS_EXCEPTIONNELS = ['direction@societe.com', 'daf@societe.com']
   action_valider(): requires purchase.group_purchase_manager OR membership
@@ -51,7 +51,7 @@ correctly gated on custom.purchase.request (bypass hidden), and the real
 purchase.group_purchase_manager holder (bob@alpha.com) is correctly
 recognized as elevated (bypass shown). See authorization_gate.py's own
 docstrings for the fix's full rationale, including the analogous
-account.move case it also covers (custom_credit_note_approval grants write
+account.move case it also covers (miro_credit_note_approval grants write
 to account.group_account_invoice, but action_valider_avoir()'s real guard
 checks the stricter account.group_account_manager).
 
@@ -59,7 +59,7 @@ test_purchase_manager_sees_bypass_unhidden is the mirror sanity check: a
 real purchase.group_purchase_manager holder must NOT be gated -- confirming
 the gate (when it does trigger) does not over-restrict a legitimate user.
 
-Requires custom_purchase_request installed on the live Odoo instance and a reachable
+Requires ext_purchase_request installed on the live Odoo instance and a reachable
 LLM; the module fixture below skips when the module is not installed.
 """
 
@@ -84,7 +84,7 @@ def _require_purchase_request_module():
         client, admin_uid = _get_admin_rpc_client()
     except Exception as error:
         pytest.skip(f"Live Odoo admin authentication is not available: {error}")
-    skip_unless_modules_installed(client, admin_uid, ("custom_purchase_request",))
+    skip_unless_modules_installed(client, admin_uid, ("ext_purchase_request",))
 
 # Groups defined by xml_id -- portable across machines, forward-resolved to
 # real res.groups database IDs at test time by _resolve_group_ids() below.

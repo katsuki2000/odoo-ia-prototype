@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-E2E verification for custom_purchase_request authorization bypass.
+E2E verification for ext_purchase_request authorization bypass.
 """
 
 import re
@@ -253,10 +253,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[ - 4/8] custom_purchase_request: E2E confirmed.")
+        print("[ - 4/8] ext_purchase_request: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[ - 4/8] custom_purchase_request: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 4/8] ext_purchase_request: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

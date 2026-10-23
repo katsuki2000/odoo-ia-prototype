@@ -16,15 +16,15 @@ from code_intelligence.agent.resolution.resolver import resolve_business_term
 def mock_graph():
     G = nx.DiGraph()
     G.add_node("model:account.move", node_type="Model", name="account.move")
-    G.add_node("model:custom_credit_note_approval", node_type="Model", name="custom_credit_note_approval")
-    G.add_node("model:custom_purchase_request", node_type="Model", name="custom_purchase_request")
+    G.add_node("model:miro_credit_note_approval", node_type="Model", name="miro_credit_note_approval")
+    G.add_node("model:ext_purchase_request", node_type="Model", name="ext_purchase_request")
     G.add_node("model:custom.purchase.request", node_type="Model", name="custom.purchase.request")
-    G.add_node("model:custom_asset_loan", node_type="Model", name="custom_asset_loan")
+    G.add_node("model:asset_loan", node_type="Model", name="asset_loan")
     G.add_node("model:custom.asset.loan", node_type="Model", name="custom.asset.loan")
     G.add_node("model:hr.leave", node_type="Model", name="hr.leave")
     G.add_node("model:custom.reimbursement.request", node_type="Model", name="custom.reimbursement.request")
-    G.add_node("module:custom_expense_reimbursement_indirect", node_type="Module", name="custom_expense_reimbursement_indirect")
-    G.add_edge("model:custom.reimbursement.request", "module:custom_expense_reimbursement_indirect", edge_type="DEFINED_IN")
+    G.add_node("module:miro_expense_reimbursement_indirect", node_type="Module", name="miro_expense_reimbursement_indirect")
+    G.add_edge("model:custom.reimbursement.request", "module:miro_expense_reimbursement_indirect", edge_type="DEFINED_IN")
 
     # regression fixture: a Field labeled exactly "avoirs" on an unrelated
     # model (res.partner), mirroring the real bug observed in production
@@ -42,7 +42,7 @@ def mock_graph():
 
 
 def test_s2_0_exact_module_mention_expense(mock_graph):
-    res = resolve_business_term("Qui valide la note de frais dans custom_expense_reimbursement_indirect ?", mock_graph)
+    res = resolve_business_term("Qui valide la note de frais dans miro_expense_reimbursement_indirect ?", mock_graph)
     assert res.is_resolved is True
     assert res.source_step == "exact_technical_mention"
     assert "custom.reimbursement.request" in res.resolved_models

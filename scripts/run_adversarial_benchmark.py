@@ -29,7 +29,7 @@ def _resolve_bloc7_test_group_ids():
     """
      harness fix (2026-08-04): Q6.1/Q6.2 describe a requester who is
     member of both / neither of group_avoir_regional and group_avoir_national
-    (custom_credit_note_visibility_rules), but the benchmark never actually
+    (miro_credit_note_visibility_rules), but the benchmark never actually
     passed any user_groups into the pipeline -- state['user_groups'] was
     always absent, so code_intelligence_agent() resolved it to [] for every
     question, and Q6.1/Q6.2 silently tested the exact same (ungrouped)
@@ -45,7 +45,7 @@ def _resolve_bloc7_test_group_ids():
     client, admin_uid = _get_admin_rpc_client()
     records = client.execute_kw(
         admin_uid, "ir.model.data", "search_read",
-        [[("module", "=", "custom_credit_note_visibility_rules"),
+        [[("module", "=", "miro_credit_note_visibility_rules"),
           ("name", "in", ["group_avoir_regional", "group_avoir_national"])]],
         {"fields": ["name", "res_id"]},
     )
@@ -106,7 +106,7 @@ BENCHMARK_QUESTIONS = [
     {
         "id": "Q9.1",
         "category": "9. Incertitude (getattr dynamic)",
-        "question": "Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?",
+        "question": "Qui peut valider une demande de remboursement de frais dans le module miro_expense_reimbursement_indirect ?",
         "expected": "Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne."
     }
 ]
@@ -138,8 +138,8 @@ def run_benchmark(question_ids=None):
     # NOTE (2026-07-29): run_pipeline()/set_graph_ref() ici étaient du code mort --
     # code_intelligence_agent() (rag/graph.py) appelle get_code_intelligence_graph()
     # puis set_graph_ref() lui-même à CHAQUE question, ce qui écrasait silencieusement
-    # ce graphe de 9 modules custom_* avec le graphe complet (addons + miro_ai
-    # + custom_*, ~3775 nœuds) avant que la première question ne soit posée.
+    # ce graphe de 9 modules custom avec le graphe complet (addons + miro_ai
+    # + modules custom, ~3775 nœuds) avant que la première question ne soit posée.
     # Le benchmark a donc toujours tourné sur le graphe complet, jamais sur celui-ci --
     # supprimé pour éviter la confusion (cf. logs , 2026-07-29).
 

@@ -1,4 +1,4 @@
-"""Environment-based Google Drive ingestion configuration."""
+"""Google Drive ingestion configuration: the corpus folders and the approval flag come from the environment, the limits are constants."""
 
 from dataclasses import dataclass
 import os
@@ -15,14 +15,7 @@ class GoogleDriveSettings:
 
     @classmethod
     def from_environment(cls):
-        settings = cls(
+        return cls(
             folderIds=tuple(dict.fromkeys(value.strip() for value in os.getenv('GOOGLE_DRIVE_FOLDER_IDS', '').split(',') if value.strip())),
             approvedForRag=os.getenv('GOOGLE_DRIVE_APPROVED_FOR_RAG', '').lower() == 'true',
-            timeout=float(os.getenv('GOOGLE_DRIVE_TIMEOUT', '30')),
-            maxBytes=int(os.getenv('GOOGLE_DRIVE_MAX_BYTES', '20971520')),
-            maxFiles=int(os.getenv('GOOGLE_DRIVE_MAX_FILES', '10000')),
-            syncInterval=float(os.getenv('GOOGLE_DRIVE_SYNC_INTERVAL_SECONDS', '300')),
         )
-        if settings.timeout <= 0 or settings.maxBytes <= 0 or settings.maxFiles <= 0 or settings.syncInterval <= 0:
-            raise ValueError('Google Drive limits must be positive.')
-        return settings

@@ -123,6 +123,7 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
         return graph_cache["fuzzy_index"]
 
     index: List[Tuple[str, str]] = []
+    entry_types: List[str] = []
 
     for node_id, data in G.nodes(data=True):
         node_type = data.get("node_type")
@@ -132,6 +133,7 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
             desc = data.get("description", "")
             if desc and len(desc) >= 3:
                 index.append((desc.lower(), model_name))
+                entry_types.append("Model")
 
         elif node_type == "Field":
             label = data.get("label", "")
@@ -141,6 +143,7 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                 len(label.split()) >= 2 or len(label) >= 8
             ):
                 index.append((label.lower(), model_name))
+                entry_types.append("Field")
 
         elif node_type == "Menu":
             menu_name = data.get("name", "")
@@ -150,15 +153,18 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                     if edge_data.get("edge_type") == "OPENS_MODEL":
                         model_name = successor.replace("model:", "")
                         index.append((menu_name.lower(), model_name))
+                        entry_types.append("Menu")
                         break
 
         if node_type == "Model":
             technical_name = data.get("name", node_id.replace("model:", ""))
             if technical_name:
                 index.append((technical_name.lower(), technical_name))
+                entry_types.append("Model")
                 spaced = technical_name.replace(".", " ").replace("_", " ")
                 if spaced != technical_name:
                     index.append((spaced.lower(), technical_name))
+                    entry_types.append("Model")
 
         if node_type in {"Model", "Field", "Menu"}:
             for translation in data.get("business_labels", []):
@@ -167,16 +173,20 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                     continue
                 if node_type == "Model":
                     model_name = data.get("name", node_id.replace("model:", ""))
+                    e_type = "Model"
                 elif node_type == "Field":
                     model_name = data.get("model", "")
+                    e_type = "Field"
                 else:
                     model_name = next((
                         successor.replace("model:", "")
                         for successor in G.successors(node_id)
                         if G.edges[node_id, successor].get("edge_type") == "OPENS_MODEL"
                     ), "")
+                    e_type = "Menu"
                 if model_name:
                     index.append((label.lower(), model_name))
+                    entry_types.append(e_type)
 
     module_labels = defaultdict(set)
     for node_id, data in G.nodes(data=True):
@@ -213,8 +223,10 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                     continue
                 for module_label in module_labels.get(module, ()):
                     index.append((f"{model_label} {module_label}", model_name))
+                    entry_types.append("Model")
 
     graph_cache["fuzzy_index"] = index
+    graph_cache["fuzzy_entry_types"] = entry_types
     logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())
     return index
 
@@ -401,9 +413,13 @@ def _fuzzy_match_graph(
     if paired_matches:
         return [(model, 100.0) for model in paired_matches[:limit]]
 
+    entry_types = _FUZZY_INDEX_CACHE.get(G, {}).get("fuzzy_entry_types", [])
+
     labels = [_business_text(entry[0]) for entry in index]
     query_lower = _business_text(query)
-    query_token_count = max(len(_business_tokens(query)), 1)
+    query_tokens = _business_tokens(query)
+    query_token_set = set(query_tokens)
+    query_token_count = max(len(query_tokens), 1)
     raw_query_lower = query.lower()
     # which index rows are a model's OWN technical-name
     # self-entry (plain dotted, or the "."/"_" -> " " spaced variant) --
@@ -430,14 +446,20 @@ def _fuzzy_match_graph(
             self_technical_name = self_entry_technical_names[idx]
             if self_technical_name and _dotted_technical_name_only_embedded(self_technical_name, raw_query_lower):
                 continue
-            label_token_count = max(len(_business_tokens(label)), 1)
-            length_penalty = min(label_token_count / query_token_count, 1.0) ** 0.5
-            adjusted = score * length_penalty
+            label_words = _business_tokens(label)
+            label_token_count = max(len(label_words), 1)
+            matched_words = sum(
+                any(fuzz.ratio(word, qw) >= 85 for qw in query_token_set)
+                for word in label_words
+            )
+            coverage = max(matched_words / label_token_count, matched_words / query_token_count)
+            node_type = entry_types[idx] if idx < len(entry_types) else "Model"
+            entity_multiplier = 1.0 if node_type in ("Model", "Menu") else 0.80
+            adjusted = score * coverage * entity_multiplier + (matched_words * 0.01)
             if adjusted >= threshold:
                 model = index[idx][1]
                 model_scores[model] = max(model_scores.get(model, 0.0), adjusted)
 
-    query_tokens = _business_tokens(query)
     if len(query_tokens) > 1:
         max_window = min(6, len(query_tokens))
         # Min width 2: single-token windows cause mass ties on generic labels.
@@ -470,10 +492,12 @@ def _fuzzy_match_graph(
                     continue
                 label_token_count = max(len(label_words), 1)
                 length_ratio = min(window_token_count, label_token_count) / max(window_token_count, label_token_count)
-                adjusted = score * length_ratio ** 0.25
+                node_type = entry_types[idx] if idx < len(entry_types) else "Model"
+                entity_multiplier = 1.0 if node_type in ("Model", "Menu") else 0.80
+                adjusted = score * (length_ratio ** 0.25) * entity_multiplier + (matched_words * 0.01)
                 if adjusted >= threshold:
                     model = index[idx][1]
                     model_scores[model] = max(model_scores.get(model, 0.0), adjusted)
 
-    sorted_results = sorted(model_scores.items(), key=lambda x: x[1], reverse=True)
+    sorted_results = [(model, min(round(sc, 2), 100.0)) for model, sc in sorted(model_scores.items(), key=lambda x: x[1], reverse=True)]
     return sorted_results[:limit]

@@ -5,7 +5,6 @@ from document_rag.vectorstore.embedding_functions import OllamaEmbeddingFunction
 
 
 def _configure(monkeypatch):
-    monkeypatch.delenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", raising=False)
     monkeypatch.setattr(settings, "EMBEDDING_BASE_URL", "http://ollama.example:11434/v1")
 
 

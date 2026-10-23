@@ -8,7 +8,6 @@ module consumes.
 """
 
 import ast
-import os
 import sys
 import json
 import shutil
@@ -20,6 +19,7 @@ import logging
 import re
 import textwrap
 
+from config import settings
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
 from code_intelligence.utils import format_file_link, parse_python_text, read_source_text, _TRUNCATION_MARKER
@@ -42,9 +42,6 @@ class SemgrepMatch:
     message: str
     lines: str
     owner_models: tuple = ()
-
-
-SEMGREP_TIMEOUT_SECONDS = int(os.getenv("SEMGREP_TIMEOUT_SECONDS", "120"))
 
 
 def _find_semgrep_binary() -> str:
@@ -93,7 +90,7 @@ def run_semgrep_analysis(
             capture_output=True,
             text=True,
             check=False,
-            timeout=SEMGREP_TIMEOUT_SECONDS,
+            timeout=settings.SEMGREP_TIMEOUT_SECONDS,
         )
         if res.returncode not in (0, 1):
             raise RuntimeError(f"Semgrep failed with exit code {res.returncode}: {res.stderr.strip()}")

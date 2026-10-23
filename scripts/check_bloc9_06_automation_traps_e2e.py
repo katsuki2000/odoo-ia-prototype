@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-E2E verification for custom_automation_traps server action bypass.
+E2E verification for miro_automation_traps server action bypass.
 """
 
 import sys
@@ -29,7 +29,7 @@ def _marker_present(marker: str, text: str) -> bool:
 
 def _resolve_account_manager_group_id():
     """account.group_account_manager is a STANDARD Odoo group (module
-    'account', not a custom_* module) -- same ir.model.data lookup
+    'account', not a custom module) -- same ir.model.data lookup
     technique as scripts/check_bloc9_02_credit_note_visibility_e2e.py's
     _resolve_group_ids() / run_adversarial_benchmark.py's
     _resolve_bloc7_test_group_ids(), just against a different module."""
@@ -246,10 +246,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline(account_manager_group_id)
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[ - 6/8] custom_automation_traps: E2E confirmed.")
+        print("[ - 6/8] miro_automation_traps: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[ - 6/8] custom_automation_traps: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 6/8] miro_automation_traps: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

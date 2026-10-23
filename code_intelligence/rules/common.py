@@ -1,5 +1,5 @@
 """
-code_intelligence/deterministic/common.py
+code_intelligence/common.py
 
 Shared constants and enums for deterministic knowledge graph queries.
 """

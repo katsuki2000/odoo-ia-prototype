@@ -33,7 +33,7 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-# document_rag/documents/ (config/settings.py::RAG_DOCS_PATH, .env-overridable) --
+# document_rag/documents/ (config/settings.py::RAG_DOCS_PATH) --
 # same source of truth as the rest of the ingestion pipeline, not a private copy.
 # ~27 chunks/copy measured directly (chunk_size=512) on the current 10-file,
 # 140KB corpus (10 wiki/facture docs, including one scanned/OCR PDF).

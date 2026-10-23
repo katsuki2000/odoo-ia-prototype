@@ -70,7 +70,7 @@ def test_real_xml_miro_ai_rules():
         assert "rule_miro_ai_log_user" in rules_map
 
         log_user_rule = rules_map["rule_miro_ai_log_user"]
-        assert log_user_rule.name == "MIRO AI Log : Voir ses requêtes"
+        assert log_user_rule.name == "MIRO AI Log: own requests"
         assert log_user_rule.model_id == "model_miro_ai_log"
         assert log_user_rule.groups_id == ["base.group_user"]
         assert "user_id" in log_user_rule.domain_force

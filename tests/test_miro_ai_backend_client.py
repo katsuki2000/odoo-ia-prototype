@@ -1,4 +1,6 @@
 import importlib.util
+import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -10,7 +12,12 @@ CANDIDATES = ["http://127.0.0.1:8000", "http://localhost:8000"]
 
 
 @pytest.fixture
-def backend_client():
+def backend_client(monkeypatch):
+    settings_stub = types.ModuleType("odoo.addons.miro_ai.models.miro_ai_settings")
+    settings_stub.DEFAULT_API_URL = "http://127.0.0.1:8000"
+    for name in ("odoo", "odoo.addons", "odoo.addons.miro_ai", "odoo.addons.miro_ai.models"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setitem(sys.modules, settings_stub.__name__, settings_stub)
     spec = importlib.util.spec_from_file_location("miro_backend_client", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

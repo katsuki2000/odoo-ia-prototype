@@ -113,21 +113,22 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 ctx.omitted_items.extend(omitted)
             cap = min(
                 6000 if toolName == 'search_system' else
-                7500 if toolName == 'inspect_runtime_model' else
                 PER_TOOL_OBSERVATION_CAPS.get(analysisName, DEFAULT_OBSERVATION_CAP),
                 MAX_TOTAL_OBSERVATION_CHARS - used,
             )
             observation = _truncate_observation_for_budget(ctx, observation, cap)
             if toolName in DISCOVERY_TOOLS:
                 ctx.discovery_chars = getattr(ctx, 'discovery_chars', 0) + len(observation)
-            elif NOT_FOUND_MARKER not in observation.lstrip().split('\n', 1)[0]:
+            elif NOT_FOUND_MARKER not in observation:
                 ctx.tool_observations.append(observation)
                 ctx.tool_observation_models.append(modelName)
                 ctx.tool_observation_tools.append(analysisName)
-                if modelName and modelName not in ctx.concept.resolved_models:
-                    ctx.concept.resolved_models.append(modelName)
-                ctx.concept.is_resolved = True
-                ctx.concept.source_step = 'investigated_tools'
+                isRealModel = bool(modelName and ctx.G and ctx.G.has_node(f"model:{modelName}"))
+                if isRealModel:
+                    if modelName not in ctx.concept.resolved_models:
+                        ctx.concept.resolved_models.append(modelName)
+                    ctx.concept.is_resolved = True
+                    ctx.concept.source_step = 'investigated_tools'
             messages.append(ToolMessage(content=observation, tool_call_id=toolId))
             elapsed = time.perf_counter() - started
             ctx.per_hop_times.append(elapsed)

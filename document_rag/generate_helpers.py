@@ -67,7 +67,7 @@ def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float
         return 0.0
 
     top_chunk = chunks[0]
-    score = top_chunk.get("score") or top_chunk.get("rerank_score")
+    score = top_chunk.get("score")
     if score is not None:
         try:
             val = float(score)

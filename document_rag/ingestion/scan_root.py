@@ -55,7 +55,7 @@ def confine_to_scan_roots(
 ) -> Path:
     """Resolve path and accept it only if it lies under a configured scan root.
 
-    Roots come from env-backed settings (RAG_DOCS_PATH, CORE_ADDONS_PATH,
+    Roots come from the settings (RAG_DOCS_PATH, CORE_ADDONS_PATH,
     CUSTOM_ADDONS_PATH). Symlinks are followed via resolve() so a link inside
     a root cannot escape to the rest of the filesystem.
     """

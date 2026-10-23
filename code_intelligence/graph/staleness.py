@@ -4,13 +4,12 @@ Data structures and dynamic pattern detectors for graph staleness.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 
@@ -81,35 +80,6 @@ _DYNAMIC_DISPATCH_PATTERNS = [
     re.compile(r"\bimportlib\.import_module\s*\("),
     re.compile(r"\b__import__\s*\("),
 ]
-
-
-def compute_file_hash(filepath: Path) -> str:
-    """Compute sha256 hash of a file for staleness comparison."""
-    p = Path(filepath)
-    if not p.exists():
-        return ""
-    try:
-        return hashlib.sha256(p.read_bytes()).hexdigest()
-    except OSError as err:
-        _logger.warning("Cannot hash %s: %s", p, err)
-        return ""
-
-
-def build_file_hash_index(files: Union[List[Path], Path, str]) -> Dict[str, str]:
-    """Build mapping of file_path_str -> sha256_hash."""
-    index = {}
-    if isinstance(files, (Path, str)):
-        p = Path(files)
-        if p.is_dir():
-            file_list = [f for f in p.rglob("*") if f.is_file()]
-        else:
-            file_list = [p] if p.exists() else []
-    else:
-        file_list = [Path(f) for f in files if Path(f).exists()]
-
-    for f in file_list:
-        index[str(f.resolve())] = compute_file_hash(f)
-    return index
 
 
 def _detect_dynamic_uncovered_patterns(filepath: Path) -> Optional[str]:

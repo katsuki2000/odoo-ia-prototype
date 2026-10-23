@@ -46,7 +46,7 @@ def _graph_version(graph):
 def resolve_turn(question, graph, state, *, language=None, llm=None):
     from .resolver import resolve_business_term
     configuration = {key: value for key, value in os.environ.items()
-                     if key.startswith(('RESOLVER_SEMANTIC_', 'AWS_', 'KAGGLE_')) or key == 'LLM_TARGET'}
+                     if key.startswith(('AWS_', 'KAGGLE_')) or key == 'LLM_TARGET'}
     history = [(getattr(message, 'type', ''), getattr(message, 'content', str(message)))
                for message in state.get('chat_history', [])]
     signature = hashlib.sha256(json.dumps([question.strip(), language, id(graph), _graph_version(graph),

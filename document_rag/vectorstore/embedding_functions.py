@@ -1,10 +1,11 @@
 """Embedding functions and provider resolver for ChromaDB vectorstore."""
 
-import os
 import time
 from typing import List, Optional
 import requests
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+
+from config import settings
 
 
 class OllamaEmbeddingFunction(EmbeddingFunction):
@@ -14,7 +15,7 @@ class OllamaEmbeddingFunction(EmbeddingFunction):
         self.endpoint = f'{cleanUrl}/embeddings' if '/v1' in cleanUrl else f'{cleanUrl}/v1/embeddings'
         self.model = model
         self.api_key = api_key or 'ollama'
-        self.timeout = float(timeout if timeout is not None else os.environ.get('EMBEDDING_TIMEOUT', '30'))
+        self.timeout = float(timeout if timeout is not None else settings.EMBEDDING_TIMEOUT)
         self.max_retries = max(1, int(max_retries))
         self.batch_size = max(1, int(batch_size))
 

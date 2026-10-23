@@ -40,14 +40,14 @@ def test_banks_are_discovered_and_ids_are_unique():
     ids = [q["id"] for q in questions]
     assert len(ids) == len(set(ids))
     assert {"native_n1", "custom_b9", "oca_p3_1"} <= {q["bank"] for q in questions}
-    assert "custom_asset_loan" in meta["modules_covered"]
+    assert "asset_loan" in meta["modules_covered"]
 
 
 def test_filters_select_by_id_module_and_bank():
     by_id, _ = runner.load_questions(["CNA-Q1"])
     assert [q["id"] for q in by_id] == ["CNA-Q1"]
-    by_module, _ = runner.load_questions(module="custom_asset_loan")
-    assert {q["module"] for q in by_module} == {"custom_asset_loan"}
+    by_module, _ = runner.load_questions(module="asset_loan")
+    assert {q["module"] for q in by_module} == {"asset_loan"}
     by_bank, _ = runner.load_questions(banks=["custom_b9"])
     assert {q["bank"] for q in by_bank} == {"custom_b9"}
 
@@ -72,7 +72,7 @@ def test_agent_state_has_no_language_when_the_bank_declares_none():
 
 
 def test_questions_with_a_missing_module_are_skipped(capsys):
-    installed = {"custom_credit_note_approval", "custom_credit_note_approval_regional", "maintenance"}
+    installed = {"miro_credit_note_approval", "miro_credit_note_approval_regional", "maintenance"}
     questions, _ = runner.load_questions(installed_modules=installed)
     ids = {q["id"] for q in questions}
     assert {"CNA-Q1", "MNT-Q1"} <= ids

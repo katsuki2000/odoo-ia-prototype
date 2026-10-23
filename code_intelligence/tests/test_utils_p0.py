@@ -54,7 +54,7 @@ def test_resolve_model_xmlref():
     assert resolve_model_xmlref("model_hr_expense_sheet") == "hr.expense.sheet"
 
     # Custom module prefix
-    assert resolve_model_xmlref("custom_credit_note_approval.model_account_move") == "account.move"
+    assert resolve_model_xmlref("miro_credit_note_approval.model_account_move") == "account.move"
 
     # Already technical model names (no-op)
     assert resolve_model_xmlref("sale.order") == "sale.order"

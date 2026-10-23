@@ -12,7 +12,7 @@ adversarial Q1.2 ("avoir VIP") in the  benchmark. Locks the fix:
     the REAL execution order (reverse of manifest-dependency load order,
     matching Odoo's actual MRO construction).
   - method_override_resolver.detect_unguarded_super() flagging the exact
-    bug shape found in custom_credit_note_approval_vip: a conditional
+    bug shape found in miro_credit_note_approval_vip: a conditional
     branch that sets state without an early `return`, followed later in
     the same method by an unconditional `super()` call.
 
@@ -81,7 +81,7 @@ class AccountMove(models.Model):
         return super().action_valider_avoir()
 '''
 
-# Real shape found replaying custom_hr_leave_workflow.action_approve
+# Real shape found replaying miro_hr_leave_workflow.action_approve
 # (sections 139-141): the outer `if` body only computes a LOCAL variable
 # (`n2`) and conditionally `raise`s from a NESTED `if` with no `else` --
 # the last statement of the OUTER branch is that nested `if`, not a bare
@@ -140,12 +140,12 @@ def test_detect_unguarded_super_no_false_positive_when_branch_only_raises_no_mut
     risk of being silently clobbered by the unconditional super() call
     afterwards. Must not flag."""
     warning = detect_unguarded_super(
-        HR_LEAVE_SHAPE_SOURCE, "hr_leave.py", "action_approve", target_lineno=5, module="custom_hr_leave_workflow"
+        HR_LEAVE_SHAPE_SOURCE, "hr_leave.py", "action_approve", target_lineno=5, module="miro_hr_leave_workflow"
     )
     assert warning is None
 
 
-# Real shape found replaying module 06 (custom_automation_traps) E2E
+# Real shape found replaying module 06 (miro_automation_traps) E2E
 # (section 151): a conditional inside `for x in own_expense_moves:`
 # mutates a record field (an ast.Attribute target, same shape as the real
 # VIP bug), but the super() call afterwards is NOT zero-arg -- it is the
@@ -261,9 +261,9 @@ def test_no_sites_returns_empty_list():
 
 ADDONS_PATH = CORE_ADDONS_PATH
 REAL_MODULES = [
-    "custom_credit_note_approval",
-    "custom_credit_note_approval_regional",
-    "custom_credit_note_approval_vip",
+    "miro_credit_note_approval",
+    "miro_credit_note_approval_regional",
+    "miro_credit_note_approval_vip",
 ]
 
 
@@ -292,9 +292,9 @@ def test_real_corpus_execution_order_matches_odoo_mro():
     sites = resolve_method_override_chain(G, "account.move", "action_valider_avoir")
 
     assert [s.module for s in sites] == [
-        "custom_credit_note_approval_vip",
-        "custom_credit_note_approval_regional",
-        "custom_credit_note_approval",
+        "miro_credit_note_approval_vip",
+        "miro_credit_note_approval_regional",
+        "miro_credit_note_approval",
     ]
 
 
@@ -304,7 +304,7 @@ def test_real_corpus_detects_actual_vip_exemption_bug():
     G = _build_real_registry_and_graph()
     report = analyze_method_override_chain(G, "account.move", "action_valider_avoir")
 
-    assert "custom_credit_note_approval_vip" in report
+    assert "miro_credit_note_approval_vip" in report
     assert "SUPER() NON GARD" in report
     # exactly one warning: the base module has no super() call at all, the
     # regional module's super() call precedes its own conditional -- both

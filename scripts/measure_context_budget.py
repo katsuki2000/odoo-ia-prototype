@@ -21,7 +21,6 @@ Usage (requires the LLM server to be reachable, same .env as the pipeline):
     python scripts/measure_context_budget.py
     python scripts/measure_context_budget.py --ids PUR-Q5 STK-Q5 SAL-Q5
     python scripts/measure_context_budget.py --all --out report.json
-    LLM_CONTEXT_WINDOW=32768 python scripts/measure_context_budget.py
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import re
 import sys
 import tempfile
@@ -165,6 +163,17 @@ def install_probe(recorder: Recorder) -> None:
     logging.getLogger("core.llm.llm_client").addHandler(_ReductionHandler(recorder))
 
 
+def resolve_window(requested: Optional[int]) -> tuple[int, str]:
+    """The window is --window if given, else the context the server actually loaded."""
+    if requested:
+        return requested, "--window"
+    from core.llm.server_fingerprint import get_inference_fingerprint
+    loaded = (get_inference_fingerprint().get("ollama") or {}).get("loaded_context_length")
+    if not loaded:
+        raise SystemExit("Cannot read the loaded context from the server (model not loaded?). Pass --window.")
+    return int(loaded), "server"
+
+
 def summarize(question_id: str, calls: List[Dict[str, Any]], reductions: int, window: int) -> Dict[str, Any]:
     ok = [c for c in calls if c.get("prompt_tokens") is not None]
     max_prompt = max((c["prompt_tokens"] for c in ok), default=None)
@@ -216,20 +225,19 @@ def load_questions(ids: Optional[List[str]], take_all: bool) -> List[Dict[str, A
 
 
 def main() -> int:
-    env_window = os.getenv("LLM_CONTEXT_WINDOW")
     parser = argparse.ArgumentParser(description="Measure the real LLM context budget per question.")
     parser.add_argument("--ids", nargs="*", help=f"Question ids (default: {' '.join(DEFAULT_IDS)})")
     parser.add_argument("--all", action="store_true", help="Run all 25 Bloc N1 questions (long).")
-    parser.add_argument("--window", type=int, default=int(env_window) if env_window else 32768,
-                        help="Context window in tokens (env LLM_CONTEXT_WINDOW, explicit fallback 32768).")
+    parser.add_argument("--window", type=int, default=None,
+                        help="Context window in tokens (default: the context loaded by the server).")
     parser.add_argument("--out", default=str(Path(tempfile.gettempdir()) / "context_budget_report.json"))
     args = parser.parse_args()
 
-    source = "env LLM_CONTEXT_WINDOW" if env_window else "explicit fallback 32768 (set LLM_CONTEXT_WINDOW to override)"
-    print(f"[config] window={args.window} tokens ({source})")
+    window, source = resolve_window(args.window)
+    print(f"[config] window={window} tokens ({source})")
 
     questions = load_questions(args.ids, args.all)
-    from core.graph.graph import code_intelligence_agent  # imported late: loads .env and the graph
+    from core.graph.graph import query_graph  # imported late: loads .env and the graph
 
     recorder = Recorder()
     install_probe(recorder)
@@ -241,12 +249,12 @@ def main() -> int:
         print(f"\n[run] {q['id']} -- {q['question'][:90]}...")
         error = None
         try:
-            code_intelligence_agent({"question": q["question"], "chat_history": []})
+            query_graph(question=q["question"], chat_history=[], language=q.get("language"))
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"[:300]
             print(f"[error] agent raised: {error}")
         calls = recorder.calls[start:]
-        summary = summarize(q["id"], calls, recorder.context_reductions.get(q["id"], 0), args.window)
+        summary = summarize(q["id"], calls, recorder.context_reductions.get(q["id"], 0), window)
         summary["agent_error"] = error
         summaries.append(summary)
         print(
@@ -262,7 +270,7 @@ def main() -> int:
         elif summary["llm_calls"] == 0:
             print("[warn] no LLM call recorded: the probe did not see the calls (other client class?)")
 
-    report = {"window": args.window, "window_source": source, "summaries": summaries, "calls": recorder.calls}
+    report = {"window": window, "window_source": source, "summaries": summaries, "calls": recorder.calls}
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n[report] written to {args.out}")
     failed = [s["question_id"] for s in summaries if s["agent_error"] or s["llm_calls"] == 0]

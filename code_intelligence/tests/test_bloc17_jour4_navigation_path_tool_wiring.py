@@ -34,12 +34,12 @@ def _build_graph_with_menu(model_name="custom.purchase.request"):
     G = nx.DiGraph()
     G.add_node(f"model:{model_name}", node_type="Model", name=model_name)
     G.add_node(
-        "menu:custom_purchase_request.menu_requests", node_type="Menu",
-        name="Demandes d'achat", xml_id="custom_purchase_request.menu_requests",
-        sequence=10, filepath="/repo/custom_purchase_request/views/menu.xml", groups=[],
+        "menu:ext_purchase_request.menu_requests", node_type="Menu",
+        name="Demandes d'achat", xml_id="ext_purchase_request.menu_requests",
+        sequence=10, filepath="/repo/ext_purchase_request/views/menu.xml", groups=[],
     )
     G.add_edge(
-        "menu:custom_purchase_request.menu_requests", f"model:{model_name}",
+        "menu:ext_purchase_request.menu_requests", f"model:{model_name}",
         edge_type="OPENS_MODEL", via="act_window",
     )
     return G

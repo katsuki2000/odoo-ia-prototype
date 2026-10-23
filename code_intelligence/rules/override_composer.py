@@ -82,7 +82,7 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from code_intelligence.utils import format_file_link, read_source_text
+from code_intelligence.utils import format_file_link, is_core_source, read_source_text
 from code_intelligence.rules.security import (
     analyze_python_security_locks,
     extract_method_security_constraints,
@@ -196,10 +196,7 @@ def _compose_compute_methods_overview(
 
     def _mod_sort_key(mod_name):
         items = methods_by_mod[mod_name]
-        is_custom = any(
-            "/addons/" not in s.get("filepath", "") or "oca" in s.get("filepath", "")
-            for _, _, s, _ in items
-        )
+        is_custom = any(not is_core_source(s.get("filepath", "")) for _, _, s, _ in items)
         return (0 if is_custom else 1, mod_name)
 
     sorted_mods = sorted(methods_by_mod.keys(), key=_mod_sort_key)

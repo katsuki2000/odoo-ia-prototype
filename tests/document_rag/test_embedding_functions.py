@@ -3,6 +3,7 @@
 from unittest.mock import patch, MagicMock
 import pytest
 
+from config import settings
 from document_rag.vectorstore.embedding_functions import (
     OllamaEmbeddingFunction,
     resolve_embedding_function,
@@ -143,9 +144,7 @@ def test_ollama_batches_and_preserves_order():
     assert [r[0] for r in results] == [float(i) for i in range(40)]
 
 
-def test_ollama_timeout_configurable_by_env(monkeypatch):
-    monkeypatch.setenv("EMBEDDING_TIMEOUT", "120")
+def test_ollama_timeout_comes_from_settings(monkeypatch):
+    monkeypatch.setattr(settings, "EMBEDDING_TIMEOUT", 120.0)
     assert _ollama_fn().timeout == 120.0
-    monkeypatch.delenv("EMBEDDING_TIMEOUT")
-    assert _ollama_fn().timeout == 30.0
     assert _ollama_fn(timeout=5).timeout == 5.0

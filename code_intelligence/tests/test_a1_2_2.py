@@ -89,6 +89,6 @@ def test_real_xml_miro_ai_groups():
         assert "group_miro_ai_admin" in groups_map
 
         admin_group = groups_map["group_miro_ai_admin"]
-        assert admin_group.name == "Administrateur MIRO AI"
+        assert admin_group.name == "MIRO AI Administrator"
         assert admin_group.category_id == "module_category_miro_ai"
         assert admin_group.implied_ids == ["group_miro_ai_user"]

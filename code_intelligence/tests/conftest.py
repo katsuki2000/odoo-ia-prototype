@@ -30,7 +30,7 @@ def live_client() -> OdooRpcClient:
         pytest.skip(f"Live Odoo admin authentication is not available: {exc}")
 
     skip_unless_modules_installed(
-        client, admin_uid, ("custom_credit_note_approval", "custom_credit_note_visibility_rules"),
+        client, admin_uid, ("miro_credit_note_approval", "miro_credit_note_visibility_rules"),
     )
 
     for login in TEST_USERS:

@@ -1,7 +1,7 @@
 """
 miro-rag/code_intelligence/tests/test_bloc9_06_degenerate_line_repetition.py
 
- gap, module 6/8 (custom_automation_traps, 2026-08-10, ):
+ gap, module 6/8 (miro_automation_traps, 2026-08-10, ):
 locks in the LINE-level degenerate-repetition guard added to rag/graph.py, plus
 basic coverage for the pre-existing PHRASE-level guard, which had zero pytest
 coverage before this file despite already being live in production.
@@ -49,7 +49,7 @@ _REAL_DEGENERATE_LINE = (
 _CLEAN_ANSWER = (
     "Seul un responsable comptable (groupe account.group_account_manager) "
     "peut valider un avoir de plus de 5000\u20ac. Cette r\u00e8gle est d\u00e9finie dans "
-    "le module custom_credit_note_approval.\n\n[Source: Graphe de Connaissances "
+    "le module miro_credit_note_approval.\n\n[Source: Graphe de Connaissances "
     "Code Intelligence]"
 )
 

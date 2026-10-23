@@ -4,18 +4,18 @@ code_intelligence/tests/test_bloc9_cross_module_computed_fields.py
 , second item: "champs calcules cross-module" was the one gap of
 the plan's 4 named pistes NOT already covered by the existing 9-10
 adversarial modules (verified by reading every models/*.py in the corpus
--- custom_deep_inheritance_security covers deep inheritance, nested
+-- deep_inheritance_security covers deep inheritance, nested
 domain_force, and manual has_group(), but its computed field
 (_compute_risk_score) depends only on a field in its OWN module).
 
 New corpus, 3 modules extending hr.expense (untouched by the rest of the
 corpus) in a dependency chain:
-    custom_expense_risk_base       (raw fields: justificatif_manquant,
+    acme_expense_risk_base       (raw fields: justificatif_manquant,
                                      nombre_relances)
-      -> custom_expense_risk_score (risk_score, compute depends on the
+      -> acme_expense_risk_score (risk_score, compute depends on the
                                      base module's fields + core
                                      hr_expense's total_amount)
-        -> custom_expense_risk_alert (alerte_conformite, compute depends
+        -> acme_expense_risk_alert (alerte_conformite, compute depends
                                        on risk_score -- a field computed
                                        in a DIFFERENT, non-adjacent module
                                        -- AND on a dotted-path field
@@ -49,9 +49,9 @@ from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 ADDONS_PATH = CUSTOM_ADDONS_PATH
 REAL_MODULES = [
-    "custom_expense_risk_base",
-    "custom_expense_risk_score",
-    "custom_expense_risk_alert",
+    "acme_expense_risk_base",
+    "acme_expense_risk_score",
+    "acme_expense_risk_alert",
 ]
 
 
@@ -78,24 +78,24 @@ def test_manifests_form_the_intended_dependency_chain():
         manifest = parse_manifest(ADDONS_PATH / mod_name / "__manifest__.py")
         assert manifest is not None, f"{mod_name} manifest failed to parse"
 
-    base_manifest = parse_manifest(ADDONS_PATH / "custom_expense_risk_base" / "__manifest__.py")
-    score_manifest = parse_manifest(ADDONS_PATH / "custom_expense_risk_score" / "__manifest__.py")
-    alert_manifest = parse_manifest(ADDONS_PATH / "custom_expense_risk_alert" / "__manifest__.py")
+    base_manifest = parse_manifest(ADDONS_PATH / "acme_expense_risk_base" / "__manifest__.py")
+    score_manifest = parse_manifest(ADDONS_PATH / "acme_expense_risk_score" / "__manifest__.py")
+    alert_manifest = parse_manifest(ADDONS_PATH / "acme_expense_risk_alert" / "__manifest__.py")
 
     assert "hr_expense" in base_manifest.depends
-    assert "custom_expense_risk_base" in score_manifest.depends
-    assert "custom_expense_risk_score" in alert_manifest.depends
+    assert "acme_expense_risk_base" in score_manifest.depends
+    assert "acme_expense_risk_score" in alert_manifest.depends
 
 
 def test_extraction_finds_the_right_fields_in_each_module():
     base_models = extract_odoo_models_from_file(
-        ADDONS_PATH / "custom_expense_risk_base" / "models" / "hr_expense.py"
+        ADDONS_PATH / "acme_expense_risk_base" / "models" / "hr_expense.py"
     )
     score_models = extract_odoo_models_from_file(
-        ADDONS_PATH / "custom_expense_risk_score" / "models" / "hr_expense.py"
+        ADDONS_PATH / "acme_expense_risk_score" / "models" / "hr_expense.py"
     )
     alert_models = extract_odoo_models_from_file(
-        ADDONS_PATH / "custom_expense_risk_alert" / "models" / "hr_expense.py"
+        ADDONS_PATH / "acme_expense_risk_alert" / "models" / "hr_expense.py"
     )
 
     base_field_names = {f.name for f in base_models[0].fields}

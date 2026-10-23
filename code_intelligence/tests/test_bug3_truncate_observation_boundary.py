@@ -74,7 +74,7 @@ def test_20000_never_truncated_to_2000():
 
 
 def test_xml_id_never_truncated_mid_identifier():
-    ident = "custom_credit_note_approval_regional.rule_avoir_vip"
+    ident = "miro_credit_note_approval_regional.rule_avoir_vip"
     text = f"Module concerne : {ident} suite du texte ici, sans rapport."
     idx = text.index(ident)
     limit = idx + 20  # cut mid-identifier

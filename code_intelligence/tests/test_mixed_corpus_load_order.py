@@ -65,9 +65,9 @@ from core.graph.graph import _load_module
 ADDONS_PATH = CORE_ADDONS_PATH
 CORE_MODULES = ["account", "sale", "stock"]
 CUSTOM_MODULES = [
-    "custom_credit_note_approval",
-    "custom_credit_note_approval_regional",
-    "custom_credit_note_approval_vip",
+    "miro_credit_note_approval",
+    "miro_credit_note_approval_regional",
+    "miro_credit_note_approval_vip",
 ]
 
 
@@ -247,13 +247,13 @@ def test_override_chain_execution_order_regardless_of_insertion_order(insertion_
 # ---------------------------------------------------------------------
 # Full mixed corpus, real files, no mocks: real core Odoo modules loaded
 # together with custom modules that DO have real manifests declaring
-# `depends: ['account', ...]` (custom_credit_note_approval / _regional /
+# `depends: ['account', ...]` (miro_credit_note_approval / _regional /
 # _vip) -- exactly what rag.graph.get_code_intelligence_graph() builds in
 # production (since the 2026-08-12 addons/ removal, 'core' here
 # means the same real corpus as everything else, not a synthetic stand-
 # in). This is the "graphe complet corpus core+custom" the isolated
 # test_method_override_chain.py::_build_real_registry_and_graph never
-# covered (it only ever loaded the three custom_* modules, never account
+# covered (it only ever loaded the three custom modules, never account
 # or sale).
 # ---------------------------------------------------------------------
 
@@ -303,11 +303,11 @@ def test_full_mixed_corpus_core_and_custom_load_order_is_correct(core_insertion_
     # dependency resolution in topological_sort_modules, account vs sale
     # order is not guaranteed.  Still verify the custom cascade order,
     # which IS determined by direct manifest deps.
-    assert load_order.index("account") < load_order.index("custom_credit_note_approval")
+    assert load_order.index("account") < load_order.index("miro_credit_note_approval")
     assert (
-        load_order.index("custom_credit_note_approval")
-        < load_order.index("custom_credit_note_approval_regional")
-        < load_order.index("custom_credit_note_approval_vip")
+        load_order.index("miro_credit_note_approval")
+        < load_order.index("miro_credit_note_approval_regional")
+        < load_order.index("miro_credit_note_approval_vip")
     )
 
 
@@ -340,13 +340,13 @@ def test_full_mixed_corpus_reverse_moves_execution_order_is_correct(core_inserti
 def test_full_mixed_corpus_custom_override_chain_still_correct(core_insertion_order):
     """Non-regression on the case test_method_override_chain.py already
     covered in isolation: mixing in the full real core corpus must NOT
-    change the already-correct custom_credit_note_approval_vip cascade
+    change the already-correct miro_credit_note_approval_vip cascade
     order."""
     modules_dict, G = _build_full_mixed_corpus_graph(core_insertion_order)
 
     sites = resolve_method_override_chain(G, "account.move", "action_valider_avoir")
     assert [s.module for s in sites] == [
-        "custom_credit_note_approval_vip",
-        "custom_credit_note_approval_regional",
-        "custom_credit_note_approval",
+        "miro_credit_note_approval_vip",
+        "miro_credit_note_approval_regional",
+        "miro_credit_note_approval",
     ]

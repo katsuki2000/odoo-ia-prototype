@@ -2,7 +2,7 @@ from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_j36_sprint_d_expense_risk_replay.py
 
-J36 —  élargi sur le corpus custom_expense_risk_* :
+J36 —  élargi sur le corpus acme_expense_risk_* :
 Rejoue les questions de gouvernance du benchmark adversarial directement
 sur les outils déterministes (pas de LLM) pour valider que l'agent
 Code Intelligence produit les bonnes réponses structurelles sur les
@@ -34,15 +34,15 @@ ADDONS_PATH = CORE_ADDONS_PATH
 DATASET_PATH = Path(__file__).resolve().parent.parent / "evaluation" / "test_dataset_expense_risk.json"
 
 EXPENSE_MODULES = [
-    "custom_expense_risk_base",
-    "custom_expense_risk_score",
-    "custom_expense_risk_alert",
+    "acme_expense_risk_base",
+    "acme_expense_risk_score",
+    "acme_expense_risk_alert",
 ]
 
 
 @pytest.fixture(scope="module")
 def expense_graph():
-    """Build graph from the 3 custom_expense_risk_* modules."""
+    """Build graph from the 3 acme_expense_risk_* modules."""
     modules_dict = {}
     for mod_name in EXPENSE_MODULES:
         mod_dir = ADDONS_PATH / mod_name

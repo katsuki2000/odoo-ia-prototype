@@ -4,26 +4,26 @@ scripts/check_native_odoo_out_of_scope.py
 
 Ad hoc test, 2026-08-11, RETARGETED 2026-08-13: does the live agent
 correctly say "not in my indexed corpus" when asked about a genuinely
-native Odoo model that no custom_* module touches (directly or
+native Odoo model that no custom module touches (directly or
 transitively) and that isn't loaded by any other mechanism either, or
 does it silently fall back to the LLM's own general pretrained knowledge
 of Odoo -- which would be ungrounded, unverified against this actual
 instance's code, and outside the whole point of this system (answer from
 the real code, not from memory)?
 
-Originally targeted `sale.order`, picked after checking every custom_*
+Originally targeted `sale.order`, picked after checking every custom
 module's __manifest__.py depends list only. That check missed a SECOND,
 independent loading path in rag/graph.py: `CORE_MODULES_ALWAYS_LOADED =
 ["account", "sale", "stock"]` (added 2026-08-12, replacing hand-maintained
 fake_data/code stand-ins with the real Odoo source) loads `sale`
-unconditionally, regardless of any custom_* dependency. Confirmed live
+unconditionally, regardless of any custom dependency. Confirmed live
 ('model:sale.order' in graph: True) -- the premise was invalid, not the
 agent's behavior on that question. Retargeted to `mrp` (Manufacturing):
 depends only on ['product', 'stock', 'resource'] (per its own
 __manifest__.py) -- none of which is itself in CORE_MODULES_ALWAYS_LOADED,
-miro_ai, any custom_* module, or a custom_* module's direct dependency
+miro_ai, any custom module, or a custom module's direct dependency
 (account, hr, hr_expense, hr_holidays, base, base_automation, purchase --
-see every custom_*/__manifest__.py depends list). Re-verify this reasoning
+see every custom module's __manifest__.py depends list). Re-verify this reasoning
 against both loading paths in rag/graph.py before reusing this script if
 either one changes again.
 """

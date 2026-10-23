@@ -42,7 +42,7 @@ ACCOUNT_MOVE_80K_REFUND_DOMAIN = [
 
 def real_security_graph() -> nx.DiGraph:
     addons_root = Path(CUSTOM_ADDONS_PATH)
-    module_names = ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
+    module_names = ("miro_credit_note_approval", "miro_credit_note_visibility_rules")
     modules = {}
 
     for module_name in module_names:
@@ -188,8 +188,8 @@ def test_live_rule_validator_matches_odoo_truth(
     assert result.deterministic_allowed is expected_allowed
     assert result.has_divergence is False
     assert {
-        "custom_credit_note_approval.rule_avoir_visibilite_departement",
-        "custom_credit_note_visibility_rules.rule_avoir_multi_societe",
-        "custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
-        "custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
+        "miro_credit_note_approval.rule_avoir_visibilite_departement",
+        "miro_credit_note_visibility_rules.rule_avoir_multi_societe",
+        "miro_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
+        "miro_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
     }.issubset({ref.xml_id for ref in result.live_rule_refs})

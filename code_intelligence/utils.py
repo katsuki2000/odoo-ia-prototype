@@ -96,6 +96,14 @@ def format_file_link(
     return f"[{basename}](file://{filepath})"
 
 
+def is_core_source(filepath) -> bool:
+    """True when the file lies under the configured Odoo core or framework addons root."""
+    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH
+
+    path = Path(filepath)
+    return any(root and path.is_relative_to(root) for root in (CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH))
+
+
 _ABSOLUTE_FILE_LINK = re.compile(r"file://(/[^#)\s]+)")
 
 

@@ -19,11 +19,11 @@ from code_intelligence.graph.symbols import build_module_symbol_registry
 from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 
-MODULE_PATH = CUSTOM_ADDONS_PATH / "custom_deep_inheritance_security"
+MODULE_PATH = CUSTOM_ADDONS_PATH / "deep_inheritance_security"
 
 
 def test_manifest_parsing():
-    """J34-J35: verify manifest parsing of custom_deep_inheritance_security."""
+    """J34-J35: verify manifest parsing of deep_inheritance_security."""
     manifest_file = MODULE_PATH / "__manifest__.py"
     manifest = parse_manifest(manifest_file)
     assert manifest.name == "Custom Deep Inheritance Security (Adversarial J34-J35)"
@@ -66,17 +66,17 @@ def test_graph_builder_5level_inheritance_edges():
         manifest=manifest,
         models=extract_odoo_models_from_file(py_file),
     )
-    registry = build_module_symbol_registry({"custom_deep_inheritance_security": parsed_mod})
-    builder = OdooGraphBuilder(registry, {"custom_deep_inheritance_security": parsed_mod})
+    registry = build_module_symbol_registry({"deep_inheritance_security": parsed_mod})
+    builder = OdooGraphBuilder(registry, {"deep_inheritance_security": parsed_mod})
     G = builder.build_graph()
 
     roles = list_involved_modules_with_role(G, "custom.deep.document")
     assert len(roles) >= 1
-    assert any(m == "custom_deep_inheritance_security" for m, r in roles)
-    registry = build_module_symbol_registry({"custom_deep_inheritance_security": parsed_mod})
-    builder = OdooGraphBuilder(registry, {"custom_deep_inheritance_security": parsed_mod})
+    assert any(m == "deep_inheritance_security" for m, r in roles)
+    registry = build_module_symbol_registry({"deep_inheritance_security": parsed_mod})
+    builder = OdooGraphBuilder(registry, {"deep_inheritance_security": parsed_mod})
     G = builder.build_graph()
 
     roles = list_involved_modules_with_role(G, "custom.deep.document")
     assert len(roles) >= 1
-    assert any(m == "custom_deep_inheritance_security" for m, r in roles)
+    assert any(m == "deep_inheritance_security" for m, r in roles)
