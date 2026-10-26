@@ -15,6 +15,7 @@ from core.graph.graph import code_intelligence_agent
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
 from code_intelligence.agent.context import CI_MAX_HOPS
 from code_intelligence.agent.tools import ALL_CI_TOOLS
+from code_intelligence.agent.provenance import GRAPH_SOURCE_FOOTER
 
 
 def test_c1_1_tools_binding():
@@ -79,7 +80,7 @@ def test_c1_6_end_to_end_governance_workflow_inheritance():
     assert "response" in res
     assert isinstance(res["response"], AssistantResponse)
     assert res["timing"]["ci_hop_count"] >= 0
-    assert "[Source: Graphe de Connaissances Code Intelligence]" in res["response"].answer
+    assert GRAPH_SOURCE_FOOTER in res["response"].answer
 
     # Workflow query
     state_wf = {

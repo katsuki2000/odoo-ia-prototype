@@ -173,7 +173,6 @@ import networkx as nx
 
 from code_intelligence.agent.node_labels import node_labels
 from code_intelligence.rules.common import QueryStatus
-from code_intelligence.rules.model_outputs import describe_model_outputs
 from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
@@ -323,7 +322,6 @@ def describe_navigation_path(
         button_result = button_execution_path(G, button_label_or_name, model_name, user_groups=user_groups)
 
     menu_candidates = _menus_opening_model(G, model_name, button_result.origin_states if button_result else None)
-    outputs = describe_model_outputs(G, model_name, user_groups)
     if not menu_candidates:
         window_actions = G.nodes[model_node_id].get("window_actions") or []
         if window_actions:
@@ -384,9 +382,9 @@ def describe_navigation_path(
             model_name=model_name,
             button_identifier=button_label_or_name,
             status=QueryStatus.EMPTY,
-            summary_text=f"{summary} {outputs.summary}".strip(),
+            summary_text=summary.strip(),
             execution_steps=steps,
-            evidence=evidence + outputs.evidence,
+            evidence=evidence,
         )
 
     menu_node_id, menu_data = menu_candidates[0]
@@ -492,8 +490,6 @@ def describe_navigation_path(
         summary_parts.append(button_result.summary_text)
     if unavailable_reason:
         summary_parts.append(f"NON DISPONIBLE POUR LE DEMANDEUR : {unavailable_reason}")
-    if outputs.summary:
-        summary_parts.append(outputs.summary)
 
     return NavigationPathResult(
         model_name=model_name,
@@ -508,5 +504,5 @@ def describe_navigation_path(
         unavailable_reason=unavailable_reason,
         summary_text=" ".join(summary_parts),
         execution_steps=execution_steps,
-        evidence=evidence + outputs.evidence,
+        evidence=evidence,
     )

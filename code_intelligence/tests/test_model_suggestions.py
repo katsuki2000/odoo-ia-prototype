@@ -2,7 +2,8 @@ import networkx as nx
 
 from code_intelligence.rules.access_evaluator import who_has_access_to
 from code_intelligence.rules.common import NOT_FOUND_MARKER
-from code_intelligence.agent.tools import inspect_module_extensions, introspection, list_involved_modules
+from code_intelligence.agent.tools import introspection
+from code_intelligence.agent.tools.introspection import inspect_module_extensions, list_involved_modules
 from code_intelligence.agent.tools.helpers import set_graph_ref
 from code_intelligence.rules.model_suggestions import (
     RETRY_INSTRUCTION,

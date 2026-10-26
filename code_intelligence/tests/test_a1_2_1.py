@@ -64,7 +64,8 @@ def test_real_xml_miro_ai_rules():
 
     if xml_file.exists():
         rules = parse_ir_rules_from_xml(xml_file)
-        assert len(rules) == 3
+        # rule_miro_ai_settings_company is removed by a <delete> in the XML.
+        assert len(rules) == 2
 
         rules_map = {r.xml_id: r for r in rules}
         assert "rule_miro_ai_log_user" in rules_map

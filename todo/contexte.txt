@@ -3994,3 +3994,35 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 **Non modifié** : implémentation RAG, outils ORM et leurs droits, extraction et construction du graphe, règles déterministes et comportement des neuf outils exposés.
 
 **Vérification** : à confirmer par le CI après ce commit. Le dernier CI disponible avant ces changements était rouge ; aucun résultat vert n'est revendiqué.
+
+
+## Section 1586 : correction de l'import orphelin de `model_outputs`, de quatre tests périmés, et retrait de `clear_gap` (26/10/2026)
+
+**Mandat (pmm)** : faire repasser les tests de `code_intelligence/tests` après les sections 1582–1585, puis retirer `clear_gap`, décision en attente depuis la section 1560.
+
+**Diagnostic 1 : `model_outputs` (cause racine du crash à l'import)** : `scripts/measure_context_budget.py` échouait avec `ModuleNotFoundError: code_intelligence.rules.model_outputs`. La section 1584 a supprimé ce module en affirmant qu'aucun appelant runtime n'existait ; c'était inexact : `code_intelligence/rules/navigation.py` l'importait (ligne 176) et appelait `describe_model_outputs` dans `search_navigation_path` (ligne 326). `navigation.py` est importé par `button_path`, donc par `rules/__init__`, `evidence`, `schemas` et `graph` : tout le graphe plantait à l'import. L'audit de la 1584 n'avait examiné que `rules/__init__.py` et l'enregistrement des outils, pas les importeurs directs (`grep -rn model_outputs` aurait suffi).
+
+**Fait 1** : dans `navigation.py`, retrait de l'import, de l'appel et des quatre usages de `outputs.summary` / `outputs.evidence` (deux retours `NavigationPathResult` et le `summary_parts`). Le résultat de navigation garde son résumé et ses preuves, sans la partie rapports/e-mails. `from core.graph.graph import query_graph` fonctionne de nouveau.
+
+**Diagnostic 2 : quatre tests périmés (aucun bug de production)** :
+- `test_model_suggestions.py` importait `inspect_module_extensions` et `list_involved_modules` depuis `code_intelligence.agent.tools`, dont la 1585 a réduit les exports ; ils existent toujours dans `introspection.py`. Import du test corrigé (`introspection` et les deux outils importés depuis ce module).
+- `test_poc_tool_surface.py::test_package_exports_only_tools_needed_for_the_poc` comparait `tools.__all__` aux onze noms d'outils, or `ALL_CI_TOOLS` (registre, importé par l'autre test du même fichier) est aussi dans `__all__`. Le test l'exclut de la comparaison.
+- `test_a1_2_1.py::test_real_xml_miro_ai_rules` attendait 3 règles ; le XML supprime volontairement `rule_miro_ai_settings_company` (`<delete>`), il en reste 2. Attendu corrigé, avec commentaire.
+- `test_c_complete.py::test_c1_6_end_to_end_governance_workflow_inheritance` attendait en dur `[Source: Graphe de Connaissances Code Intelligence]`, alors que `provenance.py` rend `GRAPH_SOURCE_FOOTER = "[Source: Système]"` depuis le commit `fb56a05` (22/10) ; la section 1573 l'avait déjà signalé. Le test importe maintenant `GRAPH_SOURCE_FOOTER`. Le warning « record_evidence() called before start_evidence_collection() » vient du test, qui appelle `code_intelligence_agent` sans passer par `core/graph/graph.py` (ligne 98, où la collecte démarre) ; en production le cycle est correct. Non corrigé.
+
+**Décision 3 : retrait de `clear_gap`** (réponse à l'attente des sections 1560 et 1559) : la condition ajoutée dans `resolution/fuzzy_lookup.py` (commit `7c217b2`) résolvait directement par `fuzzy_graph_match` dès que le premier candidat lexical devançait le second de `AMBIGUITY_GAP_THRESHOLD` (10 points) ou était seul, sans arbitrage ni prise en compte de la recherche dense. La mesure de la 1560 montrait 15 déclenchements sur 98 questions, aucun sur les 10 à vérité établie, au moins 9 cibles apparemment fausses, pour un gain d'un appel LLM en moins sur environ 15 % des questions. Elle contredisait les tests `test_dense_resolver` (3) et `test_s2_0_business_resolver` (3), écrits pour l'arbitrage borné. Décision : retrait. La condition d'origine est restaurée (`strict and len(candidates) == 1`, raison « One strict graph-label candidate; no competing retrieved model. »), et l'import `AMBIGUITY_GAP_THRESHOLD` devenu inutile est retiré de `fuzzy_lookup.py`. La constante reste dans `candidates.py` (départage des égalités, ligne 154) et dans `test_business_resolver.py`. Limite : la mesure de la 1560 utilisait une recherche dense vide et `llm=None` ; `scripts/audit_question_resolution.py` avec recherche dense et LLM réels, avant/après, n'a pas été lancé.
+
+**Vérification (exécutions réelles)** :
+- `measure_context_budget.py --ids PUR-Q5 STK-Q5 SAL-Q5` après le correctif 1 : 38,4 %, 39,4 % et 21,1 % de la fenêtre de 32 768 jetons, aucune coupe ni réduction.
+- `pytest -k "navigation or button_path or model_suggestions"` : 68 passés.
+- Suite complète avant les correctifs 2 et 3 : 9 échecs, 1036 passés, 17 ignorés, 23 erreurs. `test_c1_6` rejoué après correction (collé par pmm) : 1 passé en 166 s (3 runs LLM réels).
+- Après le retrait de `clear_gap` : `test_dense_resolver`, `test_s2_0_business_resolver`, `test_business_resolver`, `tests/test_resolver_decision_regressions.py` et `tests/test_business_resolver_specificity.py` : 77 passés.
+- Non refait : la suite complète après les trois correctifs.
+
+**Non corrigé (environnement)** : les 23 erreurs de `test_j5_live_validation`, `test_j6_context_validation` et `test_j25_26_e2e_purchase_bypass_gate` viennent d'utilisateurs de test Odoo absents (par exemple `test_both_2026`) ; elles demandent un Odoo en marche avec ces utilisateurs.
+
+**Fichiers modifiés** : `code_intelligence/rules/navigation.py`, `code_intelligence/agent/resolution/fuzzy_lookup.py`, `code_intelligence/tests/test_model_suggestions.py`, `test_poc_tool_surface.py`, `test_a1_2_1.py`, `test_c_complete.py`, `todo/contexte.txt`. Aucun commit, aucun push.
+
+## Section 1540 : verification des reponses du rapport native_n1 (PUR/SAL/STK, 22/10/2026) - lecture seule, aucun code modifie
+**Methode** : sources `odoo-17.0/addons` + `odoo_addons` (modules OCA/custom installes) + runtime via `OdooConnector(technical=True)` sur la base `odoo-dev` (scripts `.scratch/verify_1540.py` et `verify_1540b.py`). Corrige une erreur de la lecture initiale : `sale_delivery_state`, `sale_invoice_policy`, `sale_invoice_frequency`, `sale_automatic_workflow`, `sale_order_priority` existent et sont installes ; seul `sale_order_lock` est absent.
+**Resultat (13 questions, ACC-Q1 tronquee)** : exactes PUR-Q4, SAL-Q1, SAL-Q5 (preuve exacte mais noyee dans ~40 entrees) ; conclusion exacte mais justification contaminee SAL-Q4 ; partielles PUR-Q2, PUR-Q3, PUR-Q5, SAL-Q3, STK-Q4, STK-Q5 ; fausses PUR-Q1, SAL-Q2, STK-Q3, et STK-Q1 (2e partie) ; sans reponse STK-Q2.

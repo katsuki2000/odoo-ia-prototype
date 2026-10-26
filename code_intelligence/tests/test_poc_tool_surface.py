@@ -26,4 +26,5 @@ def test_agent_exposes_only_tools_needed_for_the_poc_scope():
 
 
 def test_package_exports_only_tools_needed_for_the_poc():
-    assert set(tools.__all__) == EXPECTED_POC_TOOL_NAMES
+    # ALL_CI_TOOLS is the registry list, not a tool.
+    assert set(tools.__all__) - {"ALL_CI_TOOLS"} == EXPECTED_POC_TOOL_NAMES
