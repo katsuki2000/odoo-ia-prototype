@@ -1,4 +1,4 @@
-"""Search only source files inventoried by the active knowledge graph."""
+"""Search source files from every loaded module, with graph-derived model context."""
 
 import hashlib
 import re
