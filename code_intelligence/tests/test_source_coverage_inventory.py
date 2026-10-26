@@ -134,3 +134,31 @@ def test_coverage_report_marks_unavailable_inventory_and_missing_sources(tmp_pat
         loaded_module_directories={"base": addons / "base"},
     )
     assert missing_source["installed_modules_without_source"] == ["custom_request"]
+
+
+def test_known_coverage_gap_prevents_complete_scan(tmp_path):
+    addons = tmp_path / "addons"
+    source = addons / "custom_request" / "models" / "request.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def action_confirm(): pass  # approval required\n", encoding="utf-8")
+
+    graph = nx.DiGraph()
+    graph.add_node(
+        "model:custom.request",
+        node_type="Model",
+        name="custom.request",
+        filepaths=[str(source.resolve())],
+    )
+    graph.graph["source_file_inventory_version"] = 1
+    graph.graph["source_file_inventory"] = [
+        {"filepath": str(source.resolve()), "module": "custom_request"},
+    ]
+    graph.graph["coverage_gaps"] = {
+        "runtime_module_inventory_unavailable": True,
+    }
+
+    result = search_source_fragments(graph, [addons], "approval required")
+
+    assert result["coverage_metadata_valid"] is True
+    assert result["complete_scan"] is False
+    assert result["coverage_gaps"]["runtime_module_inventory_unavailable"] is True
