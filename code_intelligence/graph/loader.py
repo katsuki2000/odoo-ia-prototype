@@ -526,6 +526,7 @@ def _get_code_intelligence_graph(
         CORE_ADDONS_PATH,
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
+        CUSTOM_ADDONS_PATHS,
         GRAPH_TRANSLATION_LANGUAGES,
         ODOO_CONF_PATH,
     )
@@ -535,6 +536,11 @@ def _get_code_intelligence_graph(
     )
     core_addons_root = Path(CORE_ADDONS_PATH)
     custom_addons_root = Path(CUSTOM_ADDONS_PATH)
+    custom_addons_roots = list(dict.fromkeys(
+        Path(root) for root in (CUSTOM_ADDONS_PATHS or (CUSTOM_ADDONS_PATH,)) if root
+    ))
+    if not custom_addons_roots:
+        custom_addons_roots = [custom_addons_root]
     config_file_available = bool(
         ODOO_CONF_PATH and Path(ODOO_CONF_PATH).expanduser().is_file()
     )
@@ -544,8 +550,8 @@ def _get_code_intelligence_graph(
         runtime_inventory_checked = True
     addon_roots = _resolve_addon_roots_for_inventory(
         ODOO_CONF_PATH,
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, *CUSTOM_ADDONS_PATHS],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, *CUSTOM_ADDONS_PATHS],
         installed_modules,
     )
     expected_addon_roots = [str(root) for root in addon_roots]
@@ -652,10 +658,11 @@ def _get_code_intelligence_graph(
             "CORE_ADDONS_PATH '%s' does not exist -- skipping core Odoo module preload.",
             core_addons_root,
         )
-    if not custom_addons_root.exists():
+    missing_custom_roots = [root for root in custom_addons_roots if not root.is_dir()]
+    if missing_custom_roots:
         logger.warning(
-            "CUSTOM_ADDONS_PATH '%s' does not exist -- skipping custom module discovery.",
-            custom_addons_root,
+            "Some configured custom addon roots are unavailable and will be excluded: %s",
+            [str(root) for root in missing_custom_roots],
         )
 
     # 2. Load installed modules whose source is accessible. A runtime inventory
@@ -705,26 +712,29 @@ def _get_code_intelligence_graph(
                     module_load_failures.append(core_name)
                     logger.error("Failed to load fallback core module '%s': %s", core_name, error)
 
-        if custom_addons_root.exists():
-            for mod_name in discover_odoo_modules(custom_addons_root):
-                module_dir = custom_addons_root / mod_name
+        fallback_custom_modules = []
+        for custom_root in custom_addons_roots:
+            if not custom_root.is_dir():
+                continue
+            for mod_name in discover_odoo_modules(custom_root):
+                module_dir = custom_root / mod_name
                 try:
                     name, mod = _load_module(module_dir, requested_languages)
                     modules_dict[name] = mod
                     loaded_module_directories[name] = module_dir
+                    fallback_custom_modules.append(name)
                 except Exception as error:
                     module_load_failures.append(mod_name)
-                    logger.error("Failed to load fallback custom module '%s': %s", mod_name, error)
-
-    custom_modules = (
-        [
+                    logger.error("Failed to load fallback custom module '%s' from '%s': %s", mod_name, custom_root, error)
+    if installed_modules is not None:
+        custom_root_paths = {root.resolve() for root in custom_addons_roots}
+        custom_modules = [
             name
             for name, module_dir in installed_source_modules.items()
-            if module_dir.parent.resolve() == custom_addons_root.resolve()
+            if module_dir.parent.resolve() in custom_root_paths
         ]
-        if installed_modules is not None
-        else discover_odoo_modules(custom_addons_root)
-    )
+    else:
+        custom_modules = fallback_custom_modules
 
     # 3. Load Direct Dependencies
     direct_deps = set()
