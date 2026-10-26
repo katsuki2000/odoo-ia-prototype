@@ -832,7 +832,7 @@ def _get_code_intelligence_graph(
         ),
         "modules_loaded": len(loaded_module_directories),
         "source_files_indexed": len(source_file_inventory),
-        "coverage_complete": not any(coverage_gaps.values()),
+        "source_coverage_complete": not any(coverage_gaps.values()),
     }
 
     try:
