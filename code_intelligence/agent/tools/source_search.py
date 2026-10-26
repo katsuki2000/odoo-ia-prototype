@@ -163,7 +163,8 @@ def search_source_fragments(
                 moduleName = successor.removeprefix('module:')
                 modelsByModule.setdefault(moduleName, set()).add(modelName)
 
-    for sourceEntry in sourceFileInventory if isinstance(sourceFileInventory, list) else []:
+    sourceEntries = sourceFileInventory if isinstance(sourceFileInventory, list) else []
+    for sourceEntry in sourceEntries:
         if not isinstance(sourceEntry, dict):
             continue
         filepath = sourceEntry.get('filepath')
