@@ -251,8 +251,15 @@ def _build_coverage_gaps(
         if not_loaded:
             gaps["installed_modules_not_loaded"] = not_loaded
 
-    if not addon_roots or not any(Path(root).is_dir() for root in addon_roots):
+    missing_roots = sorted(
+        str(Path(root))
+        for root in (addon_roots or ())
+        if not Path(root).is_dir()
+    )
+    if not addon_roots:
         gaps["addon_roots_unavailable"] = True
+    elif missing_roots:
+        gaps["addon_roots_missing"] = missing_roots
     if module_load_failures:
         gaps["module_load_failures"] = sorted(set(module_load_failures))
     if dependency_sources_missing:
