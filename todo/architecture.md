@@ -50,11 +50,11 @@ Les lectures s'effectuent sous l'identité authentifiée du demandeur et dans so
 
 ### 2.3 Couverture du code source
 
-L'indexation et l'exploration de Code Intelligence ne sont **pas limitées à quelques modèles Odoo**. Le système doit couvrir le code source disponible dans les répertoires configurés : modules standards, modules personnalisés et modules tiers présents dans ces emplacements.
+L'indexation et l'exploration de Code Intelligence ne sont **pas limitées à quelques modèles Odoo**. Le graphe actif doit couvrir les modules déclarés installés par l'instance Odoo et dont le code source est accessible dans les répertoires d'addons configurés : modules standards, personnalisés et tiers. Les modules présents sur disque mais non installés doivent être distingués et ne doivent pas être présentés comme faisant partie de l'instance active.
 
 Les outils doivent pouvoir naviguer entre les modèles, champs, méthodes, héritages, vues, boutons, groupes, droits d'accès, règles d'enregistrement et actions automatisées, dans la mesure où ces éléments sont présents et pris en charge par l'indexeur et les outils d'analyse.
 
-La couverture fonctionnelle du PoC est limitée aux quatre familles ci-dessus ; la couverture de l'indexation, elle, n'est pas artificiellement limitée à une liste de 3 à 5 modules. Les tests peuvent se concentrer sur un ensemble représentatif de modules et de scénarios, sans que cet ensemble devienne une restriction de l'architecture.
+La couverture fonctionnelle du PoC est limitée aux quatre familles ci-dessus ; la couverture de l'indexation, elle, n'est pas artificiellement limitée à une liste de 3 à 5 modules parmi les modules installés et accessibles. Les tests peuvent se concentrer sur un ensemble représentatif de modules et de scénarios, sans que cet ensemble devienne une restriction de l'architecture.
 
 La couverture n'est toutefois pas supposée exhaustive : un module qui n'est pas présent dans les répertoires indexés, un fichier non analysé ou un comportement dynamique que les outils ne savent pas inspecter ne constitue pas une preuve disponible. MIRO doit signaler cette limite.
 
