@@ -3968,3 +3968,11 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 **Fait** : le test historique vérifie maintenant l'ensemble exact des neuf outils CI spécialisés du PoC, au lieu d'exiger l'ancienne liste de fonctions. Aucun outil n'a été réajouté. Fichiers : `code_intelligence/tests/test_c_complete.py`, `todo/contexte.txt`.
 
 **Vérification** : pas d'exécution locale disponible. Le CI sur `d975f9a034bca4a85fab1fef3f824b15d22fec97` a échoué avec 46 tests en échec au total ; l'échec de liaison d'outils est celui introduit par le nouveau périmètre et corrigé ici. Les autres échecs de configuration RAG, résolution/recherche, inventaire et règles de l'addon restent distincts. Le nouveau CI doit confirmer le résultat après ce correctif.
+
+## Section 1584 : suppression du sous-système rapports et modèles d'e-mails hors périmètre (26/10/2026)
+
+**Audit** : `code_intelligence/rules/model_outputs.py` expose `describe_model_outputs`, qui rassemble les rapports et modèles d'e-mails associés à un modèle Odoo. Ce sous-système n'est pas importé par `code_intelligence/rules/__init__.py`, n'est pas enregistré parmi les outils CI de `code_intelligence/agent/tools/__init__.py` et ne figure dans aucune des quatre familles cibles de `todo/architecture.md`. Son seul test dédié est `code_intelligence/tests/test_model_outputs.py`.
+
+**Fait** : suppression de `model_outputs.py` et de son test dédié. Aucun appelant runtime n'a été repéré dans les points d'entrée ou l'enregistrement des outils examinés. Les tests de ces rapports/e-mails ne font plus partie du PoC.
+
+**Vérification** : non exécutée localement ; la suite CI était déjà rouge avant cette suppression. La suppression ne touche ni le graphe de base, ni la recherche de source, ni les règles ACL/record rules, ni les workflows, ni les outils ORM, ni le RAG. Si un besoin de rapports/e-mails est ajouté au périmètre plus tard, il devra être réintroduit avec une interface explicite.
