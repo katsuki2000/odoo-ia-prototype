@@ -144,7 +144,7 @@ def test_ci_agent_tool_wrapper_flags_ambiguity_with_roles():
     """ci_agent_tools @tool wrapper: must present all candidates with
     role and an explicit ambiguity note, never silently pick one."""
     from code_intelligence.agent.tools.helpers import set_graph_ref
-    from code_intelligence.agent.tools import list_involved_modules
+    from code_intelligence.agent.tools.introspection import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:custom.foo", node_type="Model", name="custom.foo")
@@ -163,7 +163,7 @@ def test_ci_agent_tool_wrapper_no_ambiguity_note_for_single_candidate():
     """A model with exactly one candidate module must NOT carry the
     ambiguity note -- it would be noise for the common, unambiguous case."""
     from code_intelligence.agent.tools.helpers import set_graph_ref
-    from code_intelligence.agent.tools import list_involved_modules
+    from code_intelligence.agent.tools.introspection import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:solo.model", node_type="Model", name="solo.model")

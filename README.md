@@ -1,8 +1,13 @@
-# MIRO AI - Odoo AI Assistant
+# MIRO AI - Odoo 17 Assistant PoC
 
-MIRO AI is an intelligent AI assistant connected in real time to an Odoo 17 ERP database via XML-RPC. It features a hybrid multi-agent routing system (LangGraph) capable of handling documentary knowledge questions (RAG vector search), real-time live ERP database queries, and deep Code Intelligence analysis (governance, security, workflow inspection).
+MIRO AI is a proof of concept for a private assistant connected to an Odoo 17 instance. It has two response modes:
 
-The system is designed for private inference on a locally controlled Ollama or vLLM server. The LLM host is selected by `LLM_TARGET` in `.env`: `aws` (default, production) or `kaggle` (temporary development host, removable by deleting its entry in `config/settings.py`).
+- **Documentation**: retrieve internal procedures and documents with the existing RAG pipeline (ChromaDB).
+- **Odoo system**: use one system agent to investigate the installed Odoo source and, when current business data is needed, query Odoo through typed, read-only ORM tools.
+
+The agent uses a bounded set of Code Intelligence tools for access and visibility, approvals and workflows, and form validations. The LLM helps select tools and explain the observations; it is not treated as proof of instance-specific behavior. The objective is to reduce unsupported answers, make the basis of responses inspectable, and state uncertainty when the available evidence is insufficient. This PoC does not claim to eliminate hallucinations.
+
+Inference uses a privately controlled Ollama- or vLLM-compatible endpoint. The endpoint is configured in `.env`; there is no implicit cloud-provider fallback.
 
 ---
 
@@ -60,7 +65,7 @@ Copy the example configuration or create your `.env`:
 cp .env.example .env
 ```
 
-The `.env` holds only **secrets and server addresses** (`JWT_SECRET`, `ODOO_ADMIN_PASSWORD`, the LLM server address). Every other setting (models, thresholds, limits, internal paths) is a constant in `config/settings.py`: edit it there.
+The `.env` holds **secrets, service addresses, and paths that vary by machine or deployment** (for example, the Odoo installation and addon locations). Application behavior, model choices, thresholds, and limits remain constants in `config/settings.py`.
 
 **Inference server (Ollama / vLLM)**: there is no implicit server; set the address of the target in `.env` (an unset address makes the application refuse to start the LLM client):
 ```dotenv
@@ -220,58 +225,33 @@ pytest tests/ -m "not integration"
 
 ```text
 odoo-ia-prototype/
-├── api/                        # FastAPI REST exposition (main.py, auth.py, routes_*.py)
-├── captures/                   # Test captures, verbatim responses, evaluation reports
-├── code_intelligence/          # Code Intelligence bounded context
-│   ├── active_graph.json       # Serialized Knowledge Graph (NetworkX)
-│   ├── business_resolver/      # Business terms to technical models resolution
-│   ├── ci_agent_node/          # LangGraph Code Intelligence agent & @tool wrappers
-│   ├── deterministic/          # Deterministic evaluators (ACL, record rules, buttons)
-│   ├── extractor/              # AST extractors (Python, XML views, actions, CSV)
-│   ├── graph/                  # Knowledge graph loader, staleness, atomic swap
-│   ├── investigation/          # Intent classifier and investigation planner
-│   ├── overrides/              # Method override inheritance chains (_inherit)
-│   ├── security/               # Security locks and Semgrep static analysis
-│   └── server_actions/         # Server action static and LLM analysis
-├── config/                     # Application configuration
-│   └── settings.py             # Settings loader, defaults, latency budgets
-├── core/                       # Shared system kernel
-│   ├── llm_client.py           # Local OpenAI-compatible LLM client factory
-│   ├── reasoning_trace_logger.py # Cross-branch reasoning trace logger (JSONL)
-│   ├── graph.py                # LangGraph StateGraph pipeline orchestrator
-│   ├── routing.py              # Query router (documentary, ERP, CI, hybrid)
-│   └── schemas.py              # Canonical Pydantic schemas (AssistantResponse, etc.)
-├── document_rag/               # Documentary RAG bounded context
-│   ├── documents/              # Source business documents and procedures (PDF, text, markdown, Word)
-│   ├── ingestion/              # Ingestion pipeline, PDF OCR, filesystem watcher
-│   ├── prompts.py              # Documentary RAG system prompts and message builders
-│   └── vectorstore/            # ChromaDB manager, BM25 hybrid search, embeddings
-├── erp_data/                   # Runtime Odoo data bounded context
-│   ├── date_utils.py           # French date expressions parser for domain filters
-│   ├── odoo_connector.py       # XML-RPC client with user contextVar authentication
-│   ├── odoo_tools.py           # Backward-compatible facade for ORM query tools
-│   ├── orm_agent_node.py       # LangGraph ReAct agent loop for ERP queries
-│   └── tools/                  # Domain query tools (sales, inventory, accounting, crm)
-├── odoo_addons/                # Custom Odoo 17 modules (miro_ai + 14 business modules)
-├── scripts/                    # Maintenance, seeding, and diagnostic CLI scripts
-│   ├── full_setup.py           # Database initialization and demo seeding
-│   ├── clean_demo_data.py      # Database cleanup script
-│   ├── rebuild_graph.py        # Rebuild active_graph.json from source addons
-│   └── run_scalability_test.py # Ingestion scalability benchmark runner
-├── tests/                      # Automated test suite
-│   ├── evaluation/             # Benchmark harnesses, datasets, and replay suites
-│   ├── test_local_llm_provider.py # Provider switching and local mode unit tests
-│   └── ...                     # Targeted unit and regression tests
-├── todo/                       # Specifications, roadmap, rules, and change logs
-│   ├── architecture.md         # Target system architecture
-│   ├── contexte.txt            # Chronological change log
-│   ├── plan.md                 # Project roadmap
-│   └── rules.md                # Development rules and guidelines
-├── .env                        # Secrets and server addresses only (gitignored)
-├── .env.example                # Template of the .env
-├── pytest.ini                  # Pytest runner configuration
-└── requirements.txt            # Pinned Python package dependencies
+├── api/                        # FastAPI endpoints, authentication and long-running ask jobs
+├── config/                     # Deployment settings and constants
+├── core/
+│   ├── graph/                  # Main LangGraph pipeline, routing and final verification
+│   └── evidence/                # Observations collected from tools
+├── document_rag/               # Internal-document ingestion, retrieval and generation
+├── code_intelligence/
+│   ├── agent/                  # Single Odoo system agent, prompts and investigation loop
+│   │   └── tools/              # Bounded tool interface exposed to the agent
+│   ├── extractor/              # Python/XML/CSV source extraction
+│   ├── graph/                  # Odoo knowledge-graph construction and loading
+│   ├── rules/                  # Deterministic access, workflow and validation analysis
+│   └── semgrep_rules/          # Static patterns used by data-constraint analysis
+├── erp_data/runtime/           # Typed, read-only Odoo ORM tools
+├── odoo_addons/miro_ai/        # Odoo 17 chat interface and authenticated backend client
+├── scripts/                    # Graph rebuilding, setup and evaluation utilities
+├── tests/                      # Unit, integration and PoC evaluation tests
+├── captures/                   # Evaluation traces and replay results
+├── todo/
+│   ├── architecture.md         # Agreed PoC scope and target architecture
+│   ├── rules.md                # Development rules
+│   └── contexte.txt            # Work log
+├── .env.example                # Template for deployment-specific values
+└── requirements.txt            # Python dependencies
 ```
+
+The system agent receives the following tool groups: source discovery and reading; access and record visibility; navigation and buttons; workflow and approval analysis; server actions and method overrides; form/data constraints; and read-only ORM queries. The documentary path remains a separate RAG route. There is no second ERP agent in the PoC.
 
 ---
 
@@ -279,7 +259,7 @@ odoo-ia-prototype/
 
 ### Settings (`config/settings.py`)
 
-`config/` reads from the environment (`.env` or the shell) only what varies per machine or deployment: secrets, addresses of the LLM server, the Odoo instance and the API, and locations of the Odoo installation (each with a portable default), listed below. Everything else (models, thresholds, limits, Google Drive limits, internal paths) is a constant of `config/settings.py` or `config/google_drive.py`.
+`config/` reads from the environment (`.env` or the shell) only what varies per machine or deployment: secrets, addresses of the LLM server, the Odoo instance and the API, and locations of the Odoo installation (each with a portable default), listed below. Application behavior, model choices, thresholds, limits, and other stable settings are constants in `config/settings.py` or `config/google_drive.py`; paths to external installations may be configured per machine.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|

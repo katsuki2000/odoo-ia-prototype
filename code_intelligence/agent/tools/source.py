@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 
 from code_intelligence.agent.tools.helpers import _require_graph
 from code_intelligence.agent.tools.instance_search import find_instance_candidates
-from code_intelligence.agent.tools.introspection import _allowed_source_roots, read_precise_source_code
+from code_intelligence.agent.tools.source_reader import _allowed_source_roots, read_precise_source_code
 from code_intelligence.agent.tools.source_boundary import validate_source_range
 from code_intelligence.agent.tools.source_search import (
     SearchLimits,

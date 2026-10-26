@@ -3976,3 +3976,21 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 **Fait** : suppression de `model_outputs.py` et de son test dédié. Aucun appelant runtime n'a été repéré dans les points d'entrée ou l'enregistrement des outils examinés. Les tests de ces rapports/e-mails ne font plus partie du PoC.
 
 **Vérification** : non exécutée localement ; la suite CI était déjà rouge avant cette suppression. La suppression ne touche ni le graphe de base, ni la recherche de source, ni les règles ACL/record rules, ni les workflows, ni les outils ORM, ni le RAG. Si un besoin de rapports/e-mails est ajouté au périmètre plus tard, il devra être réintroduit avec une interface explicite.
+
+
+## Section 1585 : séparation du lecteur de sources et réduction de l'interface publique (26/10/2026)
+
+**Mandat** : poursuivre la simplification du PoC pour faciliter la compréhension et la rédaction du mémoire, sans modifier le RAG ni les lectures ORM qui fonctionnent déjà.
+
+**Audit avant modification** : après les sections 1582–1584, neuf outils spécialisés sont exposés à l'agent, mais `tools/__init__.py` importe et réexporte encore les anciens wrappers. Le chemin de recherche active dépend de `introspection.py` à la fois pour `read_precise_source_code` et pour les racines d'addons autorisées ; il ne faut donc pas supprimer ce module sans séparer le lecteur de sources. Le README décrivait encore une ancienne architecture multi-agent et des dossiers qui ne correspondent plus à la branche.
+
+**Fait** :
+- Le lecteur borné et sécurisé (`_allowed_source_roots` et `read_precise_source_code`) est déplacé dans `source_reader.py`. `introspection.py` le réexporte pour préserver les tests et usages historiques qui l'importent directement.
+- `source.py` utilise désormais le module spécialisé `source_reader.py`, ce qui retire le chargement indirect des wrappers d'introspection hors PoC.
+- `tools/__init__.py` n'importe et ne réexporte plus que les neuf outils spécialisés du PoC, ainsi que `search_system` et `read_source_fragment`.
+- Le test historique du wrapper non exposé importe explicitement celui-ci depuis `introspection.py`. Le test de surface vérifie aussi que les exports publics sont limités au PoC.
+- Le README décrit les deux modes, l'agent système unique, la lecture ORM en lecture seule, le RAG et les répertoires réellement présents. Il précise que l'objectif est de réduire les réponses non étayées, pas de promettre zéro hallucination.
+
+**Non modifié** : implémentation RAG, outils ORM et leurs droits, extraction et construction du graphe, règles déterministes et comportement des neuf outils exposés.
+
+**Vérification** : à confirmer par le CI après ce commit. Le dernier CI disponible avant ces changements était rouge ; aucun résultat vert n'est revendiqué.

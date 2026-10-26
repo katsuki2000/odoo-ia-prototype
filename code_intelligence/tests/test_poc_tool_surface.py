@@ -1,3 +1,4 @@
+from code_intelligence.agent import tools
 from code_intelligence.agent.tools import ALL_CI_TOOLS, read_source_fragment, search_system
 
 
@@ -22,3 +23,7 @@ def test_agent_exposes_only_tools_needed_for_the_poc_scope():
 
     assert len(names) == len(set(names))
     assert set(names) == EXPECTED_POC_TOOL_NAMES
+
+
+def test_package_exports_only_tools_needed_for_the_poc():
+    assert set(tools.__all__) == EXPECTED_POC_TOOL_NAMES
