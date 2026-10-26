@@ -180,6 +180,87 @@ _GRAPH_BUILD_LOCK = threading.Lock()
 # the target instance's real installed state by _discover_installed_core_modules().
 CORE_MODULE_CANDIDATES = ["account", "sale", "stock", "purchase", "maintenance"]
 
+_SOURCE_INVENTORY_SUFFIXES = frozenset({
+    ".py", ".xml", ".js", ".csv", ".sql", ".po", ".html", ".scss", ".css",
+})
+_SOURCE_INVENTORY_EXCLUDED_DIRS = frozenset({
+    ".git", ".venv", "__pycache__", "test", "tests", "demo",
+})
+_SOURCE_FILE_INVENTORY_VERSION = 1
+
+
+def _build_source_file_inventory(module_directories):
+    """Index searchable source files for every module actually loaded into the graph.
+
+    The graph nodes do not reference every helper, XML, or client-side source file.
+    Keeping a compact path inventory lets search_system find those files too.
+    """
+    entries = []
+    failed_modules = []
+    for module_name, module_dir in sorted((module_directories or {}).items()):
+        root = Path(module_dir)
+        if not root.is_dir():
+            failed_modules.append(module_name)
+            continue
+        try:
+            resolved_root = root.resolve()
+            for path in sorted(root.rglob("*")):
+                if not path.is_file() or path.suffix.lower() not in _SOURCE_INVENTORY_SUFFIXES:
+                    continue
+                relative = path.relative_to(root)
+                if any(part.casefold() in _SOURCE_INVENTORY_EXCLUDED_DIRS for part in relative.parts[:-1]):
+                    continue
+                try:
+                    resolved_path = path.resolve(strict=True)
+                    resolved_path.relative_to(resolved_root)
+                except (OSError, ValueError):
+                    # Do not index broken symlinks or files that escape the module root.
+                    continue
+                entries.append({
+                    "filepath": str(resolved_path),
+                    "module": module_name,
+                })
+        except OSError as error:
+            logger.warning("Could not inventory source files for module '%s': %s", module_name, error)
+            failed_modules.append(module_name)
+    return entries, sorted(set(failed_modules))
+
+
+def _build_coverage_gaps(
+    *,
+    installed_modules,
+    addon_roots,
+    installed_source_modules,
+    loaded_module_directories,
+    module_load_failures=(),
+    dependency_sources_missing=(),
+    source_inventory_failures=(),
+):
+    """Describe known blind spots; an incomplete graph must never claim a complete source scan."""
+    gaps = {}
+    if installed_modules is None:
+        gaps["runtime_module_inventory_unavailable"] = True
+    else:
+        installed_names = _installed_module_names(installed_modules)
+        if not installed_names:
+            gaps["installed_module_inventory_empty"] = True
+        missing_source = sorted(installed_names - set(installed_source_modules))
+        if missing_source:
+            gaps["installed_modules_without_source"] = missing_source
+        not_loaded = sorted(set(installed_source_modules) - set(loaded_module_directories))
+        if not_loaded:
+            gaps["installed_modules_not_loaded"] = not_loaded
+
+    if not addon_roots or not any(Path(root).is_dir() for root in addon_roots):
+        gaps["addon_roots_unavailable"] = True
+    if module_load_failures:
+        gaps["module_load_failures"] = sorted(set(module_load_failures))
+    if dependency_sources_missing:
+        gaps["dependency_sources_missing"] = sorted(set(dependency_sources_missing))
+    if source_inventory_failures:
+        gaps["source_inventory_failures"] = sorted(set(source_inventory_failures))
+    return gaps
+
 
 def _open_technical_session():
     """Open a technical connector and return it with its authenticated uid."""
@@ -537,9 +618,15 @@ def _get_code_intelligence_graph(
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         cached_languages = _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
         cached_roots = _CACHED_CODE_INTEL_GRAPH.graph.get("addon_roots_ordered")
+        cache_has_source_inventory = (
+            _CACHED_CODE_INTEL_GRAPH.graph.get("source_file_inventory_version")
+            == _SOURCE_FILE_INVENTORY_VERSION
+            and isinstance(_CACHED_CODE_INTEL_GRAPH.graph.get("coverage_gaps"), dict)
+        )
         if (
             cached_roots == expected_addon_roots
             and _translation_cache_matches(requested_languages, cached_languages)
+            and cache_has_source_inventory
         ):
             return _CACHED_CODE_INTEL_GRAPH
         _CACHED_CODE_INTEL_GRAPH = None
@@ -549,6 +636,9 @@ def _get_code_intelligence_graph(
 
     modules_dict = {}
     installed_source_modules = {}
+    loaded_module_directories = {}
+    module_load_failures = []
+    dependency_sources_missing = []
 
     if not core_addons_root.exists():
         logger.warning(
@@ -580,7 +670,9 @@ def _get_code_intelligence_graph(
             try:
                 name, mod = _load_module(module_dir, requested_languages)
                 modules_dict[name] = mod
+                loaded_module_directories[name] = module_dir
             except Exception as error:
+                module_load_failures.append(module_name)
                 logger.error("Failed to load installed module '%s': %s", module_name, error)
         logger.info(
             "Loaded %d/%d installed modules from configured addon paths.",
@@ -598,13 +690,24 @@ def _get_code_intelligence_graph(
                 None,
             )
             if core_dir is not None:
-                name, mod = _load_module(core_dir, requested_languages)
-                modules_dict[name] = mod
+                try:
+                    name, mod = _load_module(core_dir, requested_languages)
+                    modules_dict[name] = mod
+                    loaded_module_directories[name] = core_dir
+                except Exception as error:
+                    module_load_failures.append(core_name)
+                    logger.error("Failed to load fallback core module '%s': %s", core_name, error)
 
         if custom_addons_root.exists():
             for mod_name in discover_odoo_modules(custom_addons_root):
-                name, mod = _load_module(custom_addons_root / mod_name, requested_languages)
-                modules_dict[name] = mod
+                module_dir = custom_addons_root / mod_name
+                try:
+                    name, mod = _load_module(module_dir, requested_languages)
+                    modules_dict[name] = mod
+                    loaded_module_directories[name] = module_dir
+                except Exception as error:
+                    module_load_failures.append(mod_name)
+                    logger.error("Failed to load fallback custom module '%s': %s", mod_name, error)
 
     custom_modules = (
         [
@@ -631,6 +734,7 @@ def _get_code_intelligence_graph(
         if dep_name in modules_dict:
             continue
         if installed_module_names is not None and dep_name not in installed_module_names:
+            dependency_sources_missing.append(dep_name)
             logger.warning(
                 "Skipping dependency '%s' absent from the runtime installed-module inventory.",
                 dep_name,
@@ -645,6 +749,7 @@ def _get_code_intelligence_graph(
             None,
         )
         if dep_dir is None:
+            dependency_sources_missing.append(dep_name)
             logger.warning(
                 "Skipping dependency '%s': no manifest found in configured addon roots.",
                 dep_name,
@@ -653,8 +758,10 @@ def _get_code_intelligence_graph(
         try:
             name, mod = _load_module(dep_dir, requested_languages)
             modules_dict[name] = mod
+            loaded_module_directories[name] = dep_dir
             logger.info("Loaded '%s' as a direct dependency.", name)
         except Exception as e:
+            module_load_failures.append(dep_name)
             logger.error("Failed to load direct dependency '%s': %s", dep_name, e)
 
     # 4. Build and Cache Graph
@@ -688,10 +795,36 @@ def _get_code_intelligence_graph(
         request_language=request_language or (requested_languages[0] if len(requested_languages) == 1 else None),
         source_modules=source_modules,
     )
+    source_file_inventory, source_inventory_failures = _build_source_file_inventory(
+        loaded_module_directories,
+    )
+    coverage_gaps = _build_coverage_gaps(
+        installed_modules=installed_modules,
+        addon_roots=addon_roots,
+        installed_source_modules=installed_source_modules,
+        loaded_module_directories=loaded_module_directories,
+        module_load_failures=module_load_failures,
+        dependency_sources_missing=dependency_sources_missing,
+        source_inventory_failures=source_inventory_failures,
+    )
     _CACHED_CODE_INTEL_GRAPH.graph["addon_roots_ordered"] = expected_addon_roots
     _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint"] = fingerprint.digest
     _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint_data"] = fingerprint.to_dict()
     _CACHED_CODE_INTEL_GRAPH.graph["translation_languages"] = list(requested_languages)
+    _CACHED_CODE_INTEL_GRAPH.graph["source_file_inventory"] = source_file_inventory
+    _CACHED_CODE_INTEL_GRAPH.graph["source_file_inventory_version"] = _SOURCE_FILE_INVENTORY_VERSION
+    _CACHED_CODE_INTEL_GRAPH.graph["coverage_gaps"] = coverage_gaps
+    _CACHED_CODE_INTEL_GRAPH.graph["coverage_summary"] = {
+        "installed_module_inventory_available": installed_modules is not None,
+        "installed_modules_reported": (
+            len(_installed_module_names(installed_modules))
+            if installed_modules is not None else None
+        ),
+        "installed_modules_with_source": len(installed_source_modules),
+        "modules_loaded": len(loaded_module_directories),
+        "source_files_indexed": len(source_file_inventory),
+        "coverage_complete": not any(coverage_gaps.values()),
+    }
 
     try:
         from .atomic_swap import atomic_write_json
