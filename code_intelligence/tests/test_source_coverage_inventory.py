@@ -162,3 +162,37 @@ def test_known_coverage_gap_prevents_complete_scan(tmp_path):
     assert result["coverage_metadata_valid"] is True
     assert result["complete_scan"] is False
     assert result["coverage_gaps"]["runtime_module_inventory_unavailable"] is True
+
+
+def test_search_system_surfaces_coverage_gaps_to_agent(monkeypatch, tmp_path):
+    import json
+
+    from code_intelligence.agent.tools import source as source_tools
+
+    graph = nx.DiGraph()
+    monkeypatch.setattr(source_tools, "_require_graph", lambda: graph)
+    monkeypatch.setattr(source_tools, "_allowed_source_roots", lambda: [tmp_path])
+    monkeypatch.setattr(
+        source_tools,
+        "find_instance_candidates",
+        lambda *args, **kwargs: {"candidates": [], "semantic_status": "not_run"},
+    )
+    monkeypatch.setattr(
+        source_tools,
+        "search_source_fragments",
+        lambda *args, **kwargs: {
+            "candidates": [],
+            "coverage": {"files_indexed": 0},
+            "coverage_metadata_valid": False,
+            "coverage_gaps": {"coverage_metadata_missing_or_stale": True},
+            "complete_scan": False,
+            "discovery_only": True,
+        },
+    )
+
+    output = source_tools.search_system.invoke({"query": "approval"})
+    result = json.loads(output)
+
+    assert result["source_scan_complete"] is False
+    assert result["source_coverage_metadata_valid"] is False
+    assert result["source_coverage_gaps"]["coverage_metadata_missing_or_stale"] is True
