@@ -110,11 +110,27 @@ def search_source_fragments(
         'blocked_paths': 0,
         'budget_exhausted': False,
     }
-    coverageGaps = getattr(graph, 'graph', {}).get('coverage_gaps', {})
+    graphMetadata = getattr(graph, 'graph', {})
+    coverageGaps = graphMetadata.get('coverage_gaps')
+    inventoryVersion = graphMetadata.get('source_file_inventory_version')
+    sourceFileInventory = graphMetadata.get('source_file_inventory')
+    coverageMetadataValid = (
+        inventoryVersion == 1
+        and isinstance(sourceFileInventory, list)
+        and isinstance(coverageGaps, dict)
+    )
     result = {
         'candidates': [],
         'coverage': coverage,
-        'complete_scan': bool(roots) and not any(coverageGaps.values()),
+        'coverage_metadata_valid': coverageMetadataValid,
+        'coverage_gaps': coverageGaps if isinstance(coverageGaps, dict) else {
+            'coverage_metadata_missing_or_stale': True,
+        },
+        'complete_scan': (
+            bool(roots)
+            and coverageMetadataValid
+            and not any(coverageGaps.values())
+        ),
         'discovery_only': True,
     }
     if not queryTerms or not roots:
@@ -128,6 +144,39 @@ def search_source_fragments(
 
     resolvedRoots = [Path(root).resolve() for root in roots if root]
     inventory = _source_inventory(graph)
+
+    # Graph nodes provide precise model/file relations, but not every helper,
+    # controller, JS asset or XML file has its own node. Merge the loader's
+    # complete per-module source inventory so discovery can search those too.
+    modelsByModule = {}
+    for nodeId, attributes in graph.nodes(data=True):
+        if attributes.get('node_type') != 'Model':
+            continue
+        modelName = attributes.get('name') or (
+            nodeId.removeprefix('model:') if nodeId.startswith('model:') else ''
+        )
+        if not modelName:
+            continue
+        for successor in graph.successors(nodeId):
+            edge = graph.get_edge_data(nodeId, successor) or {}
+            if successor.startswith('module:') and edge.get('edge_type') == 'DEFINED_IN':
+                moduleName = successor.removeprefix('module:')
+                modelsByModule.setdefault(moduleName, set()).add(modelName)
+
+    for sourceEntry in sourceFileInventory if isinstance(sourceFileInventory, list) else []:
+        if not isinstance(sourceEntry, dict):
+            continue
+        filepath = sourceEntry.get('filepath')
+        moduleName = sourceEntry.get('module')
+        if not isinstance(filepath, str) or not filepath:
+            continue
+        entry = inventory.setdefault(
+            filepath, {'models': set(), 'context_models': set(), 'modules': set()},
+        )
+        if isinstance(moduleName, str) and moduleName:
+            entry['modules'].add(moduleName)
+            entry['context_models'].update(modelsByModule.get(moduleName, set()))
+
     totalBytes = 0
     candidateSet = set(candidate_models or ())
 
