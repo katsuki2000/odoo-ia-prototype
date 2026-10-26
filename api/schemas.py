@@ -47,6 +47,25 @@ class AskResponseV1(BaseModel):
     )
 
 
+class AskJobRequestV1(AskRequestV1):
+    """Request body for POST /api/v1/ask/jobs; the caller chooses the job id."""
+    job_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+
+
+class AskJobAcceptedV1(BaseModel):
+    job_id: str
+
+
+class AskJobStatusV1(BaseModel):
+    """State of an asynchronous ask job; result or error is set once it is no longer pending."""
+    status: Literal["pending", "done", "error"]
+    question: str
+    elapsed_ms: int
+    result: Optional[AskResponseV1] = None
+    error_status: Optional[int] = None
+    error_detail: Optional[str] = None
+
+
 class StatsResponse(BaseModel):
     """Response body for the /stats endpoint."""
     collection_name: str

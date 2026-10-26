@@ -43,11 +43,6 @@ msgid "Access management for the MIRO AI assistant"
 msgstr ""
 
 #. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__active
-msgid "Active"
-msgstr ""
-
-#. module: miro_ai
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
@@ -123,7 +118,6 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__company_id
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__company_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Company"
 msgstr ""
@@ -412,8 +406,8 @@ msgstr ""
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__request_timeout
 msgid ""
-"Maximum time to wait for the backend response. In multi-worker mode, it must"
-" stay below Odoo's limit_time_real (120 s by default)."
+"Maximum time to wait for the answer to a question. Beyond it, the question "
+"is reported as too slow."
 msgstr ""
 
 #. module: miro_ai
@@ -619,6 +613,15 @@ msgstr ""
 #. odoo-python
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
+msgid ""
+"The assistant is busy answering other questions. Please try again in a "
+"moment."
+msgstr ""
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
 msgid "The backend returned no answer."
 msgstr ""
 
@@ -634,6 +637,13 @@ msgstr ""
 msgid ""
 "The server (%(url)s) did not answer within %(timeout)s s: the answer is too "
 "slow. Try again, or increase the timeout in the MIRO AI settings."
+msgstr ""
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "This answer is no longer available. Please ask the question again."
 msgstr ""
 
 #. module: miro_ai
@@ -666,6 +676,13 @@ msgid "Unique identifier of the RAG discussion session."
 msgstr ""
 
 #. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "Unknown question."
+msgstr ""
+
+#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__user_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "User"
@@ -676,4 +693,11 @@ msgstr ""
 #: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
 #, python-format
 msgid "You"
+msgstr ""
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/models/miro_ai_settings.py:0
+#, python-format
+msgid "MIRO AI has a single configuration: edit the existing one."
 msgstr ""

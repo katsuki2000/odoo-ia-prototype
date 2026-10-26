@@ -34,16 +34,25 @@ def candidate_urls_for(api_url):
     return [api_url, fallback] if fallback else [api_url]
 
 
-def post_with_failover(candidate_urls, path, headers, payload, timeout):
+def _send_with_failover(verb, candidate_urls, path, headers, payload, timeout):
     """Return (response, url_used) from the first candidate that accepts the request."""
+    send = getattr(requests, verb)
     last_error = None
     for url in candidate_urls:
         try:
             _logger.info("MIRO AI -> %s%s", url, path)
-            return requests.post(f"{url}{path}", headers=headers, json=payload, timeout=timeout), url
+            return send(f"{url}{path}", headers=headers, json=payload, timeout=timeout), url
         except requests.exceptions.ConnectionError as error:
             _logger.warning("MIRO AI: %s unreachable: %s", url, error)
             last_error = error
         except requests.exceptions.Timeout as error:
             raise BackendTimeout(f"{url} did not answer within {timeout} s") from error
     raise BackendUnreachable("Backend unreachable") from last_error
+
+
+def post_with_failover(candidate_urls, path, headers, payload, timeout):
+    return _send_with_failover("post", candidate_urls, path, headers, payload, timeout)
+
+
+def get_with_failover(candidate_urls, path, headers, timeout):
+    return _send_with_failover("get", candidate_urls, path, headers, None, timeout)

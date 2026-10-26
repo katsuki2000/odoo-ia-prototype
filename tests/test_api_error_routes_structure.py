@@ -39,7 +39,7 @@ class ErrorRouteStructureTests(unittest.TestCase):
         self.assertIn('not checked', ast.unparse(function))
 
     def test_unexpected_failures_use_common_error_boundary(self):
-        functions = [('api/routes_ask.py', 'ask_question_v1'), ('api/routes_system.py', 'get_modules'), ('api/routes_system.py', 'get_stats')]
+        functions = [('api/routes_ask.py', '_answer_question'), ('api/routes_system.py', 'get_modules'), ('api/routes_system.py', 'get_stats')]
         for relativePath, functionName in functions:
             with self.subTest(functionName=functionName):
                 function = find_function(load_tree(relativePath), functionName)
@@ -57,7 +57,7 @@ class ErrorRouteStructureTests(unittest.TestCase):
                 self.assertFalse(any(isinstance(node, ast.JoinedStr) for node in ast.walk(handler)))
 
     def test_question_validation_http_exceptions_are_preserved(self):
-        function = find_function(load_tree('api/routes_ask.py'), 'ask_question_v1')
+        function = find_function(load_tree('api/routes_ask.py'), '_answer_question')
         handler = next(node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler) and isinstance(node.type, ast.Name) and node.type.id == 'HTTPException')
         self.assertEqual(len(handler.body), 1)
         self.assertIsInstance(handler.body[0], ast.Raise)

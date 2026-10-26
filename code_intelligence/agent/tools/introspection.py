@@ -8,6 +8,7 @@ import logging
 import networkx as nx
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from code_intelligence.rules.model_suggestions import model_not_found_message, module_not_found_message
 
 _logger = logging.getLogger(__name__)
 
@@ -297,35 +298,36 @@ def resolve_technical_name(technical_name: str) -> str:
     return resolve_technical_name_to_role(technical_name, _require_graph())
 
 
+def _describe_module_models(G: nx.DiGraph, module_name: str) -> str:
+    module_node = f"module:{module_name}"
+    models_with_role = sorted(
+        f"{pred[len('model:'):]} ({(G.get_edge_data(pred, module_node) or {}).get('role', 'extends')})"
+        for pred in G.predecessors(module_node)
+        if pred.startswith("model:")
+    )
+    if not models_with_role:
+        return f"Module '{module_name}' defines or extends no model in the indexed knowledge graph."
+    return f"Module '{module_name}' defines or extends the following models: {', '.join(models_with_role)}."
+
+
 @tool
 def list_involved_modules(model_name: str) -> str:
     """List Odoo modules defining or extending a model, each tagged with its role."""
-    _impl = list_involved_modules_with_evidence
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    mod_node = f"module:{model_name}"
-    if not G.has_node(f"model:{model_name}") and G.has_node(mod_node):
-        models_with_role = []
-        for pred in G.predecessors(mod_node):
-            if pred.startswith("model:"):
-                m = pred.replace("model:", "")
-                edge = G.get_edge_data(pred, mod_node) or {}
-                role = edge.get("role", "extends")
-                models_with_role.append(f"{m} ({role})")
-        if models_with_role:
-            return f"Module '{model_name}' defines or extends the following models: {', '.join(sorted(models_with_role))}."
-    result = _impl(G, model_name)
+    if not G.has_node(f"model:{model_name}"):
+        if G.has_node(f"module:{model_name}"):
+            return _describe_module_models(G, model_name)
+        return model_not_found_message(G, model_name)
+    result = list_involved_modules_with_evidence(G, model_name)
     record_evidence(result.evidence)
-    entries = result.modules
-    if entries:
-        formatted = ", ".join(f"{mod} ({role})" for mod, role in entries)
-        ambiguity_note = (
-            " [SYMBOLE AMBIGU: plusieurs modules candidats -- ne pas en choisir un "
-            "arbitrairement, les présenter tous ou demander à l'utilisateur de trancher]"
-            if len(entries) > 1 else ""
-        )
-        return f"Modules implicated for model '{model_name}': {formatted}.{ambiguity_note}"
-    return f"No modules found for model '{model_name}' in the indexed knowledge graph."
+    formatted = ", ".join(f"{mod} ({role})" for mod, role in result.modules)
+    ambiguity_note = (
+        " [SYMBOLE AMBIGU: plusieurs modules candidats -- ne pas en choisir un "
+        "arbitrairement, les présenter tous ou demander à l'utilisateur de trancher]"
+        if len(result.modules) > 1 else ""
+    )
+    return f"Modules implicated for model '{model_name}': {formatted}.{ambiguity_note}"
 
 
 @tool
@@ -354,6 +356,8 @@ def inspect_module_extensions(module_name: str) -> str:
     including Python class names, source files, and added fields/methods."""
     from code_intelligence.rules.structure import inspect_module_cross_domain_extensions, format_module_cross_domain_extensions
     G = _require_graph()
+    if not G.has_node(f"module:{module_name}"):
+        return module_not_found_message(G, module_name)
     extensions = inspect_module_cross_domain_extensions(G, module_name)
     return format_module_cross_domain_extensions(extensions, module_name)
 

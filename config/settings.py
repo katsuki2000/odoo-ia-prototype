@@ -105,6 +105,9 @@ def parse_cors_origins(raw: str) -> list[str]:
 
 CORS_ALLOWED_ORIGINS = parse_cors_origins(os.getenv('CORS_ALLOWED_ORIGINS', ''))
 API_PORT = int(os.getenv('API_PORT', '8000'))
+ASK_JOB_WORKERS = 2
+ASK_JOB_MAX_PENDING = 20
+ASK_JOB_TTL_SECONDS = 1800
 LATENCY_BUDGET_P90_SECONDS = 12.0
 ORM_RUNTIME_MAX_ROWS = 100
 ORM_NAME_SEARCH_LIMIT = 20

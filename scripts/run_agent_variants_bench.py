@@ -18,6 +18,11 @@ Usage:
     python scripts/run_agent_variants_bench.py --retry-interrupted  # after restoring the tunnel
     python scripts/run_agent_variants_bench.py --fresh              # discard previous results
 
+ORM tools run under a requester identity, as in production. The bench takes it from the environment
+(.env): BENCH_ODOO_UID and BENCH_ODOO_API_KEY (the API key of that same Odoo user), and optionally
+BENCH_ODOO_COMPANY_ID. Without both, every ORM tool is refused and the fallback rate is biased.
+Use a non-admin test user: admin rights would hide the access refusals a real user meets.
+
 Each run is appended to captures/agent_variants_bench.jsonl. A rerun skips the runs
 already recorded, so an interrupted bench resumes where it stopped. With nothing left
 to run, only the report is printed.
@@ -26,6 +31,7 @@ to run, only the report is printed.
 import argparse
 import contextlib
 import json
+import os
 import sys
 import time
 from collections import Counter
@@ -43,6 +49,7 @@ from core.evaluation.preflight import BackendUnavailable, require_backends
 from core.evidence.evidence_collector import collect_and_clear_evidence, start_evidence_collection
 from core.llm.llm_client import with_no_think
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
+from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_uid_ctx
 
 LANGUAGE = 'fr'
 QUESTIONS = {
@@ -88,12 +95,42 @@ def capture_summaries(summaries):
         yield
 
 
-def run_once(question):
+def requester_identity():
+    """Identity the agent runs under, read from the environment; None unless uid and API key are both set."""
+    uid = os.getenv('BENCH_ODOO_UID', '').strip()
+    apiKey = os.getenv('BENCH_ODOO_API_KEY', '').strip()
+    if not uid or not apiKey:
+        return None
+    company = os.getenv('BENCH_ODOO_COMPANY_ID', '').strip()
+    return {'uid': int(uid), 'api_key': apiKey, 'company_id': int(company) if company else None}
+
+
+@contextlib.contextmanager
+def with_requester_identity(identity):
+    """Set the request-scoped Odoo identity for one run, as query_graph does, then restore it."""
+    if identity is None:
+        yield
+        return
+    companyId = identity['company_id']
+    tokens = [
+        (odoo_uid_ctx, odoo_uid_ctx.set(identity['uid'])),
+        (odoo_api_key_ctx, odoo_api_key_ctx.set(identity['api_key'])),
+        (odoo_company_id_ctx, odoo_company_id_ctx.set(companyId)),
+        (odoo_company_ids_ctx, odoo_company_ids_ctx.set([companyId] if companyId is not None else None)),
+    ]
+    try:
+        yield
+    finally:
+        for variable, token in reversed(tokens):
+            variable.reset(token)
+
+
+def run_once(question, identity=None):
     summaries, error = [], None
     startedAt = time.time()
     start_evidence_collection()
     try:
-        with capture_summaries(summaries):
+        with capture_summaries(summaries), with_requester_identity(identity):
             agentLoop.code_intelligence_agent({'question': question, 'chat_history': [], 'language': LANGUAGE})
     except Exception as exc:
         error = f'{type(exc).__name__}: {exc}'[:300]
@@ -105,6 +142,7 @@ def run_once(question):
         'hop_count': summary.hop_count if summary else 0,
         'llm_call_count': summary.llm_call_count if summary else 0,
         'seconds': round(time.time() - startedAt, 1),
+        'orm_identity': identity is not None,
         'error': error or (None if summary else 'no summary logged'),
     }
 
@@ -141,13 +179,13 @@ def warm_up():
     print(f'Graph and semantic index ready: {[status.value for status in warm_semantic_index(graph, [LANGUAGE])]}')
 
 
-def execute(todo, runs):
+def execute(todo, runs, identity=None):
     """Run the pending runs, appending each result. Returns False when the backend looks down."""
     RESULTS_PATH.parent.mkdir(exist_ok=True)
     consecutiveFailures = 0
     for number, ((variant, questionId, passNumber), question) in enumerate(todo, 1):
         with variant_patch(variant):
-            result = run_once(question)
+            result = run_once(question, identity)
         record = {'variant': variant, 'question_id': questionId, 'pass_number': passNumber,
                   'model': settings.LLM_MODEL, **result}
         with open(RESULTS_PATH, 'a', encoding='utf-8') as file:
@@ -189,6 +227,10 @@ def print_report(runs, variants):
     if not present:
         print('No result recorded.')
         return
+    withoutIdentity = sum(not record.get('orm_identity') for record in records)
+    if withoutIdentity:
+        print(f'\nWARNING: {withoutIdentity}/{len(records)} run(s) had no requester identity: every ORM tool was '
+              'refused, so the fallback rate is biased. Rerun with --fresh and BENCH_ODOO_UID / BENCH_ODOO_API_KEY set.')
     print(f'\n{FALLBACK} rate (interrupted/error runs are counted in the runs but are not decisions of the model)')
     print(f'{"variant":<10}{"runs":>5}{"fallback":>10}{"rate":>7}{"answered":>10}{"other":>7}{"infra":>7}'
           f'{"hops":>7}{"llm":>6}{"sec":>8}')
@@ -228,9 +270,19 @@ def main():
         except BackendUnavailable as error:
             print(f'[SKIP] Inference backend unavailable, nothing run: {error}')
             return 2
+        try:
+            identity = requester_identity()
+        except ValueError:
+            print('[SKIP] BENCH_ODOO_UID and BENCH_ODOO_COMPANY_ID must be integers.')
+            return 2
+        if identity is None:
+            print('WARNING: BENCH_ODOO_UID / BENCH_ODOO_API_KEY not both set: ORM tools will be refused '
+                  '(no requester identity), the fallback rate will be biased.')
+        else:
+            print(f'Requester identity: uid {identity["uid"]}, company {identity["company_id"]} (API key set)')
         warm_up()
         print(f'{len(todo)} run(s) to do, model {settings.LLM_MODEL}')
-        completed = execute(todo, runs)
+        completed = execute(todo, runs, identity)
     print_report(runs, args.variants)
     return 0 if completed else 3
 

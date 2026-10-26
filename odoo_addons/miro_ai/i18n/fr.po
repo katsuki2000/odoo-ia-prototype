@@ -44,11 +44,6 @@ msgid "Access management for the MIRO AI assistant"
 msgstr "Gestion des accès à l'assistant MIRO AI"
 
 #. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__active
-msgid "Active"
-msgstr "Actif"
-
-#. module: miro_ai
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
@@ -124,7 +119,6 @@ msgstr "Code Intelligence"
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__company_id
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__company_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Company"
 msgstr "Société"
@@ -413,9 +407,9 @@ msgstr "Délai maximal de réponse (s)"
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__request_timeout
 msgid ""
-"Maximum time to wait for the backend response. In multi-worker mode, it must"
-" stay below Odoo's limit_time_real (120 s by default)."
-msgstr "Temps d'attente maximal de la réponse du backend. En mode multi-workers, il doit rester inférieur à limit_time_real d'Odoo (120 s par défaut)."
+"Maximum time to wait for the answer to a question. Beyond it, the question "
+"is reported as too slow."
+msgstr "Temps d'attente maximal de la réponse à une question. Au-delà, la question est signalée comme trop lente."
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__metadata_text
@@ -620,6 +614,15 @@ msgstr "Le secret de signature MIRO AI n'est pas configuré : renseignez dans le
 #. odoo-python
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
+msgid ""
+"The assistant is busy answering other questions. Please try again in a "
+"moment."
+msgstr "L'assistant répond à d'autres questions. Réessayez dans un instant."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
 msgid "The backend returned no answer."
 msgstr "Aucune réponse renvoyée par le backend."
 
@@ -636,6 +639,13 @@ msgid ""
 "The server (%(url)s) did not answer within %(timeout)s s: the answer is too "
 "slow. Try again, or increase the timeout in the MIRO AI settings."
 msgstr "Le serveur (%(url)s) n'a pas répondu en %(timeout)s s : la réponse est trop lente. Réessayez, ou augmentez le délai dans les paramètres MIRO AI."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "This answer is no longer available. Please ask the question again."
+msgstr "Cette réponse n'est plus disponible. Veuillez poser à nouveau la question."
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__response_time_ms
@@ -667,6 +677,13 @@ msgid "Unique identifier of the RAG discussion session."
 msgstr "Identifiant unique de la session de discussion RAG."
 
 #. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "Unknown question."
+msgstr "Question inconnue."
+
+#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__user_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "User"
@@ -678,3 +695,10 @@ msgstr "Utilisateur"
 #, python-format
 msgid "You"
 msgstr "Vous"
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/models/miro_ai_settings.py:0
+#, python-format
+msgid "MIRO AI has a single configuration: edit the existing one."
+msgstr "MIRO AI n'a qu'une seule configuration : modifiez celle qui existe."

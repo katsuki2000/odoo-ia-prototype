@@ -16,6 +16,7 @@ from code_intelligence.agent.provenance import (
     _scoped_raw_tool_output,
     source_footer,
 )
+from code_intelligence.agent.technical_identifiers import replace_technical_identifiers
 from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions
 from code_intelligence.rules.data_constraints import enforce_sql_constraint_fidelity
 from code_intelligence.rules.security_locks import _has_elevated_access
@@ -51,6 +52,7 @@ def build_final_response(ctx: DispatchContext, final_answer: str, state: dict,
         (_correct_access_permission_contradictions, (scoped,)),
         (_flag_ungrounded_group_xmlids, (scoped,)),
         (enforce_sql_constraint_fidelity, (constraints, question)),
+        (replace_technical_identifiers, (ctx.G,)),
     ):
         corrected = guard(final_answer, *arguments)
         if corrected != final_answer:

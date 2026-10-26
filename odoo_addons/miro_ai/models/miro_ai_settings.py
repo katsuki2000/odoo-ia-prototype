@@ -19,15 +19,6 @@ class MiroAiSettings(models.Model):
         required=True,
         default='Main MIRO AI configuration'
     )
-    active = fields.Boolean(
-        string='Active',
-        default=True
-    )
-    company_id = fields.Many2one(
-        'res.company',
-        string='Company',
-        default=lambda self: self.env.company
-    )
 
     # Backend connection
     api_url = fields.Char(
@@ -40,8 +31,8 @@ class MiroAiSettings(models.Model):
         string='Maximum response time (s)',
         required=True,
         default=120,
-        help='Maximum time to wait for the backend response. In multi-worker mode, '
-             'it must stay below Odoo\'s limit_time_real (120 s by default).'
+        help='Maximum time to wait for the answer to a question. '
+             'Beyond it, the question is reported as too slow.'
     )
     api_token = fields.Char(
         string='API secret token (JWT secret)',
@@ -91,10 +82,13 @@ class MiroAiSettings(models.Model):
             ))
         return secret
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        if len(vals_list) > 1 or self.sudo().search_count([]):
+            raise UserError(_("MIRO AI has a single configuration: edit the existing one."))
+        return super().create(vals_list)
+
     @api.model
     def get_active_settings(self):
-        """Return the active configuration for the current company, falling back to any, then to a default."""
-        config = self.search([('company_id', '=', self.env.company.id)], limit=1)
-        if not config:
-            config = self.search([], limit=1)
-        return config or self.create({})
+        """Return the instance configuration, creating the default one when none exists."""
+        return self.search([], limit=1) or self.create({})

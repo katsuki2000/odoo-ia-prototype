@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- MIRO AI category -->
+        <record id="module_category_miro_ai" model="ir.module.category">
+            <field name="name">MIRO AI Assistant</field>
+            <field name="description">Access management for the MIRO AI assistant</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <!-- MIRO AI User group -->
+        <record id="group_miro_ai_user" model="res.groups">
+            <field name="name">MIRO AI User</field>
+            <field name="category_id" ref="module_category_miro_ai"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">Can query the MIRO assistant and view their own histories.</field>
+        </record>
+
+        <!-- MIRO AI Administrator group -->
+        <record id="group_miro_ai_admin" model="res.groups">
+            <field name="name">MIRO AI Administrator</field>
+            <field name="category_id" ref="module_category_miro_ai"/>
+            <field name="implied_ids" eval="[(4, ref('group_miro_ai_user'))]"/>
+            <field name="comment">Can configure the API and the skills, and view all logs.</field>
+        </record>
+
+        <!-- Multi-company rule for the MIRO AI settings -->
+        <record id="rule_miro_ai_settings_company" model="ir.rule">
+            <field name="name">MIRO AI Settings Multi-Company</field>
+            <field name="model_id" ref="model_miro_ai_settings"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+
+        <!-- Log visibility rule: a user sees their own requests within their companies -->
+        <record id="rule_miro_ai_log_user" model="ir.rule">
+            <field name="name">MIRO AI Log: own requests</field>
+            <field name="model_id" ref="model_miro_ai_log"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">['&amp;', ('user_id', '=', user.id), ('company_id', 'in', company_ids)]</field>
+        </record>
+
+        <!-- Log visibility rule: an admin sees all requests of the allowed companies -->
+        <record id="rule_miro_ai_log_admin" model="ir.rule">
+            <field name="name">MIRO AI Log: admin sees all</field>
+            <field name="model_id" ref="model_miro_ai_log"/>
+            <field name="groups" eval="[(4, ref('group_miro_ai_admin')), (4, ref('base.group_system'))]"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

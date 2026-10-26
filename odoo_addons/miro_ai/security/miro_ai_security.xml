@@ -24,13 +24,6 @@
             <field name="comment">Can configure the API and the skills, and view all logs.</field>
         </record>
 
-        <!-- Multi-company rule for the MIRO AI settings -->
-        <record id="rule_miro_ai_settings_company" model="ir.rule">
-            <field name="name">MIRO AI Settings Multi-Company</field>
-            <field name="model_id" ref="model_miro_ai_settings"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
-        </record>
-
         <!-- Log visibility rule: a user sees their own requests within their companies -->
         <record id="rule_miro_ai_log_user" model="ir.rule">
             <field name="name">MIRO AI Log: own requests</field>
@@ -46,5 +39,10 @@
             <field name="groups" eval="[(4, ref('group_miro_ai_admin')), (4, ref('base.group_system'))]"/>
             <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         </record>
+    </data>
+
+    <data>
+        <!-- The settings are no longer per company: drop the former rule, kept in the database by noupdate. -->
+        <delete model="ir.rule" id="rule_miro_ai_settings_company"/>
     </data>
 </odoo>

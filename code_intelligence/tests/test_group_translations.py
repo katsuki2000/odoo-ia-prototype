@@ -2,7 +2,7 @@ import networkx as nx
 
 from code_intelligence.graph.runtime_translations import read_runtime_translations
 from code_intelligence.graph.translations import attach_translations, parse_po
-from code_intelligence.rules.group_resolver import get_group_display_name
+from code_intelligence.rules.group_resolver import get_group_display_name, resolve_group_identifier
 
 
 def test_static_group_translation_uses_french_po_label(tmp_path):
@@ -129,3 +129,42 @@ def test_runtime_group_labels_are_read_for_each_active_language_and_resolved_by_
         "reference": "res.groups:custom_access.group_manager",
     }
     assert all(call["context"] == {"lang": "fr_FR"} for call in connector.calls)
+
+
+def _translated_groups(*groups):
+    graph = nx.DiGraph()
+    for xml_id, name, french in groups:
+        graph.add_node(
+            f"group:{xml_id}",
+            node_type="Group",
+            xml_id=xml_id,
+            name=name,
+            business_labels=[{"label": french, "language": "fr_FR"}],
+        )
+    return graph
+
+
+def test_group_resolves_from_its_source_name_and_from_its_translation():
+    graph = _translated_groups(("account.group_account_manager", "Billing Administrator", "Administrateur de facturation"))
+    candidates = ["account.group_account_manager"]
+
+    assert resolve_group_identifier(graph, "Billing Administrator", candidates) == "account.group_account_manager"
+    assert resolve_group_identifier(graph, "administrateur de facturation", candidates) == "account.group_account_manager"
+    assert get_group_display_name(graph, "account.group_account_manager") == "Administrateur de facturation"
+
+
+def test_exact_group_name_beats_a_shorter_candidate_listed_first():
+    graph = _translated_groups(
+        ("account.group_account_invoice", "Billing", "Facturation"),
+        ("account.group_account_manager", "Billing Administrator", "Administrateur de facturation"),
+    )
+    candidates = ["account.group_account_invoice", "account.group_account_manager"]
+
+    assert resolve_group_identifier(graph, "Billing Administrator", candidates) == "account.group_account_manager"
+    assert resolve_group_identifier(graph, "Billing", candidates) == "account.group_account_invoice"
+
+
+def test_unrelated_group_name_resolves_nothing():
+    graph = _translated_groups(("account.group_account_manager", "Billing Administrator", "Administrateur de facturation"))
+
+    assert resolve_group_identifier(graph, "Stock Manager", ["account.group_account_manager"]) is None

@@ -298,6 +298,7 @@ class NativeAgentSmokeTests(unittest.TestCase):
             'build_persona_prompt_block': lambda principals: '',
             '_maybe_build_application_layer_reminder': lambda *args: None,
             'invoke_with_rate_limit': lambda model, messages, **kwargs: (model.invoke(messages), 0),
+            'LLM_INTERACTIVE_MAX_RETRIES': 1,
             'with_no_think': lambda prompt: prompt,
             'CI_MAX_HOPS': maxHops, 'LANGGRAPH_STEP_LIMIT_NOTICE': 'Sorry, need more steps to process this request.',
             'NO_EVIDENCE_ANSWER': 'No evidence',
@@ -340,6 +341,19 @@ class NativeAgentSmokeTests(unittest.TestCase):
         self.assertEqual(answer, 'Which model do you mean?')
         self.assertEqual(ctx.fallback_reason, 'no_analysis_observation')
         self.assertEqual(ctx.final_message_preview, 'Which model do you mean?')
+        self.assertEqual(ctx.llm_call_count, 2)
+
+    def test_native_loop_retries_once_with_a_reminder_when_the_answer_comes_without_any_tool(self):
+        def answerForTurn(turn, AIMessage):
+            if turn == 2:
+                return AIMessage(content='', tool_calls=[{
+                    'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case'}, 'id': 'fixture'}])
+            return AIMessage(content='Answer from memory.' if turn == 1 else 'Confirmed fixture observation.')
+        answer, ctx = self.runLoop(answerForTurn)
+        self.assertEqual(answer, 'Confirmed fixture observation.')
+        self.assertEqual(ctx.llm_call_count, 3)
+        self.assertEqual(ctx.hop_count, 1)
+        self.assertIsNone(ctx.fallback_reason)
 
     def test_native_loop_replaces_an_empty_final_message(self):
         answer, ctx = self.runLoop(lambda turn, AIMessage: AIMessage(content=''))

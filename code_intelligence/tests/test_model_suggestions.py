@@ -2,10 +2,14 @@ import networkx as nx
 
 from code_intelligence.rules.access_evaluator import who_has_access_to
 from code_intelligence.rules.common import NOT_FOUND_MARKER
+from code_intelligence.agent.tools import inspect_module_extensions, introspection, list_involved_modules
+from code_intelligence.agent.tools.helpers import set_graph_ref
 from code_intelligence.rules.model_suggestions import (
     RETRY_INSTRUCTION,
     closest_models,
+    closest_modules,
     model_not_found_message,
+    module_not_found_message,
 )
 
 
@@ -82,3 +86,70 @@ def test_access_tool_exposes_suggestions_to_the_agent():
     result = who_has_access_to(G, "purchase.request", "write")
     assert NOT_FOUND_MARKER in result.summary_text
     assert "purchase.order" in result.summary_text
+
+
+def _module_graph():
+    G = _graph("purchase.order", "stock.move")
+    for name in ("purchase", "purchase_stock", "stock", "sale_stock"):
+        G.add_node(f"module:{name}", node_type="Module", name=name)
+    return G
+
+
+def test_unknown_module_suggests_the_closest_indexed_modules():
+    candidates = closest_modules(_module_graph(), "purchase_request")
+    assert candidates[0] == "purchase"
+    assert "stock" not in candidates
+
+
+def test_models_are_never_suggested_as_modules_and_conversely():
+    G = _module_graph()
+    assert "purchase.order" not in closest_modules(G, "purchase.order")
+    assert "purchase" not in closest_models(G, "purchase")
+
+
+def test_module_message_keeps_marker_and_suggestions():
+    message = module_not_found_message(_module_graph(), "purchase_request")
+    assert NOT_FOUND_MARKER in message
+    assert "module not installed" in message
+    assert "Closest indexed modules by name: purchase" in message
+    assert "exact module name" in message
+
+
+def test_module_without_candidate_keeps_plain_message():
+    message = module_not_found_message(_module_graph(), "inventory")
+    assert NOT_FOUND_MARKER in message
+    assert "Closest" not in message
+
+
+def test_list_involved_modules_gives_candidates_for_an_absent_model():
+    set_graph_ref(_graph(*PURCHASE_GRAPH_MODELS))
+    result = list_involved_modules.invoke({"model_name": "purchase.request"})
+    assert NOT_FOUND_MARKER in result
+    assert "purchase.order" in result
+    assert RETRY_INSTRUCTION in result
+
+
+def test_list_involved_modules_still_describes_a_module_name(monkeypatch):
+    monkeypatch.setattr(introspection, "_resolve_model_param", lambda name: name)
+    G = _graph("alpha.beta", "gamma.delta")
+    G.add_node("module:zeta_mod", node_type="Module", name="zeta_mod")
+    G.add_edge("model:alpha.beta", "module:zeta_mod", edge_type="DEFINED_IN", role="declares")
+    G.add_edge("model:gamma.delta", "module:zeta_mod", edge_type="DEFINED_IN", role="extends")
+    set_graph_ref(G)
+    result = list_involved_modules.invoke({"model_name": "zeta_mod"})
+    assert "alpha.beta (declares), gamma.delta (extends)" in result
+    assert NOT_FOUND_MARKER not in result
+
+
+def test_inspect_module_extensions_does_not_state_a_false_fact_for_an_absent_module():
+    set_graph_ref(_module_graph())
+    result = inspect_module_extensions.invoke({"module_name": "inventory"})
+    assert NOT_FOUND_MARKER in result
+    assert "FAIT DÉTERMINISTE" not in result
+
+
+def test_inspect_module_extensions_keeps_the_fact_for_an_installed_module_without_extension():
+    set_graph_ref(_module_graph())
+    result = inspect_module_extensions.invoke({"module_name": "stock"})
+    assert "n'étend aucun modèle métier natif" in result
+    assert NOT_FOUND_MARKER not in result

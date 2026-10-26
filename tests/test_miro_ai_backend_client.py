@@ -63,6 +63,37 @@ def test_unreachable_server_falls_back_to_the_next_candidate(backend_client, mon
     assert _post(backend_client) == (response, CANDIDATES[1])
 
 
+def _get(backend_client):
+    return backend_client.get_with_failover(CANDIDATES, "/api/v1/ask/jobs/abc", {}, 10)
+
+
+def test_get_returns_the_first_response_and_its_url_without_a_body(backend_client, monkeypatch):
+    response = MagicMock(status_code=200)
+    get = MagicMock(return_value=response)
+    monkeypatch.setattr(backend_client.requests, "get", get)
+
+    assert _get(backend_client) == (response, CANDIDATES[0])
+    assert get.call_args.kwargs["json"] is None
+
+
+def test_get_read_timeout_is_not_sent_again_to_the_next_candidate(backend_client, monkeypatch):
+    get = MagicMock(side_effect=requests.exceptions.ReadTimeout("slow"))
+    monkeypatch.setattr(backend_client.requests, "get", get)
+
+    with pytest.raises(backend_client.BackendTimeout):
+        _get(backend_client)
+
+    assert get.call_count == 1
+
+
+def test_get_unreachable_server_falls_back_to_the_next_candidate(backend_client, monkeypatch):
+    response = MagicMock(status_code=200)
+    get = MagicMock(side_effect=[requests.exceptions.ConnectionError("refused"), response])
+    monkeypatch.setattr(backend_client.requests, "get", get)
+
+    assert _get(backend_client) == (response, CANDIDATES[1])
+
+
 def test_every_candidate_unreachable_raises_backend_unreachable(backend_client, monkeypatch):
     post = MagicMock(side_effect=requests.exceptions.ConnectionError("refused"))
     monkeypatch.setattr(backend_client.requests, "post", post)

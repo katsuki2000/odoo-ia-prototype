@@ -1,0 +1,703 @@
+# French translation of Odoo Server (module miro_ai).
+# This file contains the translation of the following modules:
+# 	* miro_ai
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-22 21:41+0000\n"
+"PO-Revision-Date: 2026-10-22 21:41+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "%s exchange(s)"
+msgstr "%s échange(s)"
+
+#. module: miro_ai
+#: model:ir.actions.act_window,name:miro_ai.action_miro_ai_log
+msgid "AI Request Log"
+msgstr "Journal des requêtes IA"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_form
+msgid "AI answer (HTML / formatted)"
+msgstr "Réponse de l'IA (HTML / formatée)"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__api_token
+msgid "API secret token (JWT secret)"
+msgstr "Jeton secret API (secret JWT)"
+
+#. module: miro_ai
+#: model:ir.module.category,description:miro_ai.module_category_miro_ai
+msgid "Access management for the MIRO AI assistant"
+msgstr "Gestion des accès à l'assistant MIRO AI"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__active
+msgid "Active"
+msgstr "Actif"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Analysis in progress..."
+msgstr "Analyse en cours..."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Answer from the system's data and code"
+msgstr "Répondre à partir des données et du code du système"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Answer only from the internal documentation"
+msgstr "Répondre uniquement à partir de la documentation interne"
+
+#. module: miro_ai
+#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_log
+msgid ""
+"Ask a question from the MIRO AI assistant to see the history and audit "
+"metrics appear here."
+msgstr "Posez une question depuis l'assistant MIRO AI pour voir apparaître ici l'historique et les métriques d'audit."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Ask a question..."
+msgstr "Posez une question..."
+
+#. module: miro_ai
+#: model:res.groups,comment:miro_ai.group_miro_ai_admin
+msgid "Can configure the API and the skills, and view all logs."
+msgstr "Peut configurer l'API, les compétences et consulter tous les journaux."
+
+#. module: miro_ai
+#: model:res.groups,comment:miro_ai.group_miro_ai_user
+msgid "Can query the MIRO assistant and view their own histories."
+msgstr "Peut interroger l'assistant MIRO et consulter ses propres historiques."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Cancel the current question"
+msgstr "Annuler la question en cours"
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid ""
+"Cannot reach the server (%s). Check that the FastAPI backend is running."
+msgstr "Impossible de contacter le serveur (%s). Vérifiez que le backend FastAPI est lancé."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Close"
+msgstr "Fermer"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Code Intelligence"
+msgstr "Code Intelligence"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__company_id
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__company_id
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Company"
+msgstr "Société"
+
+#. module: miro_ai
+#: model:ir.ui.menu,name:miro_ai.menu_miro_ai_config
+msgid "Configuration"
+msgstr "Configuration"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__name
+msgid "Configuration name"
+msgstr "Nom de configuration"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
+msgid "Configuration name..."
+msgstr "Nom de la configuration..."
+
+#. module: miro_ai
+#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
+msgid "Create a new configuration for the Miro AI server"
+msgstr "Créer une nouvelle configuration pour le serveur Miro AI"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__create_uid
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__create_uid
+msgid "Created by"
+msgstr "Créé par"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__create_date
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__create_date
+msgid "Created on"
+msgstr "Créé le"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
+msgid "Credentials & API connection"
+msgstr "Identifiants & connexion API"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
+msgid "Date"
+msgstr "Date"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__display_name
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__display_name
+msgid "Display Name"
+msgstr "Nom affiché"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Documentation"
+msgstr "Documentaire"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
+msgid "Duration (ms)"
+msgstr "Durée (ms)"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "ERP data"
+msgstr "Données ERP"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_comptabilite
+msgid "Enable ORM and documentary search on the Accounting module"
+msgstr "Activer la recherche ORM et documentaire sur le module Comptabilité"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_ventes
+msgid "Enable ORM and documentary search on the Sales module"
+msgstr "Activer la recherche ORM et documentaire sur le module Ventes"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_stocks
+msgid "Enable ORM and documentary search on the Stock / Inventory module"
+msgstr "Activer la recherche ORM et documentaire sur le module Stocks / Inventaire"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_tickets
+msgid "Enable ORM and documentary search on the Support & Tickets module"
+msgstr "Activer la recherche ORM et documentaire sur le module Support & Tickets"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
+msgid "Enabled skill categories"
+msgstr "Catégories de compétences activées"
+
+#. module: miro_ai
+#: model:ir.model.fields.selection,name:miro_ai.selection__miro_ai_log__state__error
+msgid "Error"
+msgstr "Erreur"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Error communicating with the MIRO AI assistant."
+msgstr "Erreur de communication avec l'assistant MIRO AI."
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Errors"
+msgstr "Erreurs"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Evidence (%s)"
+msgstr "Preuves (%s)"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "From the documentation"
+msgstr "D'après la documentation"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "From the system"
+msgstr "D'après le système"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "General"
+msgstr "Général"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__answer
+msgid "Generated answer"
+msgstr "Réponse générée"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Group by"
+msgstr "Regrouper par"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Hello! Ask me your question, or ask about the active document."
+msgstr "Bonjour ! Posez votre question ou interrogez-moi sur le document actif."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "History"
+msgstr "Historique"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Hybrid"
+msgstr "Hybride"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__id
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__id
+msgid "ID"
+msgstr "ID"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Investigation plan:"
+msgstr "Plan d'investigation :"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__write_uid
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__write_uid
+msgid "Last Updated by"
+msgstr "Dernière mise à jour par"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__write_date
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__write_date
+msgid "Last Updated on"
+msgstr "Dernière mise à jour le"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Loading..."
+msgstr "Chargement..."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "MIRO AI"
+msgstr "MIRO AI"
+
+#. module: miro_ai
+#: model:ir.model,name:miro_ai.model_miro_ai_log
+msgid "MIRO AI - RAG Request Audit Log"
+msgstr "MIRO AI - Journal d'audit des requêtes RAG"
+
+#. module: miro_ai
+#: model:ir.model,name:miro_ai.model_miro_ai_settings
+msgid "MIRO AI - Settings and Configuration"
+msgstr "MIRO AI - Paramètres et configuration"
+
+#. module: miro_ai
+#: model:res.groups,name:miro_ai.group_miro_ai_admin
+msgid "MIRO AI Administrator"
+msgstr "Administrateur MIRO AI"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#: model:ir.module.category,name:miro_ai.module_category_miro_ai
+#, python-format
+msgid "MIRO AI Assistant"
+msgstr "Assistant MIRO AI"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_form
+msgid "MIRO AI Request Detail"
+msgstr "Détail de la requête MIRO AI"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
+msgid "MIRO AI Request Log"
+msgstr "Journal des requêtes MIRO AI"
+
+#. module: miro_ai
+#: model:ir.actions.act_window,name:miro_ai.action_miro_ai_settings
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_tree
+msgid "MIRO AI Settings"
+msgstr "Paramètres MIRO AI"
+
+#. module: miro_ai
+#: model:res.groups,name:miro_ai.group_miro_ai_user
+msgid "MIRO AI User"
+msgstr "Utilisateur MIRO AI"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "MIRO AI connection error."
+msgstr "Erreur de connexion MIRO AI."
+
+#. module: miro_ai
+#: model:ir.ui.menu,name:miro_ai.menu_miro_ai_root
+msgid "MIRO Assistant"
+msgstr "Assistant MIRO"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__api_url
+msgid "MIRO RAG API URL"
+msgstr "URL de l'API MIRO RAG"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__answer
+msgid "Markdown answer returned by the assistant."
+msgstr "Réponse en Markdown renvoyée par l'assistant."
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__request_timeout
+msgid "Maximum response time (s)"
+msgstr "Délai maximal de réponse (s)"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__request_timeout
+msgid ""
+"Maximum time to wait for the answer to a question. Beyond it, the question "
+"is reported as too slow."
+msgstr "Temps d'attente maximal de la réponse à une question. Au-delà, la question est signalée comme trop lente."
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__metadata_text
+msgid "Metadata (raw JSON)"
+msgstr "Métadonnées (JSON brut)"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "New conversation"
+msgstr "Nouvelle conversation"
+
+#. module: miro_ai
+#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_log
+msgid "No RAG request recorded in the log yet."
+msgstr "Aucune requête RAG enregistrée dans le journal."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "No conversation recorded."
+msgstr "Aucune conversation enregistrée."
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__sources_count
+msgid "Number of documentary/code sources cited by the answer."
+msgstr "Nombre de sources documentaires/code citées par la réponse."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "Please ask a question."
+msgstr "Veuillez poser une question."
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_form
+msgid "Question & Answer"
+msgstr "Question & Réponse"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Question / Answer"
+msgstr "Question / Réponse"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__question
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_form
+msgid "Question asked"
+msgstr "Question posée"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Question cancelled."
+msgstr "Question annulée."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid ""
+"RAG server error (code %s). Please check that the FastAPI service is "
+"running."
+msgstr "Erreur du serveur RAG (code %s). Veuillez vérifier que le service FastAPI est actif."
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__sources_text
+msgid "Raw list of the cited documents or ORM excerpts."
+msgstr "Liste brute des documents ou extraits ORM cités."
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__question
+msgid "Raw text of the question the user sent to the RAG."
+msgstr "Texte brut de la question envoyée par l'utilisateur au RAG."
+
+#. module: miro_ai
+#: model:ir.ui.menu,name:miro_ai.menu_miro_ai_log
+msgid "Request Log"
+msgstr "Journal des requêtes"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__response_time_ms
+msgid "Response time (ms)"
+msgstr "Temps de réponse (ms)"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__api_url
+msgid ""
+"Root address of the MIRO RAG FastAPI server (e.g. http://127.0.0.1:8000 or "
+"http://miro_rag:8000)"
+msgstr "Adresse racine du serveur FastAPI MIRO RAG (ex : http://127.0.0.1:8000 ou http://miro_rag:8000)"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__metadata_text
+msgid ""
+"Route, confidence, evidence status, investigation plan and omitted items, "
+"serialized as JSON."
+msgstr "Route, confiance, statut de preuve, plan d'investigation et éléments masqués, sérialisés en JSON."
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Search the MIRO AI Log"
+msgstr "Rechercher dans le journal MIRO AI"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__api_token
+msgid ""
+"Secret shared with the RAG backend (the server's JWT_SECRET variable): "
+"random, at least 32 bytes, identical on both sides. Read and write "
+"restricted to administrators."
+msgstr "Secret partagé avec le backend RAG (variable JWT_SECRET du serveur) : aléatoire, au moins 32 octets, identique des deux côtés. Lecture et écriture réservées aux administrateurs."
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__session_id
+msgid "Session ID"
+msgstr "ID de session"
+
+#. module: miro_ai
+#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
+msgid "Set the FastAPI server address and enable the ORM skill categories."
+msgstr "Configurez l'adresse du serveur FastAPI et activez les catégories de compétences ORM."
+
+#. module: miro_ai
+#: model:ir.ui.menu,name:miro_ai.menu_miro_ai_settings_action
+msgid "Settings"
+msgstr "Paramètres"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_comptabilite
+msgid "Skill: Accounting (account)"
+msgstr "Compétence : Comptabilité (account)"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_ventes
+msgid "Skill: Sales (sale)"
+msgstr "Compétence : Ventes (sale)"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_stocks
+msgid "Skill: Stock (stock)"
+msgstr "Compétence : Stocks (stock)"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_tickets
+msgid "Skill: Support / Tickets (helpdesk)"
+msgstr "Compétence : Support / Tickets (helpdesk)"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
+msgid "Sources"
+msgstr "Sources"
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_form
+msgid "Sources & JSON metadata"
+msgstr "Sources & métadonnées JSON"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__sources_text
+msgid "Sources (raw JSON)"
+msgstr "Sources (JSON brut)"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__sources_count
+msgid "Sources count"
+msgstr "Nb de sources"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Sources:"
+msgstr "Sources :"
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__state
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Status"
+msgstr "Statut"
+
+#. module: miro_ai
+#: model:ir.model.fields.selection,name:miro_ai.selection__miro_ai_log__state__success
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Success"
+msgstr "Succès"
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/models/miro_ai_settings.py:0
+#, python-format
+msgid ""
+"The MIRO AI signing secret is not configured: set a random secret of at "
+"least %s bytes in the MIRO AI settings, identical to the RAG server's "
+"JWT_SECRET."
+msgstr "Le secret de signature MIRO AI n'est pas configuré : renseignez dans les paramètres MIRO AI un secret aléatoire d'au moins %s octets, identique à JWT_SECRET du serveur RAG."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid ""
+"The assistant is busy answering other questions. Please try again in a "
+"moment."
+msgstr "L'assistant répond à d'autres questions. Réessayez dans un instant."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "The backend returned no answer."
+msgstr "Aucune réponse renvoyée par le backend."
+
+#. module: miro_ai
+#: model:ir.model.constraint,message:miro_ai.constraint_miro_ai_settings_request_timeout_min
+msgid "The maximum response time must be at least 10 seconds."
+msgstr "Le délai maximal de réponse doit être d'au moins 10 secondes."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid ""
+"The server (%(url)s) did not answer within %(timeout)s s: the answer is too "
+"slow. Try again, or increase the timeout in the MIRO AI settings."
+msgstr "Le serveur (%(url)s) n'a pas répondu en %(timeout)s s : la réponse est trop lente. Réessayez, ou augmentez le délai dans les paramètres MIRO AI."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "This answer is no longer available. Please ask the question again."
+msgstr "Cette réponse n'est plus disponible. Veuillez poser à nouveau la question."
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__response_time_ms
+msgid "Time taken to query the FastAPI RAG backend, in milliseconds."
+msgstr "Durée d'interrogation du backend FastAPI RAG en millisecondes."
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Today"
+msgstr "Aujourd'hui"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Unable to load the conversation history."
+msgstr "Impossible de charger l'historique des conversations."
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Unable to load this conversation."
+msgstr "Impossible de charger cette conversation."
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__session_id
+msgid "Unique identifier of the RAG discussion session."
+msgstr "Identifiant unique de la session de discussion RAG."
+
+#. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "Unknown question."
+msgstr "Question inconnue."
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__user_id
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "User"
+msgstr "Utilisateur"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "You"
+msgstr "Vous"

@@ -18,9 +18,11 @@ import {
     systrayInitialContent,
 } from "@miro_ai/js/miro_ai_labels";
 
+const POLL_INTERVAL_MS = 2000;
+
 /**
  * True when an rpc() promise was interrupted by promise.abort() (cf.
- * cancelRequest() in both chat components) rather than by a real network
+ * cancelRequest()) rather than by a real network
  * or server failure -- lets sendMessage() skip the generic error bubble
  * and notification for a cancellation the user asked for themselves.
  */
@@ -306,14 +308,40 @@ export class MiroAiSystray extends Component {
     }
 
     /**
-     * Aborts the in-flight /miro_ai/ask request (cf. rpc_service.js
-     * promise.abort()). Only unblocks the UI client-side -- the Odoo
-     * worker's blocking call to the FastAPI RAG backend keeps running
-     * server-side until it returns, this is not a true kill-switch.
+     * Stops waiting for the answer (cf. rpc_service.js promise.abort()).
+     * Only unblocks the UI client-side -- the backend keeps computing the
+     * answer until its result expires, this is not a true kill-switch.
      */
     cancelRequest() {
+        this.cancelled = true;
         if (this.pendingRequest && typeof this.pendingRequest.abort === "function") {
             this.pendingRequest.abort();
+        }
+    }
+
+    /**
+     * Submits the question, then polls /miro_ai/ask_result until the answer is ready.
+     */
+    async askAndWait(rpcPayload) {
+        this.cancelled = false;
+        this.pendingRequest = this.rpc("/miro_ai/ask", rpcPayload);
+        const submitted = await this.pendingRequest;
+        if (!submitted.job_id) {
+            return submitted;
+        }
+        for (;;) {
+            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+            if (this.cancelled) {
+                throw new ConnectionAbortedError("Request cancelled by the user.");
+            }
+            this.pendingRequest = this.rpc("/miro_ai/ask_result", {
+                job_id: submitted.job_id,
+                session_id: submitted.session_id,
+            });
+            const result = await this.pendingRequest;
+            if (result.status !== "pending") {
+                return { session_id: submitted.session_id, ...result };
+            }
         }
     }
 
@@ -340,11 +368,8 @@ export class MiroAiSystray extends Component {
             rpcPayload.source_mode = this.state.sourceMode;
         }
 
-        const rpcPromise = this.rpc("/miro_ai/ask", rpcPayload);
-        this.pendingRequest = rpcPromise;
-
         try {
-            const response = await rpcPromise;
+            const response = await this.askAndWait(rpcPayload);
 
             if (response && response.answer) {
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {

@@ -5,9 +5,10 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, AIMessage
 
+from api.ask_jobs import DuplicateJobError, JobCapacityError, ask_jobs
 from api.auth import get_current_user
 from api.public_errors import public_error_details
-from api.schemas import AskRequestV1, AskResponseV1
+from api.schemas import AskJobAcceptedV1, AskJobRequestV1, AskJobStatusV1, AskRequestV1, AskResponseV1
 from core.graph.graph import query_graph
 from core.session.session_store import get_session, update_session
 
@@ -47,13 +48,8 @@ def _request_language(explicit: str | None, accept_language: str | None) -> str 
     return min(candidates)[2] if candidates else None
 
 
-@router.post("/api/v1/ask", response_model=AskResponseV1)
-def ask_question_v1(
-    request: AskRequestV1,
-    http_request: Request,
-    user: dict = Depends(get_current_user),
-):
-    """V1 endpoint for asking questions, using the LangGraph agent."""
+def _answer_question(request: AskRequestV1, accept_language: str | None, user: dict) -> AskResponseV1:
+    """Run the LangGraph agent for one authenticated question; only raises HTTPException."""
     try:
         if not request.question or not request.question.strip():
             raise HTTPException(status_code=400, detail="Empty question provided.")
@@ -74,10 +70,7 @@ def ask_question_v1(
             company_id = int(token_company_id)
         else:
             company_id = int(request.company_id)
-        request_language = _request_language(
-            request.language,
-            http_request.headers.get("accept-language"),
-        )
+        request_language = _request_language(request.language, accept_language)
         if not token_api_key:
             logger.warning(
                 "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
@@ -146,3 +139,44 @@ def ask_question_v1(
         logger.exception("MIRO question processing failed.")
         statusCode, detail = public_error_details(exc)
         raise HTTPException(status_code=statusCode, detail=detail) from None
+
+
+@router.post("/api/v1/ask", response_model=AskResponseV1)
+def ask_question_v1(
+    request: AskRequestV1,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """V1 endpoint for asking questions, using the LangGraph agent."""
+    return _answer_question(request, http_request.headers.get("accept-language"), user)
+
+
+@router.post("/api/v1/ask/jobs", response_model=AskJobAcceptedV1, status_code=202)
+def submit_ask_job(
+    request: AskJobRequestV1,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
+    """Start a question in the background; poll GET /api/v1/ask/jobs/{job_id} for the answer."""
+    accept_language = http_request.headers.get("accept-language")
+    try:
+        ask_jobs.submit(
+            request.job_id, user["uid"], request.question,
+            lambda: _answer_question(request, accept_language, user),
+        )
+    except DuplicateJobError:
+        raise HTTPException(status_code=409, detail="Job already submitted.") from None
+    except JobCapacityError:
+        raise HTTPException(status_code=429, detail="Too many questions in progress.") from None
+    return AskJobAcceptedV1(job_id=request.job_id)
+
+
+@router.get("/api/v1/ask/jobs/{job_id}", response_model=AskJobStatusV1)
+def get_ask_job(job_id: str, user: dict = Depends(get_current_user)):
+    job = ask_jobs.get(job_id, user["uid"])
+    if job is None:
+        raise HTTPException(status_code=404, detail="Unknown job.")
+    return AskJobStatusV1(
+        status=job.status, question=job.question, elapsed_ms=job.elapsed_ms,
+        result=job.result, error_status=job.error_status, error_detail=job.error_detail,
+    )

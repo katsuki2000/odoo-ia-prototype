@@ -101,6 +101,69 @@ def test_run_once_records_an_agent_exception_as_error(bench, monkeypatch):
     assert result["error"].startswith("ConnectionError") and result["fallback_reason"] is None
 
 
+def _bench_identity_vars():
+    from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_uid_ctx
+    return (odoo_uid_ctx, odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx)
+
+
+def test_requester_identity_needs_both_uid_and_api_key(bench, monkeypatch):
+    for name in ("BENCH_ODOO_UID", "BENCH_ODOO_API_KEY", "BENCH_ODOO_COMPANY_ID"):
+        monkeypatch.delenv(name, raising=False)
+    assert bench.requester_identity() is None
+    monkeypatch.setenv("BENCH_ODOO_UID", "12")
+    assert bench.requester_identity() is None
+    monkeypatch.setenv("BENCH_ODOO_API_KEY", "key")
+    assert bench.requester_identity() == {"uid": 12, "api_key": "key", "company_id": None}
+    monkeypatch.setenv("BENCH_ODOO_COMPANY_ID", "3")
+    assert bench.requester_identity()["company_id"] == 3
+
+
+def test_run_once_sets_the_identity_for_the_run_then_restores_it(bench, monkeypatch):
+    seen = {}
+
+    def fakeAgent(state):
+        seen["values"] = tuple(variable.get() for variable in _bench_identity_vars())
+        return {}
+
+    monkeypatch.setattr(bench.agentLoop, "code_intelligence_agent", fakeAgent)
+    result = bench.run_once("question", {"uid": 12, "api_key": "key", "company_id": 3})
+    assert seen["values"] == (12, "key", 3, [3])
+    assert result["orm_identity"] is True
+    assert tuple(variable.get() for variable in _bench_identity_vars()) == (None, None, None, None)
+
+
+def test_run_once_without_identity_sets_nothing_and_flags_the_record(bench, monkeypatch):
+    seen = {}
+
+    def fakeAgent(state):
+        seen["values"] = tuple(variable.get() for variable in _bench_identity_vars())
+        return {}
+
+    monkeypatch.setattr(bench.agentLoop, "code_intelligence_agent", fakeAgent)
+    result = bench.run_once("question")
+    assert seen["values"] == (None, None, None, None)
+    assert result["orm_identity"] is False
+
+
+def test_identity_is_restored_when_the_agent_fails(bench, monkeypatch):
+    def failingAgent(state):
+        raise ConnectionError("tunnel down")
+
+    monkeypatch.setattr(bench.agentLoop, "code_intelligence_agent", failingAgent)
+    result = bench.run_once("question", {"uid": 12, "api_key": "key", "company_id": None})
+    assert result["error"].startswith("ConnectionError")
+    assert tuple(variable.get() for variable in _bench_identity_vars()) == (None, None, None, None)
+
+
+def test_report_warns_about_runs_without_identity(bench, capsys):
+    biased = _record("current", "Q01", 1, fallbackReason=bench.FALLBACK)
+    sound = {**_record("current", "Q02", 1), "orm_identity": True}
+    bench.print_report({("current", "Q01", 1): biased, ("current", "Q02", 1): sound}, ["current"])
+    assert "1/2 run(s) had no requester identity" in capsys.readouterr().out
+    bench.print_report({("current", "Q02", 1): sound}, ["current"])
+    assert "no requester identity" not in capsys.readouterr().out
+
+
 def test_variant_stats_counts_each_outcome_once(bench):
     records = [
         _record("current", "Q01", 1, fallbackReason=bench.FALLBACK),

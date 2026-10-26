@@ -12,6 +12,7 @@ import networkx as nx
 from rapidfuzz import fuzz
 
 FUZZY_GROUP_MATCH_THRESHOLD = 75
+GROUP_EXACT_NAME_SCORE = 101
 
 _PARSED_MODULE_GROUPS: Dict[str, Dict[str, str]] = {}
 
@@ -59,33 +60,33 @@ def _lookup_group_name_in_xml(group_xml_id: str) -> str:
     return ""
 
 
+def _find_group_node(G: Optional[nx.DiGraph], group_identifier: str) -> Optional[str]:
+    """Graph node id of a group given its xml_id, with or without module prefix."""
+    if G is None:
+        return None
+    node_id = f"group:{group_identifier}"
+    if node_id in G:
+        return node_id
+    if "." in group_identifier:
+        short_node = f"group:{group_identifier.split('.')[-1]}"
+        return short_node if short_node in G else None
+    suffix = f".{group_identifier}"
+    matches = [
+        candidate for candidate, data in G.nodes(data=True)
+        if candidate.startswith("group:") and candidate.endswith(suffix) and _localized_label(data)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def get_group_display_name(G: Optional[nx.DiGraph], group_identifier: str) -> str:
     """Return a translated group label, qualified by its application if ambiguous."""
     if not group_identifier:
         return ""
 
     clean_id = group_identifier.strip()
-
-    if G is not None:
-        node_id = f"group:{clean_id}"
-        if node_id in G:
-            return _qualified_group_label(G, node_id)
-
-        if "." not in clean_id:
-            suffix = f".{clean_id}"
-            matches = [
-                node_id for node_id, data in G.nodes(data=True)
-                if node_id.startswith("group:")
-                and node_id.endswith(suffix)
-                and _localized_label(data)
-            ]
-            if len(matches) == 1:
-                return _qualified_group_label(G, matches[0])
-        else:
-            short_id = clean_id.split(".")[-1]
-            short_node = f"group:{short_id}"
-            if short_node in G:
-                return _qualified_group_label(G, short_node)
+    node_id = _find_group_node(G, clean_id)
+    if node_id:
+        return _qualified_group_label(G, node_id)
 
     # Dynamic XML lookup across addons (cached in _PARSED_MODULE_GROUPS)
     return _lookup_group_name_in_xml(clean_id)
@@ -184,21 +185,29 @@ def _fold_accents(s: str) -> str:
     return "".join(c for c in nfd if not unicodedata.combining(c))
 
 
-def _group_fuzzy_matches_display_name(G: nx.DiGraph, user_group: str, rule_group_full_xml_id: str) -> bool:
-    """
-    Fuzzy-match a user-supplied group identifier against a specific group's
-    human-readable display name (e.g. "Avoirs - Visibilite Nationale").
-    """
-    display_name = _group_display_name(G, rule_group_full_xml_id)
-    if not display_name:
-        return False
-    folded_display_name = _fold_accents(display_name.lower())
-    folded_user_group = _fold_accents(_strip_group_prefix(user_group).lower())
-    score = max(
-        fuzz.token_set_ratio(folded_user_group, folded_display_name),
-        fuzz.partial_ratio(folded_user_group, folded_display_name),
-    )
-    return score >= FUZZY_GROUP_MATCH_THRESHOLD
+def _group_names(G: nx.DiGraph, group_identifier: str) -> List[str]:
+    """Every name a group goes by: displayed label, source name, all translations."""
+    names = [get_group_display_name(G, group_identifier)]
+    node_id = _find_group_node(G, group_identifier)
+    if node_id:
+        data = G.nodes[node_id]
+        names += [data.get("name"), *(item.get("label") for item in data.get("business_labels") or [])]
+    return list(dict.fromkeys(str(name).strip() for name in names if name and str(name).strip()))
+
+
+def _group_match_score(G: nx.DiGraph, folded_user_group: str, candidate: str) -> float:
+    """Best score of a user-supplied group name against every name of a candidate group."""
+    best = 0.0
+    for name in _group_names(G, candidate):
+        folded_name = _fold_accents(name.lower())
+        if folded_name == folded_user_group:
+            return GROUP_EXACT_NAME_SCORE
+        best = max(
+            best,
+            fuzz.token_set_ratio(folded_user_group, folded_name),
+            fuzz.partial_ratio(folded_user_group, folded_name),
+        )
+    return best
 
 
 def resolve_group_identifier(G: nx.DiGraph, user_group: str, candidate_full_xml_ids: List[str]) -> Optional[str]:
@@ -213,7 +222,8 @@ def resolve_group_identifier(G: nx.DiGraph, user_group: str, candidate_full_xml_
     Tried in order, from most to least strict:
       1. Exact match on the full xml_id.
       2. Short-name match (part after the last '.').
-      3. Fuzzy match against the group's human-readable display name.
+      3. Best fuzzy match against every name of the group (source name,
+         translations, displayed label); an exact name beats a fuzzy one.
 
     Returns the matching full_xml_id from candidate_full_xml_ids, or None
     if no candidate matches by any of the three methods.
@@ -226,11 +236,13 @@ def resolve_group_identifier(G: nx.DiGraph, user_group: str, candidate_full_xml_
         if _group_short_name(candidate) == short_user_group:
             return candidate
 
-    for candidate in candidate_full_xml_ids:
-        if _group_fuzzy_matches_display_name(G, user_group, candidate):
-            return candidate
-
-    return None
+    folded_user_group = _fold_accents(_strip_group_prefix(user_group).lower())
+    score, best = max(
+        ((_group_match_score(G, folded_user_group, candidate), candidate) for candidate in candidate_full_xml_ids),
+        key=lambda scored: scored[0],
+        default=(0, None),
+    )
+    return best if score >= FUZZY_GROUP_MATCH_THRESHOLD else None
 
 
 def _expand_implied_user_groups(G: nx.DiGraph, user_group: str, user_group_set: Set[str]):

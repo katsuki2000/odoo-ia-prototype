@@ -14,6 +14,25 @@ DB = "odoo-dev"
 LOGIN = "admin"
 PASSWORD = "admin"
 
+def ask_and_wait(session, params, timeout=600):
+    """Submit a question to /miro_ai/ask, then poll /miro_ai/ask_result until the answer is ready."""
+    def call(route, payload):
+        body = {"jsonrpc": "2.0", "method": "call", "params": payload, "id": int(time.time())}
+        return session.post(f"{ODOO_URL}{route}", json=body).json()
+
+    data = call("/miro_ai/ask", params)
+    submitted = data.get("result", {})
+    if "error" in data or "job_id" not in submitted:
+        return data
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(2)
+        data = call("/miro_ai/ask_result", {"job_id": submitted["job_id"], "session_id": submitted["session_id"]})
+        if "error" in data or data.get("result", {}).get("status") != "pending":
+            return data
+    return {"error": "Timeout while waiting for the answer"}
+
+
 def main():
     session = requests.Session()
     
@@ -55,18 +74,10 @@ def main():
     
     # 3. Test de /miro_ai/ask (question simple)
     print("\n[3] Test du endpoint /miro_ai/ask avec une question test...")
-    ask_url = f"{ODOO_URL}/miro_ai/ask"
-    ask_payload = {
-        "jsonrpc": "2.0",
-        "method": "call",
-        "params": {
-            "question": "Bonjour MIRO AI ! Est-ce que le service RAG répond ?",
-            "session_id": "test_script_session_001"
-        },
-        "id": int(time.time())
-    }
-    resp = session.post(ask_url, json=ask_payload)
-    data = resp.json()
+    data = ask_and_wait(session, {
+        "question": "Bonjour MIRO AI ! Est-ce que le service RAG répond ?",
+        "session_id": "test_script_session_001",
+    })
     if "error" in data:
         print(f"Erreur /miro_ai/ask : {data['error']}")
         return False
@@ -108,21 +119,10 @@ def main():
     
     # 5. Test RAG End-to-End avec question ERP sur le code / documentation (Step 11 Day 5)
     print("\n[5] Test RAG End-to-End avec une question ERP technique sur Odoo 17...")
-    ask_url_2 = f"{ODOO_URL}/miro_ai/ask"
     erp_question = "Comment fonctionne la gestion des pickings (bons de livraison) et la validation des mouvements dans Odoo ?"
-    ask_payload_2 = {
-        "jsonrpc": "2.0",
-        "method": "call",
-        "params": {
-            "question": erp_question,
-            "session_id": "test_script_session_002"
-        },
-        "id": int(time.time())
-    }
     print(f" -> Question : \"{erp_question}\"")
     start_t = time.time()
-    resp_2 = session.post(ask_url_2, json=ask_payload_2)
-    data_2 = resp_2.json()
+    data_2 = ask_and_wait(session, {"question": erp_question, "session_id": "test_script_session_002"})
     duration = int((time.time() - start_t) * 1000)
     
     if "error" in data_2:
