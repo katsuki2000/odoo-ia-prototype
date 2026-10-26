@@ -94,6 +94,15 @@ lexicale/vectorielle          - outils Code Intelligence
 
 En mode système, le PoC conserve **un agent unique** qui dispose des outils d'analyse du code et des outils ORM typés. La distinction entre analyse statique et lecture runtime est maintenue dans les preuves, sans exiger deux agents séparés ni une nouvelle couche d'orchestration.
 
+Pour rester proportionné au PoC, l'agent ne présente au LLM qu'un ensemble limité d'outils :
+- **Découverte et inspection du code** : `search_system` et `read_source_fragment`.
+- **Droits et visibilité** : `who_has_access_to`, `evaluate_record_rules`, `describe_navigation_path`, `button_execution_path` et `analyze_security_locks`.
+- **Approbations et processus** : `describe_workflow`, `analyze_method_override_chain` et `analyze_server_actions`.
+- **Saisie et validations** : `analyze_data_constraints`.
+- **Données actuelles** : les outils ORM typés en lecture seule déjà existants.
+
+Les utilitaires d'inspection générale ou d'impact qui ne font pas partie de ce périmètre ne sont pas exposés à l'agent. Leurs implémentations restent provisoirement dans le dépôt pour éviter une suppression avant l'audit des références et des tests. Cette limitation du choix d'outils simplifie le raisonnement du LLM sans remplacer les sources par sa mémoire.
+
 Le routage est réalisé avant l'accès à la source. Le choix explicite de l'utilisateur est prioritaire. Lorsque le modèle de classification est indisponible ou que la confiance est insuffisante, MIRO demande une clarification au lieu de choisir une source par défaut. Le score de confiance du classifieur est un signal de routage, pas une probabilité de justesse calibrée.
 
 ## 5. Principes d'implémentation

@@ -1,4 +1,4 @@
-"""Tools available to the Code Intelligence agent."""
+"""Code Intelligence tools and the bounded tool set exposed to the PoC agent."""
 
 from .access import (
     who_has_access_to,
@@ -28,22 +28,15 @@ from .analysis import (
 from .source import read_source_fragment, search_system
 
 ALL_CI_TOOLS = [
-    list_involved_modules,
-    inspect_module_extensions,
     who_has_access_to,
     evaluate_record_rules,
     analyze_server_actions,
     analyze_security_locks,
     analyze_method_override_chain,
     analyze_data_constraints,
-    field_change_impact,
     button_execution_path,
-    trace_full_inheritance,
     describe_workflow,
     describe_navigation_path,
-    resolve_technical_name,
-    explain_decision_path,
-    read_source_code,
 ]
 
 __all__ = [
