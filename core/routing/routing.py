@@ -128,9 +128,29 @@ def route(state: RAGState) -> dict:
         resolved_concept_dict is state.get("last_resolved_concept")
     )
 
+    # Keep the planner aligned with the concept exposed in the returned
+    # state. If the current turn is an unresolved follow-up, the sticky
+    # concept is the target we deliberately chose to reuse; passing the
+    # unresolved current-turn object here would silently discard that choice.
+    plan_concept = resolved_concept
+    if resolved_concept_reused:
+        from code_intelligence.agent.resolver import ResolvedConcept
+
+        sticky = resolved_concept_dict
+        plan_concept = ResolvedConcept(
+            user_term=str(sticky.get("user_term", "")),
+            resolved_models=list(sticky.get("resolved_models") or []),
+            resolved_modules=list(sticky.get("resolved_modules") or []),
+            confidence=float(sticky.get("confidence", 0.0)),
+            source_step=str(sticky.get("source_step", "sticky_context")),
+            is_resolved=bool(sticky.get("is_resolved", False)),
+            reason=str(sticky.get("reason", "")),
+            diagnostics=dict(sticky.get("diagnostics") or {}),
+        )
+
     investigation_plan = generate_investigation_plan(
         question=question,
-        resolved_concept=resolved_concept,
+        resolved_concept=plan_concept,
         G=G,
         user_groups=state.get("user_groups"),
         intent=intent,
