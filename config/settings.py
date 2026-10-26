@@ -10,8 +10,8 @@ from config.odoo_conf import resolve_addon_paths, resolve_database, resolve_odoo
 
 _ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / '.env')
-# The environment (.env) supplies only secrets and addresses (LLM server, Odoo instance, API bind);
-# every other setting is a constant defined here.
+# The environment (.env) supplies only what varies per machine or deployment: secrets, addresses (LLM server,
+# Odoo instance, API bind) and locations of external Odoo installs; every other setting is a constant defined here.
 # Kaggle is a temporary dev host: delete its entry (and the KAGGLE_* variables) to drop it.
 LLM_TARGETS = {
     'aws': {'prefix': 'AWS', 'headers': {}},
@@ -34,6 +34,8 @@ LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollamaUrl)
 LLM_MODEL = 'qwen3:14b'
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
 LLM_NO_THINK_MARKER = '/no_think' if LLM_MODEL.lower().startswith('qwen3') else ''
+LLM_REQUEST_TIMEOUT_SECONDS = 90.0
+LLM_INTERACTIVE_MAX_RETRIES = 1
 EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollamaUrl)
 EMBEDDING_MODEL = 'bge-m3:latest'
 EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
@@ -71,7 +73,7 @@ logging.getLogger(__name__).info(
     _ADDON_PATHS.framework, _ADDON_PATHS.sources['CORE_FRAMEWORK_ADDONS_PATH'],
     list(_ADDON_PATHS.custom), _ADDON_PATHS.sources['CUSTOM_ADDONS_PATH'])
 _ODOO_ROOT = Path(CORE_ADDONS_PATH).parent
-_ODOO_VENV_PYTHON = _ODOO_ROOT / '.venv' / 'bin' / 'python'
+_ODOO_VENV_PYTHON = _ODOO_ROOT / '.venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
 _ODOO_DEFAULT_CONF = _ODOO_ROOT / 'odoo.conf'
 EVAL_ODOO_BIN = os.getenv('EVAL_ODOO_BIN') or str(_ODOO_ROOT / 'odoo-bin')
 EVAL_ODOO_PYTHON = os.getenv('EVAL_ODOO_PYTHON') or (str(_ODOO_VENV_PYTHON) if _ODOO_VENV_PYTHON.is_file() else sys.executable)

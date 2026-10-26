@@ -12,6 +12,7 @@ from config.settings import (
     LLM_MODEL,
     LLM_API_KEY,
     LLM_NO_THINK_MARKER,
+    LLM_REQUEST_TIMEOUT_SECONDS,
     require_inference_server,
 )
 from core.llm.llm_retry import (
@@ -55,6 +56,7 @@ def get_chat_llm(
         temperature=temperature,
         max_tokens=max_tokens,
         max_retries=max_retries,
+        timeout=LLM_REQUEST_TIMEOUT_SECONDS,
         model_kwargs=kw,
         **penalties,
     )

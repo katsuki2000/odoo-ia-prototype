@@ -419,7 +419,7 @@ def _fuzzy_match_graph(
     query_lower = _business_text(query)
     query_tokens = _business_tokens(query)
     query_token_set = set(query_tokens)
-    query_token_count = max(len(query_tokens), 1)
+    query_token_count = max(len(query_token_set), 1)
     raw_query_lower = query.lower()
     # which index rows are a model's OWN technical-name
     # self-entry (plain dotted, or the "."/"_" -> " " spaced variant) --
@@ -452,7 +452,11 @@ def _fuzzy_match_graph(
                 any(fuzz.ratio(word, qw) >= 85 for qw in query_token_set)
                 for word in label_words
             )
-            coverage = max(matched_words / label_token_count, matched_words / query_token_count)
+            matched_query_tokens = sum(
+                any(fuzz.ratio(word, qw) >= 85 for word in label_words)
+                for qw in query_token_set
+            )
+            coverage = max(matched_words / label_token_count, matched_query_tokens / query_token_count)
             node_type = entry_types[idx] if idx < len(entry_types) else "Model"
             entity_multiplier = 1.0 if node_type in ("Model", "Menu") else 0.80
             adjusted = score * coverage * entity_multiplier + (matched_words * 0.01)

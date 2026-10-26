@@ -17,7 +17,7 @@ meme convention de nommage
 DRY (Don't Repeat Yourself)
 utilise des trucs universels et standard , n'invente pas, au pire dis moi qu ça sort de l'ordinaire 
 
-config/settings.py : seuls les secrets et les adresses de connexion (serveur LLM, instance Odoo, API) sont lus de l'environnement ; tout le reste est une constante de config/settings.py, rien d'autre dans .env
+config/settings.py : l'environnement ne porte que ce qui change d'un poste ou d'un déploiement à l'autre : secrets, adresses de connexion (serveur LLM, instance Odoo, API) et emplacements des installations externes (sources Odoo, odoo.conf, odoo-bin, interpréteur), chacun avec un défaut portable (jamais un chemin absolu ni propre à un OS) ; tout le reste (modèles, budgets, seuils, limites, comportement) est une constante de config/settings.py, rien d'autre dans .env
 
 > lorsque plusieurs options s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
 

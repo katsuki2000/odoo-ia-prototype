@@ -24,6 +24,7 @@ from core.guardrails import (
     is_out_of_scope, is_prompt_injection,
 )
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit, with_no_think
+from config.settings import LLM_INTERACTIVE_MAX_RETRIES
 from core.state import RAGState
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,9 @@ def run_react_loop(ctx, llm, history):
         def rebuild():
             boundModel[0] = buildBoundModel()
             return boundModel[0]
-        response, wait = invoke_with_rate_limit(boundModel[0], messages, rebuild_llm=rebuild)
+        response, wait = invoke_with_rate_limit(
+            boundModel[0], messages, max_retries=LLM_INTERACTIVE_MAX_RETRIES,
+            rebuild_llm=rebuild)
         ctx.llm_wait += wait
         return response
 
@@ -99,6 +102,21 @@ def run_react_loop(ctx, llm, history):
             {'messages': [*history[-6:], HumanMessage(content=ctx.question)]},
             config={'recursion_limit': 2 * CI_MAX_HOPS + 2, 'max_concurrency': 1})
         final = result['messages'][-1]
+        if isinstance(final.content, str) and final.content and not ctx.tool_observations:
+            retry_messages = [
+                *result['messages'],
+                HumanMessage(content=(
+                    'RAPPEL : cette question porte sur le fonctionnement de cette instance. '
+                    'Avant de répondre, utilise search_system pour trouver le modèle ou le module '
+                    'correspondant, puis l’outil d’analyse adapté. Si le terme est ambigu, demande '
+                    'une précision au lieu de choisir un processus. Ne donne pas une procédure '
+                    'générique comme si elle était confirmée dans cette instance.'
+                )),
+            ]
+            result = agent.invoke(
+                {'messages': retry_messages},
+                config={'recursion_limit': 2 * CI_MAX_HOPS + 2, 'max_concurrency': 1})
+            final = result['messages'][-1]
         ctx.final_message_preview = final.content[:FINAL_MESSAGE_PREVIEW_CHARS] if isinstance(final.content, str) else None
         if (getattr(final, 'tool_calls', None) or not isinstance(final.content, str)
                 or final.content == LANGGRAPH_STEP_LIMIT_NOTICE):

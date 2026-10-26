@@ -18,9 +18,9 @@ Scoring stays MANUAL (todo/rules.md: no second-LLM auto-scoring). The script onl
 prints mechanical facts (observation sizes, markers, answer similarity).
 
 Usage:
-    .venv/bin/python3 scripts/compare_observation_caps.py
-    .venv/bin/python3 scripts/compare_observation_caps.py --ids PUR-Q2 --repeat 3
-    .venv/bin/python3 scripts/compare_observation_caps.py --override-cap 8000 --locks-cap 10000 --total-cap 80000
+    python scripts/compare_observation_caps.py
+    python scripts/compare_observation_caps.py --ids PUR-Q2 --repeat 3
+    python scripts/compare_observation_caps.py --override-cap 8000 --locks-cap 10000 --total-cap 80000
 """
 
 from __future__ import annotations

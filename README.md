@@ -279,7 +279,7 @@ odoo-ia-prototype/
 
 ### Settings (`config/settings.py`)
 
-`config/` reads from the environment (`.env` or the shell) only secrets and addresses of the LLM server, the Odoo instance and the API, listed below. Everything else (models, thresholds, limits, Google Drive limits, internal paths) is a constant of `config/settings.py` or `config/google_drive.py`.
+`config/` reads from the environment (`.env` or the shell) only what varies per machine or deployment: secrets, addresses of the LLM server, the Odoo instance and the API, and locations of the Odoo installation (each with a portable default), listed below. Everything else (models, thresholds, limits, Google Drive limits, internal paths) is a constant of `config/settings.py` or `config/google_drive.py`.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
