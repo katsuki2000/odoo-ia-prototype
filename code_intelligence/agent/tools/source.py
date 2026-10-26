@@ -72,6 +72,8 @@ def search_system(query: str, model: str = '', module: str = '', limit: int = 8)
         },
         'semantic_status': objects['semantic_status'],
         'source_coverage': sources['coverage'],
+        'source_coverage_metadata_valid': sources['coverage_metadata_valid'],
+        'source_coverage_gaps': sources['coverage_gaps'],
         'source_scan_complete': sources['complete_scan'],
         'results_clipped': bool(objectRows or sourceRows),
         'discovery_only': True,
