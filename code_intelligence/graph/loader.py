@@ -820,7 +820,9 @@ def _get_code_intelligence_graph(
             len(_installed_module_names(installed_modules))
             if installed_modules is not None else None
         ),
-        "installed_modules_with_source": len(installed_source_modules),
+        "installed_modules_with_source": (
+            len(installed_source_modules) if installed_modules is not None else None
+        ),
         "modules_loaded": len(loaded_module_directories),
         "source_files_indexed": len(source_file_inventory),
         "coverage_complete": not any(coverage_gaps.values()),
