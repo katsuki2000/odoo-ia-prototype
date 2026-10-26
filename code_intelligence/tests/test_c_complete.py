@@ -18,26 +18,20 @@ from code_intelligence.agent.tools import ALL_CI_TOOLS
 
 
 def test_c1_1_tools_binding():
-    """Test C.1.1: Verify all tools (composite + auxiliary) are present in ALL_CI_TOOLS."""
-    tool_names = {t.name for t in ALL_CI_TOOLS}
+    """The exposed Code Intelligence tool set stays within the PoC scope."""
+    tool_names = {tool.name for tool in ALL_CI_TOOLS}
     expected_tools = {
-        "list_involved_modules",
         "who_has_access_to",
-        "field_change_impact",
+        "evaluate_record_rules",
+        "analyze_server_actions",
+        "analyze_security_locks",
+        "analyze_method_override_chain",
+        "analyze_data_constraints",
         "button_execution_path",
-        "trace_full_inheritance",
         "describe_workflow",
-        "resolve_technical_name",
-        "explain_decision_path",
-        "read_source_code",
-        "analyze_data_constraints",  # bis
+        "describe_navigation_path",
     }
-    assert expected_tools.issubset(tool_names), f"Missing tools: {expected_tools - tool_names}"
-    # Count deliberately not pinned to a literal number -- it has drifted
-    # (12 -> 13 with bis's analyze_data_constraints) and would keep
-    # drifting with future additions. The issubset check above is the real
-    # guarantee; this just documents intent without becoming stale again.
-    assert len(ALL_CI_TOOLS) >= len(expected_tools)
+    assert tool_names == expected_tools
 
 
 def test_c1_3_system_prompt_structure():

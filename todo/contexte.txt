@@ -3960,3 +3960,11 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 **Vérification** : cette modification n'a pas encore été exécutée localement. Le dernier CI connu sur le parent `c75354990cf3daaaf82a4c3d78d2877c3a5f3d68` est rouge (1 921 réussites, 45 échecs, 48 ignorés), avec plusieurs échecs d'environnement dus à l'absence de `AWS_OLLAMA_HOST`, et des échecs distincts de recherche/résolution. Aucun résultat vert n'est revendiqué.
 
 **Limite de cette étape** : elle réduit les choix du LLM ; elle ne supprime pas encore physiquement les implémentations avancées. Leur suppression dépend de l'audit des références et d'une évaluation du PoC.
+
+## Section 1583 : alignement du test historique sur le périmètre PoC (26/10/2026)
+
+**Constat** : après la réduction de `ALL_CI_TOOLS` en section 1582, `code_intelligence/tests/test_c_complete.py::test_c1_1_tools_binding` échouait parce qu'il exigeait encore six outils désormais volontairement non exposés au LLM. Le nouveau test `test_poc_tool_surface.py` couvre aussi la surface complète (outils CI + recherche/lecture de source).
+
+**Fait** : le test historique vérifie maintenant l'ensemble exact des neuf outils CI spécialisés du PoC, au lieu d'exiger l'ancienne liste de fonctions. Aucun outil n'a été réajouté. Fichiers : `code_intelligence/tests/test_c_complete.py`, `todo/contexte.txt`.
+
+**Vérification** : pas d'exécution locale disponible. Le CI sur `d975f9a034bca4a85fab1fef3f824b15d22fec97` a échoué avec 46 tests en échec au total ; l'échec de liaison d'outils est celui introduit par le nouveau périmètre et corrigé ici. Les autres échecs de configuration RAG, résolution/recherche, inventaire et règles de l'addon restent distincts. Le nouveau CI doit confirmer le résultat après ce correctif.
