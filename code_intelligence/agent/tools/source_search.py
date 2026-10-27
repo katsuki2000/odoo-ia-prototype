@@ -9,6 +9,14 @@ from code_intelligence.agent.text_normalization import strip_accents
 from code_intelligence.agent.tools.helpers import _is_custom_module_filepath
 
 _SUPPORTED_SUFFIXES = {'.py', '.xml', '.js', '.csv', '.sql', '.po', '.html', '.scss', '.css'}
+_SUFFIX_PRIORITY = {'.py': 0, '.xml': 1}
+_DEFAULT_SUFFIX_PRIORITY = 2
+_TRANSLATION_SUFFIX = '.po'
+
+
+def _suffix_order(filepath):
+    suffix = Path(filepath).suffix.lower()
+    return suffix == _TRANSLATION_SUFFIX, _SUFFIX_PRIORITY.get(suffix, _DEFAULT_SUFFIX_PRIORITY)
 _STOPWORDS = frozenset({
     'des', 'les', 'dans', 'par', 'pour', 'avec', 'sur', 'une', 'que', 'qui',
     'est', 'son', 'ses', 'aux', 'the', 'and', 'for', 'with', 'from', 'this',
@@ -179,7 +187,7 @@ def search_source_fragments(
             entry['context_models'].update(modelsByModule.get(moduleName, set()))
 
     totalBytes = 0
-    candidateSet = set(candidate_models or ())
+    candidateSet = set(candidate_models or ()) | ({model} if model else set())
 
     def fileSortKey(item):
         filePath, ctx = item
@@ -199,8 +207,10 @@ def search_source_fragments(
             rank = 4
         else:
             rank = 5
-        return (rank, filePath)
+        declaresCandidate = bool(candidateSet & ctx['models'])
+        return (rank, not declaresCandidate, _suffix_order(filePath), filePath)
 
+    matches = []
     for filepath, context in sorted(inventory.items(), key=fileSortKey):
         if model and model not in context['models'] | context['context_models']:
             continue
@@ -233,16 +243,18 @@ def search_source_fragments(
         totalBytes += size
         coverage['files_indexed'] += 1
         normalizedLines = [strip_accents(line.casefold()) for line in text.splitlines()]
-        matching = [
-            index for index, line in enumerate(normalizedLines)
-            if pattern.search(line)
-        ]
-        if not matching:
+        index, bestTerms = -1, set()
+        for lineIndex, line in enumerate(normalizedLines):
+            found = set(pattern.findall(line))
+            if len(found) > len(bestTerms):
+                index, bestTerms = lineIndex, found
+        if index < 0:
             continue
-        index = matching[0]
         start = max(0, index - limits.max_lines // 2)
         end = min(len(normalizedLines), start + limits.max_lines)
-        result['candidates'].append({
+        isTranslation, suffixPriority = _suffix_order(path)
+        relevance = (isTranslation, -len(bestTerms), suffixPriority, len(matches))
+        matches.append((relevance, {
             'filepath': str(path),
             'line_start': start + 1,
             'line_end': end,
@@ -250,9 +262,10 @@ def search_source_fragments(
             'models': sorted(context['models']),
             'context_models': sorted(context['context_models']),
             'modules': sorted(context['modules']),
-        })
-        if len(result['candidates']) >= min(limit, limits.max_fragments):
-            result['complete_scan'] = False
-            break
+        }))
+    keep = min(limit, limits.max_fragments)
+    if len(matches) >= keep:
+        result['complete_scan'] = False
+    result['candidates'] = [candidate for _, candidate in sorted(matches, key=lambda match: match[0])[:keep]]
     coverage['fragments_indexed'] = len(result['candidates'])
     return result

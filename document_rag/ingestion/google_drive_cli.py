@@ -3,12 +3,13 @@
 import argparse
 import json
 from pathlib import Path
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--chunk-size', type=int, default=512)
-    parser.add_argument('--chunk-overlap', type=int, default=50)
+    parser.add_argument('--chunk-size', type=int, default=RAG_CHUNK_SIZE)
+    parser.add_argument('--chunk-overlap', type=int, default=RAG_CHUNK_OVERLAP)
     parser.add_argument('--watch', action='store_true', help='Synchronize immediately, then periodically')
     args = parser.parse_args()
     from dotenv import load_dotenv

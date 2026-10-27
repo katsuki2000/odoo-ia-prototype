@@ -1,0 +1,22 @@
+Procédure Achats et Relations Fournisseurs Miro K.E.
+Ce manuel interne formalise les règles régissant l'approvisionnement en biens et services au sein de l'entreprise Miro K.E. afin de garantir la transparence financière, le respect des budgets analytiques et la conformité avec les processus Odoo 17.
+1. Sélection et référencement des fournisseurs
+Tout fournisseur commercialisant avec Miro K.E. doit faire l'objet d'un dossier de référencement validé par le service Achats. Le dossier comprend impérativement les éléments suivants :
+Numéro d'Identification Fiscale (NIF) en cours de validité
+Numéro Statistique officiel (Carte STAT)
+Relevé d'Identité Bancaire (RIB) certifié par l'établissement bancaire
+Conditions Générales de Vente et grille tarifaire négociée
+Engagement de conformité éthique et anti-corruption
+2. Seuils d'approbation des demandes d'achat (PO)
+Dans Odoo Achats, la confirmation d'un bon de commande fournisseur (Purchase Order) obéit à une hiérarchie stricte d'approbation selon le montant global hors taxes en Ariary (Ar) :
+
+3. Réception des marchandises et contrôle 3-voies
+Pour prévenir les erreurs de facturation et les livraisons incomplètes, Miro K.E. applique le principe du rapprochement à 3 voies (3-way matching) dans Odoo :
+La commande d'achat (PO) doit concorder avec le devis initial approuvé.
+Le bon de réception (Receipt) doit certifier la quantité réellement livrée en entrepôt.
+La facture fournisseur ne peut être comptabilisée que si les quantités concordent avec la réception.
+En cas d'écart constaté supérieur à 2%, la facture fournisseur est bloquée automatiquement dans Odoo en attente d'un avoir ou d'une régularisation par le service Achats.
+Tranche de montant (HT) | Validateur requis | Délai moyen de validation
+Moins de 1 000 000 Ar | Chef de département / Responsable Achats | 24 heures ouvrées
+1 000 000 Ar à 5 000 000 Ar | Directeur Administratif et Financier (DAF) | 48 heures ouvrées
+Supérieur à 5 000 000 Ar | Directeur Général (DG) | 72 heures ouvrées

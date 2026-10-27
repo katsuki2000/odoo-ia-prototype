@@ -20,10 +20,11 @@ import networkx as nx
 import pytest
 
 from code_intelligence.agent.tools import ALL_CI_TOOLS, analyze_data_constraints
-from code_intelligence.agent.tools.helpers import find_model_source_filepaths, set_graph_ref
+from code_intelligence.agent.tools.helpers import find_model_source_filepaths, model_lineage, set_graph_ref
 from code_intelligence.rules.data_constraints import (
     SemgrepMatch,
     _conditional_check_facts,
+    analyze_data_constraints_from_filepaths,
     backfill_missing_conditional_check_facts,
 )
 
@@ -304,3 +305,101 @@ def test_backfill_keeps_exact_sql_detail_when_question_requests_sql():
         question="Quelle contrainte SQL impose cette règle ?",
     )
     assert "date_order IS NOT NULL" in answer
+
+
+TWO_MODELS_SOURCE = """from odoo import models
+
+
+class Alpha(models.Model):
+    _name = 'x.alpha'
+    _sql_constraints = [('alpha_check', 'CHECK(a > 0)', 'Alpha')]
+
+
+class Beta(models.Model):
+    _inherit = 'x.beta'
+    _sql_constraints = [('beta_check', 'CHECK(b > 0)', 'Beta')]
+"""
+ALPHA_LINE, BETA_LINE, OUTSIDE_CLASS_LINE = 6, 11, 1
+
+
+def _match(py_file, line, check):
+    return SemgrepMatch(
+        filepath=str(py_file), start_line=line, end_line=line,
+        check_id="odoo-sql-constraints-declaration", message=check, lines=check,
+    )
+
+
+@pytest.fixture
+def two_models_file(tmp_path, monkeypatch):
+    py_file = tmp_path / "two_models.py"
+    py_file.write_text(TWO_MODELS_SOURCE)
+    matches = [_match(py_file, ALPHA_LINE, "alpha_check"), _match(py_file, BETA_LINE, "beta_check")]
+    monkeypatch.setattr("code_intelligence.rules.data_constraints.run_semgrep_analysis", lambda *a, **k: matches)
+    return py_file
+
+
+def test_constraint_of_another_model_in_the_same_file_is_dropped(two_models_file):
+    result = analyze_data_constraints_from_filepaths("x.alpha", [str(two_models_file)], relevant_models={"x.alpha"})
+    assert "alpha_check" in result.summary_text
+    assert "beta_check" not in result.summary_text
+    assert len(result.matches) == 1 and len(result.evidence) == 1
+
+
+def test_constraint_of_an_extended_model_is_kept(two_models_file):
+    result = analyze_data_constraints_from_filepaths(
+        "x.alpha", [str(two_models_file)], relevant_models={"x.alpha", "x.beta"})
+    assert "alpha_check" in result.summary_text and "beta_check" in result.summary_text
+
+
+def test_without_relevant_models_nothing_is_dropped(two_models_file):
+    result = analyze_data_constraints_from_filepaths("x.alpha", [str(two_models_file)])
+    assert len(result.matches) == 2
+
+
+def test_match_without_a_known_owner_is_kept(two_models_file, monkeypatch):
+    outside = _match(two_models_file, OUTSIDE_CLASS_LINE, "outside_check")
+    monkeypatch.setattr("code_intelligence.rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [outside])
+    result = analyze_data_constraints_from_filepaths("x.alpha", [str(two_models_file)], relevant_models={"x.alpha"})
+    assert "outside_check" in result.summary_text
+
+
+def test_all_files_are_analysed_by_a_single_semgrep_call(tmp_path, monkeypatch):
+    files = [tmp_path / "a.py", tmp_path / "b.py"]
+    for file in files:
+        file.write_text("# empty\n")
+    calls = []
+    monkeypatch.setattr(
+        "code_intelligence.rules.data_constraints.run_semgrep_analysis",
+        lambda paths, *a, **k: calls.append(list(paths)) or [],
+    )
+    analyze_data_constraints_from_filepaths("x.alpha", [str(file) for file in reversed(files)])
+    assert calls == [files]
+
+
+def test_model_lineage_follows_extends_edges_transitively_and_nothing_else():
+    G = nx.DiGraph()
+    for name in ("a", "b", "c", "d", "e"):
+        G.add_node(f"model:{name}", node_type="Model", name=name)
+    G.add_edge("model:a", "model:b", edge_type="EXTENDS")
+    G.add_edge("model:b", "model:c", edge_type="EXTENDS")
+    G.add_edge("model:a", "model:d", edge_type="DELEGATES_TO")
+    G.add_edge("model:e", "model:a", edge_type="EXTENDS")
+    assert model_lineage(G, "a") == {"a", "b", "c"}
+
+
+def test_tool_reports_the_constraints_of_the_model_and_its_parents_only(two_models_file):
+    def graph(extends_beta):
+        G = nx.DiGraph()
+        G.add_node("model:x.alpha", node_type="Model", name="x.alpha", filepaths=[str(two_models_file)])
+        G.add_node("model:x.beta", node_type="Model", name="x.beta", filepaths=[])
+        if extends_beta:
+            G.add_edge("model:x.alpha", "model:x.beta", edge_type="EXTENDS")
+        return G
+
+    set_graph_ref(graph(extends_beta=False))
+    alone = analyze_data_constraints.invoke({"model_name": "x.alpha"})
+    set_graph_ref(graph(extends_beta=True))
+    with_parent = analyze_data_constraints.invoke({"model_name": "x.alpha"})
+
+    assert "alpha_check" in alone and "beta_check" not in alone
+    assert "alpha_check" in with_parent and "beta_check" in with_parent

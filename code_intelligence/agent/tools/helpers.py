@@ -6,6 +6,8 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Optional
 
+import networkx as nx
+
 from code_intelligence.agent.resolution.resolver import resolve_business_term
 
 _logger = logging.getLogger(__name__)
@@ -92,6 +94,14 @@ def find_model_source_filepaths(graph, model_name: str) -> set[str]:
         if edge.get('edge_type') == 'EXTENDS' and target.startswith('model:'):
             paths.update(graph.nodes[target].get('filepaths', []))
     return paths
+
+
+def model_lineage(graph, model_name: str) -> set[str]:
+    """The model and every model it extends, transitively."""
+    inheritance = nx.subgraph_view(
+        graph, filter_edge=lambda source, target: graph.edges[source, target].get('edge_type') == 'EXTENDS')
+    root = f'model:{model_name}'
+    return {node.removeprefix('model:') for node in {root, *nx.descendants(inheritance, root)}}
 
 
 def find_server_action_nodes(graph, model_name: str) -> list[tuple[str, dict]]:

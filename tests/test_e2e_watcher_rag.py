@@ -62,7 +62,7 @@ def test_e2e_live_add_delete_query_cycle():
         # this synthetic document for real (real network call, real answer),
         # legitimately concludes it has a SUFFICIENT (if negative) answer, and
         # generate() -- and this mocked RAG response -- is never reached.
-        with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
+        with patch("core.graph.graph_nodes.get_retriever") as mock_get_retriever, \
              patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
              patch("document_rag.generate_node._build_llm") as mock_build_llm:
 
@@ -78,7 +78,7 @@ def test_e2e_live_add_delete_query_cycle():
             mock_get_retriever.return_value = (mock_retriever, mock_bm25)
             
             # Patch search_retrieve inside graph to use our real e2e manager
-            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+            with patch("core.graph.graph_nodes.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 mock_llm_instance = MagicMock()
                 mock_build_llm.return_value = mock_llm_instance
                 mock_structured_llm = MagicMock()
@@ -90,10 +90,10 @@ def test_e2e_live_add_delete_query_cycle():
                     used_sources=["S1"],
                 )
                 
-                # Explicit documentary anchor required: doc_rag (generate()) is no
-                # longer an automatic fallback, only an explicit user-requested branch
-                # (todo/contexte.txt section 666) -- the explicit-document matcher must match.
-                response = query_graph("Selon la documentation, quel est le code secret de validation ?")
+                # The documentary branch must be chosen explicitly. Without source_mode the router
+                # calls a real LLM (core/routing/source_selection.py, since 132f0fb), which makes
+                # this test non-deterministic: source_mode='documentation' is the UI source option.
+                response = query_graph("Selon la documentation, quel est le code secret de validation ?", source_mode="documentation")
                 assert isinstance(response, AssistantResponse)
                 assert "ALPHA-9988-OMEGA" in response.answer
                 assert len(response.sources) > 0
@@ -110,7 +110,7 @@ def test_e2e_live_add_delete_query_cycle():
         assert not any("ALPHA-9988-OMEGA" in r["document"] for r in results_after_delete)
 
         # ── Step 6: Verify query_graph falls back safely when document is gone
-        with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
+        with patch("core.graph.graph_nodes.get_retriever") as mock_get_retriever, \
              patch("core.graph.graph.code_intelligence_agent") as mock_ci:
 
             mock_ci.return_value = {
@@ -121,10 +121,9 @@ def test_e2e_live_add_delete_query_cycle():
                 }
             }
             mock_get_retriever.return_value = (MagicMock(), MagicMock())
-            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
-                # Same explicit documentary anchor requirement as Step 3 above --
-                # generate() (RAG) only runs on an explicit documentary request.
-                response_after_delete = query_graph("Selon la documentation, quel est le code secret Katsuki ?")
+            with patch("core.graph.graph_nodes.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+                # Same explicit source choice as Step 3 above (no routing LLM call).
+                response_after_delete = query_graph("Selon la documentation, quel est le code secret Katsuki ?", source_mode="documentation")
                 assert len(response_after_delete.sources) == 0
                 assert response_after_delete.confidence == 0.0
                 assert "pas de source fiable" in response_after_delete.answer.lower() or "ne sais pas" in response_after_delete.answer.lower()

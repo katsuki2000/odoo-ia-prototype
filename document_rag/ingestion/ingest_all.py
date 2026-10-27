@@ -31,7 +31,7 @@ from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.scan_root import resolve_scan_root
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
+from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME, RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ class IngestionOrchestrator:
         self,
         chroma_db_path: str | Path = "vectorstore/chroma_db",
         collection_name: str = DOCS_COLLECTION_NAME,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = RAG_CHUNK_SIZE,
+        chunk_overlap: int = RAG_CHUNK_OVERLAP,
     ):
         self.docs_manager = ChromaManager(
             db_path=chroma_db_path,

@@ -13,9 +13,11 @@ from core.llm.llm_client import (
 )
 from document_rag.generate_helpers import (
     build_source_aliases as _build_source_aliases,
+    format_context as _format_context,
     verify_used_sources as _verify_used_sources,
     compute_rag_confidence,
     parse_raw_json_answer as _parse_raw_json_answer,
+    strip_source_aliases as _strip_source_aliases,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,10 +70,7 @@ def generate(state: RAGState) -> dict:
     from document_rag.prompts import build_rag_messages as build_messages
 
     alias_map = _build_source_aliases(chunks)
-    context_text = ""
-    for alias, chunk in alias_map.items():
-        doc_text = chunk.get("document", "")
-        context_text += f"[Source {alias}]\n{doc_text}\n\n"
+    context_text = _format_context(alias_map)
 
     chat_history = state.get("chat_history", [])
     messages = build_messages(question, context_text, chat_history)
@@ -92,7 +91,7 @@ def generate(state: RAGState) -> dict:
         )
         _llm_call_count += 1
         response = AssistantResponse(
-            answer=llm_resp.answer,
+            answer=_strip_source_aliases(llm_resp.answer),
             confidence=llm_resp.confidence,
             sources=_verify_used_sources(llm_resp.used_sources, alias_map),
         )
@@ -111,7 +110,7 @@ def generate(state: RAGState) -> dict:
             _llm_call_count += 1
             parsed_answer = _parse_raw_json_answer(raw_resp.content)
             response = AssistantResponse(
-                answer=parsed_answer if parsed_answer is not None else raw_resp.content,
+                answer=_strip_source_aliases(parsed_answer if parsed_answer is not None else raw_resp.content),
                 confidence=compute_rag_confidence(chunks),
                 sources=[],
             )

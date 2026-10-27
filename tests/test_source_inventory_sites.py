@@ -24,7 +24,9 @@ class SourceInventorySiteTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
-        self.graph = types.SimpleNamespace(nodes=Nodes())
+        # search_source_fragments also walks DEFINED_IN edges (per-module inventory): no edges here.
+        self.graph = types.SimpleNamespace(
+            nodes=Nodes(), successors=lambda node: iter(()), get_edge_data=lambda u, v: None)
         self.path = self.addFile('atelier/case.py', 'def approve():\n    return "amberworkflow"\n')
 
     def addFile(self, name, content, model='', module=''):

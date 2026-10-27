@@ -84,7 +84,9 @@
                                             <ul class="pl-3 mb-0 small text-muted">
                                                 <t t-foreach="msg.sources" t-as="s" t-key="s_index">
                                                     <li class="mb-2">
-                                                        <strong t-esc="s.title or s.source"/>
+                                                        <a t-if="s.source and (s.source.startsWith('https://') or s.source.startsWith('http://'))"
+                                                           t-att-href="s.source" target="_blank" rel="noopener noreferrer"><strong t-esc="s.title or s.source"/></a>
+                                                        <strong t-else="" t-esc="s.title or s.source"/>
                                                         <t t-if="s.snippet">
                                                             <pre class="source-snippet p-2 mt-1 rounded bg-light text-dark"><t t-esc="s.snippet"/></pre>
                                                         </t>

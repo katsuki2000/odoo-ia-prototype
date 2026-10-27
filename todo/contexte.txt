@@ -4008,9 +4008,9 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 - `test_model_suggestions.py` importait `inspect_module_extensions` et `list_involved_modules` depuis `code_intelligence.agent.tools`, dont la 1585 a réduit les exports ; ils existent toujours dans `introspection.py`. Import du test corrigé (`introspection` et les deux outils importés depuis ce module).
 - `test_poc_tool_surface.py::test_package_exports_only_tools_needed_for_the_poc` comparait `tools.__all__` aux onze noms d'outils, or `ALL_CI_TOOLS` (registre, importé par l'autre test du même fichier) est aussi dans `__all__`. Le test l'exclut de la comparaison.
 - `test_a1_2_1.py::test_real_xml_miro_ai_rules` attendait 3 règles ; le XML supprime volontairement `rule_miro_ai_settings_company` (`<delete>`), il en reste 2. Attendu corrigé, avec commentaire.
-- `test_c_complete.py::test_c1_6_end_to_end_governance_workflow_inheritance` attendait en dur `[Source: Graphe de Connaissances Code Intelligence]`, alors que `provenance.py` rend `GRAPH_SOURCE_FOOTER = "[Source: Système]"` depuis le commit `fb56a05` (22/10) ; la section 1573 l'avait déjà signalé. Le test importe maintenant `GRAPH_SOURCE_FOOTER`. Le warning « record_evidence() called before start_evidence_collection() » vient du test, qui appelle `code_intelligence_agent` sans passer par `core/graph/graph.py` (ligne 98, où la collecte démarre) ; en production le cycle est correct. Non corrigé.
+- `test_c_complete.py::test_c1_6_end_to_end_governance_workflow_inheritance` attendait en dur `[Source: Graphe de Connaissances Code Intelligence]`, alors que `provenance.py` rend `GRAPH_SOURCE_FOOTER = "[Source: Système]"` depuis le commit `fb56a05` (22/10) ; la section 1576 (suite) l'avait déjà signalé. Le test importe maintenant `GRAPH_SOURCE_FOOTER`. Le warning « record_evidence() called before start_evidence_collection() » vient du test, qui appelle `code_intelligence_agent` sans passer par `core/graph/graph.py` (ligne 98, où la collecte démarre) ; en production le cycle est correct. Non corrigé.
 
-**Décision 3 : retrait de `clear_gap`** (réponse à l'attente des sections 1560 et 1559) : la condition ajoutée dans `resolution/fuzzy_lookup.py` (commit `7c217b2`) résolvait directement par `fuzzy_graph_match` dès que le premier candidat lexical devançait le second de `AMBIGUITY_GAP_THRESHOLD` (10 points) ou était seul, sans arbitrage ni prise en compte de la recherche dense. La mesure de la 1560 montrait 15 déclenchements sur 98 questions, aucun sur les 10 à vérité établie, au moins 9 cibles apparemment fausses, pour un gain d'un appel LLM en moins sur environ 15 % des questions. Elle contredisait les tests `test_dense_resolver` (3) et `test_s2_0_business_resolver` (3), écrits pour l'arbitrage borné. Décision : retrait. La condition d'origine est restaurée (`strict and len(candidates) == 1`, raison « One strict graph-label candidate; no competing retrieved model. »), et l'import `AMBIGUITY_GAP_THRESHOLD` devenu inutile est retiré de `fuzzy_lookup.py`. La constante reste dans `candidates.py` (départage des égalités, ligne 154) et dans `test_business_resolver.py`. Limite : la mesure de la 1560 utilisait une recherche dense vide et `llm=None` ; `scripts/audit_question_resolution.py` avec recherche dense et LLM réels, avant/après, n'a pas été lancé.
+**Décision 3 : retrait de `clear_gap`** (décision en attente depuis la section 1560) : la condition ajoutée dans `resolution/fuzzy_lookup.py` (commit `7c217b2`) résolvait directement par `fuzzy_graph_match` dès que le premier candidat lexical devançait le second de `AMBIGUITY_GAP_THRESHOLD` (10 points) ou était seul, sans arbitrage ni prise en compte de la recherche dense. La mesure de la 1560 montrait 15 déclenchements sur 98 questions, aucun sur les 10 à vérité établie, au moins 9 cibles apparemment fausses, pour un gain d'un appel LLM en moins sur environ 15 % des questions. Elle contredisait les tests `test_dense_resolver` (3) et `test_s2_0_business_resolver` (3), écrits pour l'arbitrage borné. Décision : retrait. La condition d'origine est restaurée (`strict and len(candidates) == 1`, raison « One strict graph-label candidate; no competing retrieved model. »), et l'import `AMBIGUITY_GAP_THRESHOLD` devenu inutile est retiré de `fuzzy_lookup.py`. La constante reste dans `candidates.py` (départage des égalités, ligne 154) et dans `test_business_resolver.py`. Limite : la mesure de la 1560 utilisait une recherche dense vide et `llm=None` ; `scripts/audit_question_resolution.py` avec recherche dense et LLM réels, avant/après, n'a pas été lancé.
 
 **Vérification (exécutions réelles)** :
 - `measure_context_budget.py --ids PUR-Q5 STK-Q5 SAL-Q5` après le correctif 1 : 38,4 %, 39,4 % et 21,1 % de la fenêtre de 32 768 jetons, aucune coupe ni réduction.
@@ -4023,6 +4023,783 @@ Date : 26/10/2026. Dernier numero lu avant ecriture : 1581. Etat verifie avant d
 
 **Fichiers modifiés** : `code_intelligence/rules/navigation.py`, `code_intelligence/agent/resolution/fuzzy_lookup.py`, `code_intelligence/tests/test_model_suggestions.py`, `test_poc_tool_surface.py`, `test_a1_2_1.py`, `test_c_complete.py`, `todo/contexte.txt`. Aucun commit, aucun push.
 
-## Section 1540 : verification des reponses du rapport native_n1 (PUR/SAL/STK, 22/10/2026) - lecture seule, aucun code modifie
+## Section 1587 : verification des reponses du rapport native_n1 (PUR/SAL/STK, 27/10/2026), lecture seule, aucun code modifie
 **Methode** : sources `odoo-17.0/addons` + `odoo_addons` (modules OCA/custom installes) + runtime via `OdooConnector(technical=True)` sur la base `odoo-dev` (scripts `.scratch/verify_1540.py` et `verify_1540b.py`). Corrige une erreur de la lecture initiale : `sale_delivery_state`, `sale_invoice_policy`, `sale_invoice_frequency`, `sale_automatic_workflow`, `sale_order_priority` existent et sont installes ; seul `sale_order_lock` est absent.
 **Resultat (13 questions, ACC-Q1 tronquee)** : exactes PUR-Q4, SAL-Q1, SAL-Q5 (preuve exacte mais noyee dans ~40 entrees) ; conclusion exacte mais justification contaminee SAL-Q4 ; partielles PUR-Q2, PUR-Q3, PUR-Q5, SAL-Q3, STK-Q4, STK-Q5 ; fausses PUR-Q1, SAL-Q2, STK-Q3, et STK-Q1 (2e partie) ; sans reponse STK-Q2.
+
+## Section 1587 : méthodes qui écrivent l'état sans bouton de vue, dans le graphe et dans `describe_workflow` (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1586. Sauvegarde : `.scratch/avant_1587/` (`nodes.py`, `version.py`, `workflow.py`, `contexte.txt`). **Mandat (pmm)** : « B », option B proposée après le diagnostic ci-dessous.
+**Constat** (session MIRO du 27/10, question « demande d'achat », modèle `custom.purchase.request`) : la réponse affirme « Aucun état n'a été trouvé dans le code » alors que le modèle a le champ `etat` (brouillon, a_valider, valide, refuse), `action_soumettre` écrit `a_valider` et `action_valider` écrit `valide`. Lecture seule faite avant ce plan :
+- `graph/nodes.py::add_workflow_nodes_and_edges` ne crée une transition (`TRANSITIONS_VIA`) que pour un bouton de vue (`for btn in form_buttons`). Le formulaire de ce modèle (`ext_purchase_request/views/purchase_request_views.xml`) n'a aucun `<button>`.
+- `rules/workflow.py::describe_workflow` calcule `states` mais, sans transition, son texte (`NO_WORKFLOW_TRANSITION_MARKER` + « The graph may omit… ») ne les donne pas : le LLM n'a jamais vu les quatre valeurs et a conclu à leur absence.
+- Le graphe actif (`active_graph.json`, 26/10 11:48) contient pourtant les 4 `WorkflowState`, `state_field = 'etat'` et les nœuds `Method` des deux actions, avec 0 `TRANSITIONS_VIA` ; les écritures d'état par méthode ne sont pas dans le graphe (seulement dans `OdooMethodDeclaration.written_values` à l'extraction).
+- L'extracteur reconnaît déjà les deux écritures : `extract_odoo_models_from_file` rend `written_values == {'etat': ['a_valider']}` pour `action_soumettre` et `{'etat': ['valide']}` pour `action_valider` (la variable de boucle `rec` est prise en compte). Aucune modification de `extractor/python.py`.
+**Plan** : (1) `graph/nodes.py::add_workflow_nodes_and_edges` : pour chaque modèle à champ d'état, enregistrer sur le nœud du modèle `state_writes = [{method_name, states}]` (états écrits par chaque méthode via `written_states`, appels internes suivis, filtrés par la sélection ; liste vide si aucune méthode n'écrit), à côté de `state_field` ; l'absence de la clé signale un ancien graphe. (2) `graph/version.py` : `GRAPH_SCHEMA_VERSION` 20 -> 21, pour qu'un graphe sans `state_writes` soit reconnu périmé (le chargeur le reconstruit alors) au lieu d'afficher silencieusement « aucune méthode ». (3) `rules/workflow.py::describe_workflow` : le résultat porte `state_field` et `state_methods` (méthodes publiques, hors préfixe `_`, dont le nom n'est pas déjà une transition de bouton) ; le texte, dans le cas sans transition, donne le champ d'état et ses valeurs, puis la liste « méthodes qui écrivent cet état sans transition de bouton dérivée », avec la mise en garde : état d'origine, appelants et contrôles internes non dérivés, lire la méthode avant de conclure ; dans le cas avec transitions, seule la liste des méthodes est ajoutée ; une Evidence par état écrit (confiance HIGH, limitée à l'existence de l'écriture dans le code) et, sans transition, une Evidence pour les valeurs du champ ; l'Evidence LOW « aucune transition dérivée » et le statut `EMPTY` restent inchangés. (4) Tests : nouveau fichier `code_intelligence/tests/test_workflow_state_methods.py` (construction sur le modèle `custom.purchase.request` reproduit, graphe sans clé, texte et Evidence) ; les tests existants (`test_workflow_extraction.py`, `test_bloc_b1_evidence_describe_workflow.py`) ne doivent pas changer.
+**Hors périmètre** : état d'origine d'une méthode sans bouton, détection des conditions d'appel, autres champs que le champ d'état, prompt de synthèse.
+**Conséquence pour pmm** : après ce changement, l'ancien `active_graph.json` est périmé ; lancer `python scripts/rebuild_graph.py` avec Odoo démarré AVANT de redémarrer uvicorn (sinon le chargeur reconstruit au démarrage, sans l'inventaire de l'instance si Odoo est arrêté : cas de la 1577).
+**Vérification prévue** : `py_compile`, tests ciblés (`test_workflow_state_methods`, `test_workflow_extraction`, `test_bloc_b1_evidence_describe_workflow`, `test_j37_j42_staleness_and_atomic_swap`), puis rejeu « demande d'achat » par pmm.
+
+## Section 1587 (suite) : réalisé (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1587. État vérifié sur disque avant d'agir : `nodes.py`, `version.py`, `workflow.py` conformes aux sauvegardes de `.scratch/avant_1587/`, aucune écriture d'une autre session sur ces fichiers.
+**Fait** : (1) `code_intelligence/graph/nodes.py::add_workflow_nodes_and_edges` : le nœud du modèle porte `state_writes = [{method_name, states}]` (via `written_states`, appels internes suivis, filtré par la sélection ; liste vide si aucune méthode n'écrit). (2) `code_intelligence/graph/version.py` : `GRAPH_SCHEMA_VERSION` 20 -> 21. (3) `code_intelligence/rules/workflow.py` : `WorkflowProcessResult` porte `state_field` et `state_methods` ; `_state_overview_text` ajoute au texte le champ d'état et ses valeurs (cas sans transition) et la liste des méthodes publiques qui écrivent l'état sans transition de bouton (cas sans transition et cas avec transitions) ; Evidence HIGH par état écrit et, sans transition, Evidence HIGH pour les valeurs du champ ; l'Evidence LOW `no_transition_derived` et le statut `EMPTY` sont inchangés. (4) `code_intelligence/tests/test_workflow_state_methods.py` : 6 tests (nœud `state_writes` sur le modèle reproduit de `custom.purchase.request`, texte sans bouton, Evidence, méthode déjà derrière un bouton non dupliquée, ancien graphe sans la clé, version du schéma).
+**Vérification (exécutions réelles)** : `py_compile` des quatre fichiers : OK ; `test_workflow_state_methods`, `test_workflow_extraction`, `tests/test_workflow_context_guards`, `test_bloc_b1_evidence_describe_workflow`, `test_j37_j42_staleness_and_atomic_swap`, `test_section942_noop_hook_and_workflow_grounding` : 57 passés ; `tests/test_single_investigation_loop`, `test_bloc_p2_j4_composite_tools_tag_exposure`, `test_poc_tool_surface`, `test_section1029_prompt_wording` : 50 passés, 1 échec. `active_graph.json` non modifié (horodatage 26/10 11:48 avant et après) ; les tests utilisant la fixture `real_graph` n'ont pas été lancés (risque de réécriture du graphe, section 1577), ni `test_c_complete`, `test_b_complete`.
+**Échec non lié à cette section, non corrigé** : `tests/test_single_investigation_loop.py::RoutingTests::test_introspection_has_no_global_graph_access` exige `get_graph_ref()` dans `code_intelligence/agent/tools/introspection.py` ; ce fichier (non modifié ici) utilise `_require_graph` importé de `helpers` ; test périmé depuis la réduction de la 1585, à aligner sur mandat.
+**Non vérifié** : le rendu réel sur le graphe de l'instance ; l'effet sur la réponse du LLM à « demande d'achat » ; que le chargeur reconstruit bien un graphe de version 20 au démarrage (comportement lu dans `loader.py`, non exécuté).
+**Limites connues** : l'état d'origine des méthodes sans bouton n'est pas dérivé (`action_valider` ne dit pas qu'elle part de `a_valider` : le code ne le vérifie pas) ; les méthodes privées (`_nom`) sont stockées dans le graphe mais non listées dans le texte ; `refuse` n'est écrit par aucune méthode du modèle et n'apparaît que dans la liste des valeurs.
+**À lancer par pmm** : (a) Odoo démarré, `python scripts/rebuild_graph.py` (reconstruit le graphe en version 21 avec l'inventaire de l'instance ; le script remet l'ancien graphe si l'inventaire est indisponible, sauf `--allow-offline`) ; (b) redémarrer uvicorn ; (c) rejouer « demande d'achat » : attendu, la réponse cite les valeurs brouillon, a_valider, valide, refuse et les deux méthodes `action_soumettre` et `action_valider` au lieu de « aucun état ». Vérification directe sans LLM, après (a) : `python -c "from code_intelligence.graph.loader import get_code_intelligence_graph as g; from code_intelligence.rules.workflow import describe_workflow as d; print(d(g(), 'custom.purchase.request').summary_text)"`. Fichiers modifiés : `code_intelligence/graph/nodes.py`, `code_intelligence/graph/version.py`, `code_intelligence/rules/workflow.py`, `code_intelligence/tests/test_workflow_state_methods.py` (nouveau), `todo/contexte.txt`. Aucun commit, aucun push.
+
+
+## Section 1588 : Mémoire de Master ENI — Repositionnement Chapitre 5, purge reliquats Licence et insertion Chapitre 6 (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1587. Fichier cible : `todo/MASTER_ENI.docx`. Sauvegardes : `todo/MASTER_ENI.pre_ch5_ch6.docx` et `.scratch/memoire_backup/MASTER_ENI.pre_ch5_ch6.docx`.
+**Contexte & Découverte** : L'analyse complète du document Word original a révélé que l'étudiant avait déjà rédigé son Chapitre 5 (Analyse conceptuelle Master) en fin de document (éléments 1083 à 1280), comprenant les rôles SCRUM, le Product Backlog (US-01 à US-20), les Sprints Backlog, le dictionnaire de données, les règles de gestion (RG-01 à RG-08) et 11 diagrammes UML complets (Figures 5.1 à 5.11). Entre le Chapitre 4 et ce Chapitre 5 se trouvaient 582 éléments obsolètes issus du mémoire de Licence (ancien projet emailing Brevo, 2TUP).
+**Réalisé** :
+1. Déplacement atomique des 198 éléments du Chapitre 5 Master immédiatement après le Chapitre 4 (élément XML 501), préservant intégralement les 11 dessins/diagrammes UML (`w:drawing`).
+2. Suppression complète des 582 éléments reliquats de Licence (anciens chapitres 5 à 8 et diagrammes associés).
+3. Harmonisation des 17 tableaux du Chapitre 5 : application du style officiel `Table10`, centrage, mise en forme des en-têtes (Gras 10pt) et des cellules de données (9.5pt), et normalisation des légendes (Tableau 16 à Tableau 32).
+4. Rédaction et insertion du Chapitre 6 (« Intégration IA dans la conception », éléments 666 à 705) :
+   - 6.1. Définition du module IA (client OWL miro_ai, middleware FastAPI/LangGraph, moteur RAG documentaire hybride, agent lecteur ORM temps réel sécurisé).
+   - 6.2. Données nécessaires au système (corpus textuel, schéma relationnel et métadonnées Odoo, base vectorielle ChromaDB, journal d'audit miro.ai.log) + Tableau 33 (Matrice des flux).
+   - 6.3. Choix du modèle IA et justification technique (modèle d'embedding BGE-M3, comparatif des LLM locaux Qwen 2.5 14B / Llama 3.1 8B / Mistral 7B / Phi-3.5) + Tableau 34 (Comparatif LLM) + Tableau 35 (Hyperparamètres RAG et inférence).
+   - 6.4. Méthode d'intégration logicielle (architecture microservice découplée, signature cryptographique HMAC SHA-256 avec requester_key éphémère, polling asynchrone HTTP 202) + Tableau 36 (Spécification des endpoints API).
+5. Insertion du bandeau de transition « PARTIE III : RÉALISATION » avec paragraphe d'introduction avant la conclusion.
+**Vérifications de conformité et intégrité** :
+- Chapitres 1 (ENI) et 2 (Miro K.E.) : strictement identiques au texte original (0 différence sur les paragraphes 226 à 354).
+- Continuité des tableaux : numérotation continue de Tableau 1 à Tableau 36.
+- Présence confirmée des 11 figures et diagrammes UML du Chapitre 5 (Figures 5.1 à 5.11).
+- Total document : 813 paragraphes, 37 tableaux, intégrité XML validée.
+
+## Section 1589 : formulaire du modèle (champs et boutons) dans `describe_navigation_path` (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1588 (autre session, mémoire de Master, sans lien). Sauvegarde : `.scratch/avant_1588/` (`navigation.py`, `test_bloc17_navigation_path.py`, `contexte.txt`, nommée avant la prise du numéro 1588 par l'autre session). **Mandat (pmm)** : « une correction », après mon constat sur la réponse de MIRO à « comment en faire une demande ? » (27/10, 09:01).
+**Constat** : la réponse est exacte sur un point (aucun menu n'ouvre `custom.purchase.request`, l'action fenêtre existe sans menu) et invente le reste : une « barre de recherche globale », des champs « fournisseur cible » et « description du besoin », un bouton « Soumettre ». D'après `ext_purchase_request/views/purchase_request_views.xml` et le manifeste, la vue est un formulaire de 5 champs (nom, demandeur, montant estimé, justification, état) sans aucun `<button>`, et le module ne déclare aucun menu. La section Sources de cette réponse était vide : le texte a été rédigé de mémoire, pied « Source: Système » non étayé.
+**Cause** : `rules/navigation.py::describe_navigation_path` ne rend que menu, action, groupes et bouton demandé. Le graphe actif contient pourtant les 5 nœuds `Field` du modèle (libellé généré « Demandeur Id », libellé métier « Demandeur » dans `business_labels`, type Odoo) et 0 nœud `Button` pour ce modèle ; aucun outil ne les présente pour une question « comment faire ».
+**Plan** : (1) `rules/navigation.py` : `_form_overview(G, model_name)` rend le texte, les étapes et les Evidence suivants : champs du modèle (arêtes `HAS_FIELD`, libellé métier sans l'étiquette générée quand un libellé métier existe, type Odoo), liste complète jusqu'à 25 champs, au-delà « N champs, liste omise » ; boutons (arêtes `HAS_BUTTON`, libellé) jusqu'à 15, ou « aucun bouton déclaré dans les vues XML indexées » ; mise en garde : un champ listé n'est pas forcément affiché dans la vue, et l'absence de bouton ne couvre pas un bouton ajouté dynamiquement ou par une vue non indexée. (2) Ce bloc est ajouté au résumé, aux étapes et aux Evidence des résultats EMPTY (avec ou sans action fenêtre) et FOUND ; rien n'est ajouté quand le modèle n'a aucun champ dans le graphe (les tests existants fixent `len(evidence) == 1` pour un modèle nu) ; Evidence : champs HIGH (source `fields:<modèle>`), boutons listés HIGH, absence de bouton MEDIUM (source `buttons:<modèle>`), aucune Evidence pour une liste omise. (3) Tests : nouveau fichier `code_intelligence/tests/test_navigation_form_overview.py` (modèle à 5 champs sans bouton, avec boutons, au-delà des plafonds, modèle nu, résultat FOUND avec menu) ; les tests existants ne doivent pas changer.
+**Non modifié** : extracteur, graphe, version du schéma (données déjà présentes : pas de reconstruction nécessaire), prompts, règle de synthèse « action orpheline », conseil d'accès sans menu (adresse directe, non dérivé du code), constat de gouvernance sur `etat` modifiable dans le formulaire (lu dans les fichiers, non testé dans Odoo, non traité ici).
+**Vérification prévue** : `py_compile`, nouveau fichier, tests de navigation existants (`test_bloc17_navigation_path`, `test_bloc17_jour4_navigation_path_tool_wiring`, `test_navigation_nested_menus`, `test_navigation_menu_selection`, `test_client_action_navigation`, `test_orphan_action_synthesis_rule`), puis rejeu par pmm de « comment en faire une demande ? ».
+
+
+## Section 1590 : Mémoire de Master ENI — Partie III (chapitres 7 à 10) ; Code Intelligence mis en perspective (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1589. Fichier cible : `todo/MASTER_ENI.docx`. Sauvegardes : `todo/MASTER_ENI.pre_ch7_ch9.docx` et `.scratch/memoire_backup/MASTER_ENI.pre_ch7_ch9.docx`. Aucun code du projet modifié.
+**Mandat (pmm)** : Code Intelligence mis en pause (pas le temps de le finir avant le rendu de vendredi 30/10) ; il est documenté comme perspective avec présentation de l'approche ; les captures sont décrites par des emplacements à remplir par pmm.
+**Fait** : insertion avant la CONCLUSION de 4 chapitres (script `.scratch/apply_ch7_ch10.py`, contenu `.scratch/content_ch7_ch10.py`, mise en forme copiée du chapitre 6) ; paragraphe d'introduction de la Partie III réécrit pour annoncer 4 chapitres. Chapitre 7 (environnement, dépôt et configuration, mise en place ; Tableaux 37-38) ; chapitre 8 (miro_ai, backend, RAG documentaire, outils ORM ; Tableaux 39-40, Figures 8.1-8.2) ; chapitre 9 (tests, banque de 37 questions, série du 14/10, budget de contexte ; Tableau 41) ; chapitre 10 (Code Intelligence : approche, principes, illustration, bilan, suite ; Tableaux 42-43, Figure 10.1). Document : 44 tableaux, 106 pages au rendu LibreOffice.
+**Sources des faits** : code (`config/settings.py`, `document_rag/`, `erp_data/runtime/`, `odoo_addons/miro_ai/`, `api/routes_*.py`), README, `active_graph.json` (métadonnées), `tests/benchmark_questions.json`, sections 1478, 1540, 1562, 1587 et série du 14/10 de ce journal.
+**À compléter par pmm (surlignés en jaune dans le document)** : 3 captures (Figures 8.1, 8.2, 10.1) ; résultat de `tests/eval_rag.py` (37 questions) en 9.2.
+**Incohérences constatées, non corrigées (chapitre 6 et tableaux 33-36 à relire)** : (1) LLM : le code configure `qwen3:14b`, le chapitre 6 (6.3) retient Qwen 2.5 14B ; (2) recouvrement des passages : 50 dans le code, 64 dans 6.2 et Tableau 35 ; (3) base vectorielle : « ChromaDB / Qdrant » en 6.2, seul ChromaDB existe ; (4) fusion : le code pondère 0,6 / 0,3, le chapitre 6 ne donne pas ces poids ; (5) délai « 2 à 5 secondes » en 6.4 contre 44 à 116 s mesurés sur la série du 14/10 (le chapitre 9 le précise) ; (6) « réseau virtuel Docker » en 6.4, aucun Docker dans le dépôt ; (7) listes de figures et de tableaux, sommaire et TABLE DES MATIERES (saisie à la main) à régénérer.
+**Non refait** : rien n'a été exécuté côté projet (pas de pytest, pas de rebuild du graphe).
+
+
+## Section 1591 : Mémoire de Master ENI — correction des incohérences du chapitre 6, cibles AWS et Kaggle, conclusion réécrite (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1590. Fichier cible : `todo/MASTER_ENI.docx`. Sauvegardes : `todo/MASTER_ENI.pre_fix_ch6.docx` et `todo/MASTER_ENI.pre_conclusion.docx` (copies aussi dans `.scratch/memoire_backup/`). Scripts : `.scratch/fix_ch6_ch7.py`, `.scratch/write_conclusion.py`. Aucun code du projet modifié.
+**Mandat (pmm)** : « corrige puis passe à la conclusion », en ajoutant l'oubli du serveur AWS et de Kaggle comme serveur de test.
+**Corrigé (chapitres 6 et 7, valeurs relues dans le code et `captures/inference_server_fingerprint.json`)** : LLM `qwen3:14b` quantifié Q4_K_M, fenêtre de 32 768 (6.3, Tableau 34 : ligne renommée Qwen3, Llama 3.1 marqué non utilisé) ; recouvrement des passages 50 (6.2, Tableau 35, unité écrite « unités », le découpeur étant un `RecursiveCharacterTextSplitter`) ; Qdrant retiré (6.2) ; Tableau 35 : fusion `k = 60`, poids 0,6 / 0,3, température 0,3 pour les réponses documentaires, ligne Top-p supprimée (absente du code) ; Tableau 36 : `GET /api/v1/health` (réservé administrateur) et route des sessions remplacée par `POST /miro_ai/sessions` (le backend n'a pas `/api/v1/sessions`) ; 6.4 : délai « 2 à 5 secondes » remplacé par un renvoi à 9.3, « réseau virtuel Docker » et « confinement absolu » remplacés par l'énoncé vérifiable (pas de fournisseur externe, pas de repli implicite, hôte distant autorisé explicitement, AWS en déploiement, Kaggle via ngrok pour les essais) ; 6.3 : « serveurs de Miro K.E. » remplacé par infrastructure privée (AWS / Kaggle). Chapitre 7 : paragraphe ajouté sur les deux cibles `LLM_TARGET`, tableaux 37 et 38 mis à jour.
+**Conclusion** : l'ancienne (reliquat de la Licence : e-mailing, 2TUP, Visual Paradigm) est remplacée par 5 paragraphes (452 mots) : objectif, réalisations, vérifications et limites, perspectives (Code Intelligence, serveur MCP, versions anciennes d'Odoo, protocole figé), apport personnel (à personnaliser par pmm).
+**Reste incohérent dans les chapitres 1 à 5 et l'introduction, non modifié (texte et schémas de pmm)** : serveur « on-premise » MiroKE avec règle RG-03 (aucune donnée vers un service externe), « circuit fermé » et « auto-hébergée » (introduction), Docker et Docker-Compose (chapitre 4 Tableau 8, déploiement 5.12), Qwen2.5 7B/14B et Llama 3 (Tableau 8), matériel du serveur d'inférence (Tableau 7), Ollama en développement et vLLM en production (5.12) alors que le serveur contrôlé exécute Ollama, `GestionnaireInference` (sprint), US-01 (comparaison Llama 3, Mistral, Phi-3, DeepSeek). La cible AWS est une instance d'un fournisseur cloud : la mention « aucune donnée ne transite par des serveurs tiers » (3.3) et RG-03 sont à réécrire ou à justifier.
+**Non refait** : rien d'exécuté côté projet ; Tableau 34 (fidélité, qualité du français, VRAM) reste une appréciation non mesurée.
+
+
+## Section 1592 : finalisation Google Drive : doc périmée, taille de découpage dupliquée, index BM25 périmé (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1591 (autre session, mémoire de Master, sans lien). Sauvegarde : `.scratch/avant_1592/` (les 15 fichiers modifiés et `contexte.txt`, mêmes chemins relatifs). État vérifié avant d'agir : 29 tests `tests/test_google_drive_*.py` passés ; `code_intelligence/graph/nodes.py`, `version.py`, `rules/navigation.py`, `rules/workflow.py` modifiés par d'autres sections (1587, 1589), non touchés ici.
+**Mandat (pmm)** : « oui c ça, corrige » après ma proposition de corriger trois points sur Drive et de te déléguer le déploiement du worker et la validation réelle.
+**Constats et causes** : (1) `document_rag/google_drive_usage.md` demande `pip install -r requirements-google-drive.txt`, fichier inexistant ; `google-auth` et `filelock` sont déjà dans `requirements.txt`. (2) La taille de découpage 512 / recouvrement 50 est écrite en dur dans 14 signatures ou arguments (`pdf_loader`, `wiki_loader`, `incremental`, `ingest_all`, `ingest_cli`, `watcher`, `google_drive`, `google_drive_sync`, `google_drive_cli`, `scripts/run_scalability_test.py`) : aucune source unique, donc la valeur du worker Drive peut diverger de celle de l'ingestion locale. (3) `search.get_retriever()` construit `_shared_bm25` une fois par processus ; le worker Drive et le watcher écrivent dans Chroma depuis un autre processus, l'index lexical du serveur ne voit donc jamais les nouveaux chunks avant redémarrage (limite notée dans le doc).
+**Plan** : (1) `config/settings.py` : constantes `RAG_CHUNK_SIZE = 512` et `RAG_CHUNK_OVERLAP = 50` (valeurs inchangées) ; tous les défauts ci-dessus les utilisent ; docstring de `pdf_loader` alignée (le découpeur compte des caractères, pas des tokens). (2) `BM25Index.matches(chroma_manager)` : compare l'ensemble des identifiants de chunks de Chroma (requête sans documents) à ceux de l'index ; les identifiants Drive et locaux dépendent du contenu, donc toute modification les change. `get_retriever()` reconstruit l'index quand il ne correspond plus. (3) `google_drive_usage.md` : installation via `requirements.txt` ; paragraphe BM25 réécrit. (4) Tests : `matches` vrai après construction, faux après ajout et après suppression d'un chunk (`tests/document_rag/test_search.py`) ; reconstruction par `get_retriever`.
+**Non modifié** : comportement de la synchronisation, schéma Chroma, pondérations, options `--chunk-size` / `--chunk-overlap` des CLI (défauts seuls changés). **Délégué à pmm** : lancement supervisé de `python -m document_rag.ingestion.google_drive_cli --watch` sur AWS, validation avec identifiants réels (sections suivantes).
+
+## Section 1592 (suite) : réalisé (27/10/2026)
+
+**Fait** : (1) `config/settings.py` : `RAG_CHUNK_SIZE = 512`, `RAG_CHUNK_OVERLAP = 50` ; utilisés comme défauts par `pdf_loader`, `wiki_loader`, `incremental`, `ingest_all`, `ingest_cli`, `watcher`, `google_drive`, `google_drive_sync`, `google_drive_cli`, `scripts/run_scalability_test.py` (valeurs inchangées) ; docstring de `pdf_loader` renvoie aux réglages. (2) `document_rag/vectorstore/bm25_index.py` : `BM25Index.matches(chroma_manager)` (ensemble des identifiants de chunks, un ou plusieurs gestionnaires) ; `build_from_chroma` vide désormais l'index quand la collection est vide (avant : l'ancien index restait en place). (3) `document_rag/vectorstore/search.py::get_retriever` reconstruit l'index BM25 partagé quand `matches` est faux : le worker Drive et le watcher, qui sont d'autres processus, n'imposent plus de redémarrer l'API. (4) `document_rag/google_drive_usage.md` : installation via `requirements.txt` (plus de `requirements-google-drive.txt`), paragraphe BM25 réécrit. (5) `tests/document_rag/test_bm25_refresh.py` (nouveau, 4 tests sans serveur d'embedding).
+**Vérification (exécutions réelles)** : `py_compile` des 13 fichiers Python modifiés : OK ; `--help` des CLI Drive et ingestion : OK ; `tests/document_rag`, `test_api_ingestion`, `test_evidence_first_cleanup`, `test_google_drive_ingestion`, `test_google_drive_sync` : 223 passés, 0 échec.
+**Échec préexistant, non lié, non corrigé** : `tests/test_e2e_watcher_rag.py::test_e2e_live_add_delete_query_cycle` patche `core.graph.graph.get_retriever`, qui n'existe plus dans ce module (le test est périmé depuis le déplacement de `get_retriever` dans `core/graph/graph_nodes.py`) ; à aligner sur mandat.
+**Non vérifié** : qu'un processus voit les écritures d'un autre processus dans une collection Chroma persistante ouverte (comportement de `chromadb`, non exécuté : un seul processus ici) ; le coût de la requête d'identifiants à chaque recherche sur un gros corpus ; les tests lourds (`test_c_complete`, `test_b_complete`, fixture `real_graph`).
+**Limite connue** : la requête d'identifiants s'exécute à chaque recherche documentaire ; acceptable pour quelques milliers de chunks.
+**À lancer par pmm** : (a) validation réelle avec identifiants : `.env` avec `GOOGLE_DRIVE_FOLDER_IDS`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_DRIVE_APPROVED_FOR_RAG=true`, dossier partagé avec le compte de service, puis `python -m document_rag.ingestion.google_drive_cli` (une passe, code retour 0 attendu et JSON `status: complete`) ; (b) uvicorn démarré, poser une question « d'après la documentation » portant sur un passage d'un document du Drive : la source doit pointer vers l'URL Drive ; (c) ajouter un second document dans le dossier, relancer la CLI, reposer une question sur ce document sans redémarrer uvicorn (c'est le test du point 3) ; (d) supprimer un document du dossier, relancer la CLI : il ne doit plus être cité ; (e) sur AWS, lancer `python -m document_rag.ingestion.google_drive_cli --watch` sous le superviseur du déploiement (systemd ou équivalent) et surveiller les lignes JSON qu'il émet. Fichiers modifiés : voir le plan de la section 1592 plus `tests/document_rag/test_bm25_refresh.py`, `todo/contexte.txt`. Aucun commit, aucun push.
+
+
+## Section 1593 : variables Google Drive ajoutées à `.env` et `.env.example` (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1592. Aucune sauvegarde de `.env` (secrets ; `.scratch/` n'est pas ignoré par git) : ajout en fin de fichier uniquement, lignes existantes inchangées.
+**Mandat (pmm)** : rappel de ce qu'il faut récupérer côté Drive, puis « ajoute dans .env ».
+**Fait** : `.env` : `GOOGLE_DRIVE_FOLDER_IDS=` (vide), `#GOOGLE_APPLICATION_CREDENTIALS=` (commenté), `GOOGLE_DRIVE_APPROVED_FOR_RAG=false` ; `.env.example` : les trois variables en commentaire. L'approbation reste à `false` : c'est une décision de pmm (documents approuvés pour tous les lecteurs du RAG).
+**Vérification** : `GoogleDriveSettings.from_environment()` lit `folderIds=()` et `approvedForRag=False` ; la CLI sans identifiant de dossier se termine par `skipped` sans initialiser Google ni Chroma (comportement lu dans `google_drive_cli.py`, non relancé ici).
+**Constat non corrigé** : `.env.example` renvoie à « la table des variables dans le README », qui ne contient aucune variable `GOOGLE_DRIVE_*`.
+**À faire par pmm** : renseigner `GOOGLE_DRIVE_FOLDER_IDS` (et `GOOGLE_APPLICATION_CREDENTIALS` hors AWS), puis passer `GOOGLE_DRIVE_APPROVED_FOR_RAG=true`. Aucun commit.
+
+
+## Section 1594 : dossier `secrets/` pour la clé du compte de service Drive (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1593. Pas de sauvegarde de `.env` (secrets) : une seule ligne modifiée.
+**Mandat (pmm)** : créer le dossier de la clé et l'ajouter à `.gitignore`.
+**Fait** : dossier `secrets/` créé à la racine (droits 700, vide) ; `.gitignore` : ligne `secrets/` sous `.env` ; `.env` : `GOOGLE_APPLICATION_CREDENTIALS=secrets/miro-drive-reader.json` (chemin relatif, décommenté) ; `.env.example` : même valeur en commentaire ; `google_drive_usage.md` : mention du dossier `secrets/` ignoré par git.
+**Vérification** : `git check-ignore -v secrets/test.json` confirme l'exclusion par la règle `secrets/` ; `git status` ne montre ni le dossier ni son contenu.
+**Limite connue** : le chemin relatif est résolu depuis le répertoire de lancement du worker (`python -m document_rag.ingestion.google_drive_cli` depuis la racine du dépôt) ; sous un superviseur (systemd), fixer le répertoire de travail à la racine ou fournir un chemin absolu dans l'environnement du service.
+**À faire par pmm** : déposer le JSON dans `secrets/miro-drive-reader.json`. Aucun commit.
+
+
+## Section 1595 : réponse documentaire : alias « (sources S3 et S4) » dans le texte, sources sans lien vers le fichier (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1594. Sauvegarde : `.scratch/avant_1595/` (`document_rag/prompts.py`, `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml`, `todo/contexte.txt`).
+**Mandat (pmm)** : sur la question « comment se passe le Contrôle des écritures sur Odoo ? », la réponse contient « (sources S3 et S4) », qui n'a aucun sens, et la section Sources affiche le nom du fichier en texte alors que la source doit être le lien qui mène au fichier.
+**Constat** : la réponse vient bien du corpus Drive (premier essai réel de bout en bout) : `chroma_db` contient 45 chunks, tous `origin = google_drive`, dont `procedure_cloture_comptable.pdf` (source = URL Drive `.../file/d/11omO13GYfr4yjZZ2EvGCbbUuiOLmZVDK/view`, titre = nom du fichier). `chroma_db_1024` (15/10) contient l'ancien corpus local, non utilisé (`CHROMA_PATH` pointe sur `chroma_db`).
+**Causes** : (1) `document_rag/prompts.py`, section Citations : la règle 1 (« Cite toujours les sources ») et la règle 2 (« mentionne-les toutes ») poussent le LLM à écrire dans le texte les marqueurs `[Source Sx]` qu'il voit dans le contexte ; ces alias ne sont censés servir qu'à `used_sources` (règle 4). (2) `miro_ai_assistant.xml` affiche `s.title or s.source` en texte simple ; l'URL `source` est déjà dans la réponse de l'API (`SourceReference.source`) mais n'est jamais utilisée comme lien.
+**Plan** : (1) `prompts.py` : règles 1 et 2 réécrites : les sources se déclarent seulement dans `used_sources`, jamais d'alias, de nom de fichier ni de mention du type « (sources S3 et S4) » dans `answer` ; plusieurs sources concordantes : toutes dans `used_sources` ; règles 3 et 4 inchangées. (2) `miro_ai_assistant.xml` : le titre de la source devient un lien (`target="_blank"`, `rel="noopener noreferrer"`) quand `source` commence par `http://` ou `https://` ; sinon texte simple comme avant (chemins locaux, sources du mode système). Pas de JS, pas de changement de l'API ni du schéma.
+**Non modifié** : extrait affiché sous le titre (100 premiers caractères du chunk, bruit « --- Page 1 (OCR) --- » inclus), `generate_helpers.py`, schéma `SourceReference`, addon `miro_ai_discuss`.
+
+## Section 1595 (suite) : réalisé (27/10/2026)
+
+**Fait** : (1) `document_rag/prompts.py` : règles 1 et 2 de la section Citations réécrites comme prévu. (2) `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml` : titre de la source rendu en lien quand `source` commence par `http://` ou `https://` (sinon texte comme avant).
+**Vérification (exécutions réelles)** : XML bien formé (`xml.dom.minidom`) ; `build_rag_messages` s'exécute avec le nouveau prompt ; `test_source_refs`, `test_source_mode_routing`, `test_source_inventory_sites`, `test_ci_source_boundary`, `test_degenerate_repetition_guard` : 10 passés.
+**Non vérifié** : le rendu réel du lien dans Odoo (les fichiers statiques du module doivent être rechargés, mise à jour du module `miro_ai` ou rechargement des assets) ; que `qwen3:14b` cesse d'écrire des alias dans la réponse (effet d'un prompt sur un LLM, à rejouer sur la même question) ; le comportement du lien Drive pour un utilisateur qui n'a pas accès au fichier dans Drive (la page Google demandera un accès : les documents sont lus par le compte de service, pas par l'utilisateur).
+**À lancer par pmm** : (a) redémarrer uvicorn (prompt) ; (b) mettre à jour le module `miro_ai` dans Odoo ou recharger les assets (`-u miro_ai`) puis rafraîchir la page ; (c) rejouer « comment se passe le Contrôle des écritures sur Odoo ? » : attendu, plus de « (sources S3 et S4) » et le nom du fichier cliquable vers Drive. Aucun commit.
+
+
+## Section 1596 : réponse documentaire : retrait déterministe des alias de source restés dans `answer` malgré le prompt de la 1595 (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1595 (suite). Sauvegarde : `.scratch/avant_1596/` (`document_rag/generate_helpers.py`, `document_rag/generate_node.py`, `todo/contexte.txt`).
+**Mandat (pmm)** : « règle d'abord le RAG », à la suite de la réponse à « explique comment se passe le Déploiement et mise à jour de la base de données ? donne des exemples ».
+**Constat (exécutions réelles, sans modifier le code)** : (1) la récupération est correcte : sur cette question, les chunks 0, 1 et 2 de `guide_deploiement_modules_odoo.md` (environnements, section 2 « -u », section 3 rollback) sont dans le top 5 ; les rangs 4 et 5 sont deux chunks de `wiki_onboarding_rh.txt` (hors sujet) ; la section 4 du guide (checklist de mise en production) n'est pas récupérée. Le Drive contient les 18 documents du corpus, et la version Drive du guide est identique à la version git. (2) Un rejeu de `generate()` avec le prompt actuel (1595 non committée) donne une réponse fidèle au guide (commande `-u`, trois vérifications, aucune checklist ni date inventée, 59 s), mais écrit encore « [Source S2] » dans `answer`, alors que la règle 1 de Citations l'interdit. La réponse collée par pmm montrait en plus des « Références » et une « Checklist » reconstruites, avec des liens `localhost:8069/web#source-s2` : non reproduit au rejeu (un seul essai à température 0,3), sans qu'on sache si elle précédait la 1595.
+**Cause** : `qwen3:14b` ne respecte pas de façon fiable la consigne de prompt sur les alias ; rien ne les filtre après génération (`generate_node.py` renvoie `llm_resp.answer` tel quel).
+**Plan** : (1) `generate_helpers.py` : fonction `strip_source_aliases(answer)` qui retire de la réponse les marqueurs d'alias internes (`[Source S2]`, `[S2]`, `[Sources S2, S3]`, `(sources S3 et S4)`, `(Source S2)`, liens Markdown dont le texte est un alias), hors blocs de code, puis nettoie les espaces devant la ponctuation ; ne touche pas à `used_sources` ni aux sources affichées. (2) `generate_node.py` : appliquée aux deux sorties du LLM (sortie structurée et repli brut). (3) Test hermétique `tests/test_strip_source_aliases.py` : formes retirées, blocs de code intacts, texte sans alias inchangé.
+**Non modifié** : prompt, récupération (`search.py`), seuils, schéma, UI, outils CI. **Non traité, signalé** : chunks hors sujet de `wiki_onboarding_rh.txt` aux rangs 4 et 5 et section 4 du guide absente du top 5 (qualité de récupération, à mesurer avant toute décision) ; invention de contenu (références, checklist) vue une fois, non reproduite.
+
+
+## Section 1596 (suite) : réalisé (27/10/2026)
+
+**Fait** : (1) `document_rag/generate_helpers.py` : `strip_source_aliases(answer)` retire `[Source S2]`, `[S2]`, `[Sources S2, S3]`, `(sources S3 et S4)`, `(Source: S2)` et les liens Markdown dont le texte est un alias, avec l'espace qui les précède (ou qui les suit en début de ligne) ; les blocs de code (` ``` `) et tout texte sans alias restent strictement inchangés (une première version nettoyait la ponctuation et supprimait l'espace avant « : » ; retirée, car il est correct en français). (2) `document_rag/generate_node.py` : appliquée aux deux sorties du LLM (sortie structurée et repli brut). (3) `tests/test_strip_source_aliases.py` : 10 cas (formes retirées, texte sans alias, blocs de code, alias en début de ligne, valeurs vides).
+**Vérification (exécutions réelles)** : `py_compile` OK ; `test_strip_source_aliases`, `test_source_refs`, `test_source_mode_routing`, `test_degenerate_repetition_guard` : 25 passés. Rejeu bout en bout de la question « déploiement et mise à jour de la base de données » (récupération réelle + `generate()` avec `qwen3:14b` local) : la réponse ne contient plus aucun alias ni « [Source S2] » (avant : « [Source S2] » en fin de réponse).
+**Constaté sur ce rejeu, non corrigé** : (a) la réponse explique `-c`, `-d`, `-u`, `--stop-after-init` et `--log-level` alors que le guide n'explique aucune option ; « pour éviter les erreurs » est une raison non documentée ; « ne modifient pas la base de manière destructive » est une glose non documentée de « idempotentes » ; (b) elle écrit que le rollback « n'est pas inclus ici car la question porte sur le déploiement », alors que la section 3 du guide est dans le contexte ; (c) la confiance reste à 1,0 malgré (a) et (b) ; (d) les chunks hors sujet de `wiki_onboarding_rh.txt` (rangs 4 et 5) et l'absence de la section 4 du guide dans le top 5 sont inchangés. Ce sont des défauts de fidélité du modèle et de qualité de récupération : une consigne de prompt n'a pas suffi pour les alias, donc rien ne garantit qu'elle suffise ici.
+**À lancer par pmm** : redémarrer uvicorn (code) puis rejouer la question dans l'UI ; suite complète pytest avant commit. Aucun commit.
+
+
+## Section 1597 : suite complète du 27/10 : 7 tests périmés après les refactorisations des 20 à 26/10 (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1596 (suite). Sauvegarde : `.scratch/avant_1597/` (les 5 fichiers de test et `todo/contexte.txt`).
+**Mandat (pmm)** : résultat collé de `pytest code_intelligence/tests tests -q -n 4` (685 s) : 8 échecs, 1963 passés, 17 ignorés, 23 erreurs (les mêmes tests live j5/j6/j25_26 : utilisateurs de test Odoo absents).
+**Constat (lecture du code, rejeu de `pytest --lf` hors live et hors scalabilité : 7 échecs, 10 passés)** : les 7 échecs ne viennent pas du code de production, ils viennent de tests écrits avant des refactorisations déjà committées :
+(1) `test_e2e_watcher_rag` : patche `core.graph.graph.get_retriever` ; l'import a quitté `graph.py` (commit `cdada0d`, 21/10) et vit dans `core/graph/graph_nodes.py`.
+(2) `test_miro_ai_signing_secret::test_signed_tokens_expire_after_five_minutes` : cherche `"exp": int(time.time()) + 300` dans `controllers/main.py` ; l'émission du jeton est passée dans `controllers/ask_flow.py` (`JWT_LIFETIME_SECONDS = 300`, ligne 19 ; `"exp": ... + JWT_LIFETIME_SECONDS`, ligne 57). `miro_ai_bot.py` contient toujours la forme littérale à 300.
+(3) `test_single_investigation_loop::test_introspection_has_no_global_graph_access` : attend `get_graph_ref()` dans `introspection.py` ; depuis `db67f3e` (26/10) ce module passe par `_require_graph()` (de `helpers.py`, qui s'appuie sur `get_graph_ref`).
+(4) `test_source_inventory_sites` (2 tests) : le graphe factice est un `SimpleNamespace(nodes=…)` sans `successors` ; `search_source_fragments` parcourt désormais `graph.successors(nodeId)` pour l'inventaire par module (commit `10069a4`, 26/10).
+(5) `test_unified_system_search` (2 tests) : (a) le stub de `search_source_fragments` ne renvoie pas `coverage_metadata_valid` ni `coverage_gaps`, que `search_system` lit depuis `270975f` ; (b) le test de lecture patche `introspection._allowed_source_roots`, alors que le lecteur est dans `source_reader.py` depuis la 1585 : la racine autorisée n'est donc pas celle du test (« outside configured addon roots »).
+Hors périmètre : `tests/test_scalability.py::test_scalability_benchmark_under_6_minutes` (test de durée, lancé en parallèle `-n 4` pendant 11 min : à rejouer seul par pmm) ; les 23 erreurs live.
+**Plan** : corriger uniquement les 5 fichiers de test (cibles de patch, stubs, assertions déplacées vers `ask_flow.py` et `_require_graph()`), sans toucher au code de production ; relancer les cibles puis `pytest --lf`.
+
+
+## Section 1597 (suite) : réalisé (27/10/2026)
+
+**Fait (tests uniquement, aucun fichier de production touché)** :
+(1) `tests/test_e2e_watcher_rag.py` : `get_retriever` et `search_retrieve` patchés dans `core.graph.graph_nodes` (2 occurrences chacun). Un second défaut est apparu une fois le patch corrigé : depuis `132f0fb` (21/10) le routage appelle un vrai LLM (`core/routing/source_selection.py::select_source`) quand `source_mode` est absent, et renvoie « Souhaitez-vous une réponse selon le système Odoo ou d’après les documents internes ? » si la confiance est faible ; l'étape 3 (déjà passée) dépendait donc d'une réponse de LLM. Les deux appels `query_graph` du test passent `source_mode="documentation"` (option d'interface de la 1156) : le test ne dépend plus d'un LLM de routage.
+(2) `tests/test_miro_ai_signing_secret.py` : le jeton du contrôleur est vérifié dans `ask_flow.py` (`JWT_LIFETIME_SECONDS = 300` et `"exp": ... + JWT_LIFETIME_SECONDS`), celui de `miro_ai_bot.py` garde la forme littérale à 300 ; `+ 3600` reste interdit dans les trois fichiers.
+(3) `tests/test_single_investigation_loop.py` : `introspection.py` doit contenir `_require_graph()` (au lieu de `get_graph_ref()`), `_GRAPH_REF` reste interdit.
+(4) `tests/test_source_inventory_sites.py` : le graphe factice expose `successors` (vide) et `get_edge_data` (None) pour l'inventaire par module.
+(5) `tests/test_unified_system_search.py` : import et patch de `_allowed_source_roots` sur `source_reader` (au lieu de `introspection`) ; le stub de `search_source_fragments` renvoie `coverage_metadata_valid` et `coverage_gaps`.
+**Vérification (exécutions réelles)** : `py_compile` OK ; les 5 fichiers ensemble : 47 passés, 0 échec. Avant : 7 échecs sur ces mêmes tests (`pytest --lf`).
+**Non fait / à lancer par pmm** : `tests/test_scalability.py::test_scalability_benchmark_under_6_minutes` (échec non diagnostiqué, test de durée lancé en parallèle `-n 4` : à rejouer seul, `pytest tests/test_scalability.py -q -n 0`) ; les 23 erreurs live (j5, j6, j25_26) : utilisateurs de test Odoo absents ; suite complète à relancer avant commit. Aucun commit.
+**Observation** : `select_source` dépend d'un appel LLM non mocké dans tout test qui appelle `query_graph` sans `source_mode` ; d'autres tests de la suite peuvent avoir la même fragilité (non recherché).
+
+
+## Section 1598 : benchmark de scalabilité : corpus téléchargé depuis le Drive au lieu de `document_rag/documents/` vide (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1597 (suite). Sauvegarde : `.scratch/avant_1598/` (`scripts/run_scalability_test.py`, `tests/test_scalability.py`, `todo/contexte.txt`).
+**Mandat (pmm)** : `tests/test_scalability.py::test_scalability_benchmark_under_6_minutes` échoue seul (`pytest tests/test_scalability.py -q -n 0`) : « Expected at least 500 chunks, but indexed 0 » après 6,8 s. pmm choisit de télécharger le corpus depuis le Drive au moment du test.
+**Constat (exécutions réelles)** : `DOCS_DIR` (`document_rag/documents/`) existe mais contient 0 fichier depuis la sortie des 18 documents vers le Drive ; `prepare_duplicated_corpus` copie ce dossier 22 fois (22 dossiers vides) et `reindex_if_changed` n'indexe rien. Le script ne vérifie pas que le corpus est non vide. Le corpus du Drive (18 fichiers, listés avec `GoogleDriveClient.list_documents`) est identique, pour le guide de déploiement, à la version git.
+**Chemin de production relu** : `synchronize_google_drive` → inventaire complet, désactivation des chunks absents → `ingest_google_drive` : par fichier, saut si `drive_revision` et profil identiques, sinon `GoogleDriveClient.download` dans un dossier temporaire, puis `_load_file` (le même chargeur que le chemin local : `PDFLoader` avec OCR, `WikiLoader` pour txt, md, docx), métadonnées Drive (`source` = URL du fichier, `origin='google_drive'`) et ajout à Chroma. Le benchmark appelle `reindex_if_changed` (chemin local, même `_load_file`) : le coût dominant (OCR, découpage, embedding `bge-m3`, écriture Chroma) est commun aux deux chemins ; seuls le téléchargement et les métadonnées Drive diffèrent. Dupliquer via le chemin Drive est impossible : 22 copies auraient la même source et la même révision, donc seraient ignorées après la première.
+**Plan** : (1) `scripts/run_scalability_test.py` : nouvelle fonction `download_drive_corpus(target_dir)` qui lit `GoogleDriveSettings.from_environment()`, liste les documents du dossier approuvé, ne garde que les fichiers lisibles (`document_suffix`), les télécharge une fois avec `GoogleDriveClient.download`, et renvoie le dossier, le nombre de fichiers et la durée du téléchargement ; exception dédiée `CorpusUnavailable` si le Drive n'est pas configuré (`GOOGLE_DRIVE_FOLDER_IDS`, `GOOGLE_DRIVE_APPROVED_FOR_RAG`) ou si le corpus est vide. (2) `prepare_duplicated_corpus(source_dir, target_dir, multiplier)` : copie depuis ce dossier téléchargé et refuse un corpus sans fichier (plus de dossiers vides silencieux). (3) `run_scalability_benchmark` : téléchargement mesuré à part (`download_seconds`, `source_files`), `elapsed_seconds` reste la durée d'ingestion seule (seuil de 360 s inchangé). (4) `tests/test_scalability.py` : `pytest.skip` avec un message clair sur `CorpusUnavailable` ; docstring mise à jour. (5) un test hermétique de `prepare_duplicated_corpus` (corpus vide refusé, copies créées) dans `tests/test_scalability_corpus.py`.
+**Non modifié** : chemin de production Drive, `reindex_if_changed`, seuils (22 copies, 500 chunks, 360 s), `ChromaManager`. **À mesurer ensuite par pmm** : le nombre de chunks par copie et le temps sur les 18 fichiers actuels (le corpus a changé : 18 fichiers au lieu de 10, donc la calibration de « 27 chunks par copie » et « 13,9 s par copie » n'est plus valable) ; le multiplicateur sera à ajuster d'après cette mesure, pas avant.
+
+## Section 1587 (suite) : pourquoi les outils attendus ne sont pas invoques et pourquoi des reponses non etayees passent (analyse, 27/10/2026, aucun code modifie)
+**Constats verifies dans le code** :
+- `expected_tools` n'existe que dans `scripts/run_bloc_n1_benchmark.py` (avertissement a posteriori) ; la boucle (`code_intelligence/agent/loop.py`) n'impose aucune couverture d'outils : elle ne relance le LLM qu'une fois, quand `ctx.tool_observations` est vide.
+- Le rapport verifie en 1587 date d'avant la 1582 : il liste `trace_full_inheritance`, `list_involved_modules` et `inspect_module_extensions`, retires de l'agent depuis. Dans les banques, 13 questions sur 25 (`native_n1`) et 32 sur 50 (`oca_p3_1`) attendent encore au moins un outil retire ; `read_source_code` reste atteignable car `execute_tool_calls` enregistre `read_source_fragment` sous ce nom. Les trois questions `inheritance` natives (PUR-Q3, SAL-Q3, STK-Q3) n'ont plus d'outil pour repondre (hors des quatre familles de l'architecture, 2.1).
+- `assess_evidence_sufficiency` (`core/evidence/evidence_sufficiency.py`) ne regarde que la presence d'une observation sans marqueur d'echec : toute reponse avec une observation recoit `[Source: Système]`, meme si elle cite des identifiants absents des observations. Les gardes de `postprocess.py` sont etroits (permissions, groupes xmlid, contraintes SQL, noms techniques).
+- Une observation `fields_get` seule suffit a eviter la relance (STK-Q4).
+**Limite** : les 14 reponses n'ont pas ete rejouees avec la surface d'outils actuelle ; aucune conclusion chiffree sur le routage actuel.
+
+## Section 1588 : rejeu des 15 questions native_n1 sur la surface d'outils actuelle, cause racine de la non-lecture du code (27/10/2026, aucun code modifie)
+**Rejeu** : `scripts/run_bloc_n1_benchmark.py` (15 ids, banque `native_n1`), journal `.scratch/rejeu_1588.log`, captures `captures/bloc_n1_verbatim.{json,md}`. Seules PUR-Q1 a SAL-Q4 sont exploitables : SAL-Q2 a expire (APITimeoutError a 331 s), SAL-Q5 a bloque 1502 s, puis le serveur d'inference est devenu injoignable (ConnectionError) et STK-Q1 a STK-Q5 ont rendu en 15 a 17 s, sans aucun outil (reponses « Investigation interrompue »). Ces six dernieres ne mesurent pas l'agent ; a rejouer apres retablissement du serveur.
+**Resultats exploitables** : PUR-Q4 et SAL-Q1 corrects (SAL-Q1 omet les commandes sans vendeur) ; PUR-Q1, PUR-Q2, PUR-Q3, SAL-Q3, SAL-Q4 faux ou speculatifs ; PUR-Q5 en repli sur la preuve source. `read_source_fragment` n'est appele dans aucune des 11 traces (`captures/reasoning_trace.jsonl`) ; `search_system` dans 5.
+**Cause racine** : `search_source_fragments` (`code_intelligence/agent/tools/source_search.py`) trie les fichiers par `(rang, chemin)` puis s'arrete aux `limit` (8) premiers fichiers contenant un des termes. Le rang 1 regroupe tous les fichiers d'un module qui definit le modele (le `context_models` fusionne les modeles du module pour chaque fichier de l'inventaire), donc l'ordre alphabetique decide : `__manifest__.py`, `controllers/portal.py`, `data/*.xml`, puis `i18n/*.po` remplissent les 8 places avant `models/purchase_order.py`. Mesure : requete `button_confirm approval_allowed`, modele `purchase.order` : 12 fichiers lus, 8 fragments, `models/purchase_order.py` jamais retourne, y compris avec les budgets multiplies par 10 ; requete `_approval_allowed` avec `module=purchase` : fragments `purchase_demo.xml` et dix `.po`. Seuls 8 fichiers declarent explicitement `purchase.order` dans l'inventaire du graphe. Le LLM ne recoit donc jamais d'empreinte de fragment pertinente, et `_approval_allowed()` (cause reelle de PUR-Q1/PUR-Q2) est introuvable.
+**Pistes (non appliquees)** : departager d'abord les fichiers qui declarent le modele candidat (`models`) avant ceux qui n'ont que le contexte du module ; ne pas arreter la lecture au premier groupe de `limit` fichiers mais classer par nombre de termes distincts et, a egalite, par type de fichier (`.py`, vues `.xml`, puis le reste). Question ouverte : la recherche dans les `.po` doit-elle rester dans la decouverte.
+
+## Section 1589 : classement par pertinence dans la decouverte de fragments source (27/10/2026)
+**Mandat (pmm)** : les `.po` restent dans la decouverte (reponse a la question ouverte de la 1588). Sauvegardes : `.scratch/source_search.avant_1589.py` et `.scratch/source_search.apres_1589.py`.
+**Fait** : `code_intelligence/agent/tools/source_search.py` seul fichier de production modifie.
+- Tri des fichiers : `(rang, ne declare pas le modele candidat, type de fichier, chemin)` ; le modele passe en parametre `model` fait partie des candidats ; ordre de type : `.py`, `.xml`, autres, `.po` en dernier (`_suffix_order`).
+- Plus d'arret au huitieme fichier correspondant : tous les fichiers du budget (200 fichiers, 5 Mo, inchange) sont lus, la ligne retenue par fichier est celle qui contient le plus de termes distincts, et les fragments sont classes par `(est une traduction, -termes distincts, type, ordre)`. `complete_scan` reste a `False` quand les resultats sont tronques, comme avant.
+**Mesure** (graphe reel) : `button_confirm approval_allowed` / `purchase.order` : `purchase/models/purchase_order.py:484` est maintenant en tete (jamais retourne avant) ; `_approval_allowed` avec `module=purchase` : `purchase_order.py` en tete au lieu de `purchase_demo.xml` et des `.po` ; `action_unlock locked` / `sale` : `sale/models/sale_order.py:969` puis `views/sale_order_views.xml:262`. Duree d'une recherche de fragments : 6,1 a 7,3 s apres, 6,0 s avant (meme ordre de grandeur).
+**Tests** : `tests/test_unified_system_search.py` +2 tests (fichier declarant le modele avant des fichiers alphabetiquement anterieurs ; traductions apres le code malgre plus de termes) ; ils echouent avec l'ancien code et passent avec le nouveau. Sous-ensemble `-k "source or search or inventory or resolver or tool_surface or navigation or button"` : 345 passes, 18 ignores, 1 erreur (`test_j6_context_validation`, utilisateurs de test Odoo absents, deja signale en 1586). Suite complete non lancee.
+**Non verifie** : l'effet sur les reponses de l'agent (STK-Q1 a STK-Q5, SAL-Q2 et SAL-Q5 a rejouer apres retablissement du serveur d'inference). Aucun commit.
+
+
+## Section 1599 : points restes ouverts des sections 1564, 1571 et 1573 : inventaire sur disque, filtre par modele des contraintes SQL, un seul appel Semgrep (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numero lu avant ecriture : 1598 (plan) et, en toute fin de fichier, 1587 (suite) / 1588 / 1589 (autre fil, recherche de fragments source). Sauvegardes : `.scratch/avant_1599/` (`data_constraints.py`, `analysis.py`, `helpers.py`, `test_semgrep_runner.py`, `test_semgrep_runner_invocation.py`, `test_analyze_data_constraints.py`), `.scratch/contexte.avant_1599.txt`. **Mandat (pmm)** : « note tout ca dans une section de contexte puis corrige » (a la suite de mon bilan des points ouverts de la 1576). Pendant l'instruction de ce mandat, d'autres sessions ont ajoute les sections 1577 a 1598 : l'inventaire ci-dessous est refait sur le disque et le journal, pas sur mon bilan de la 1576. Les numeros 1587 a 1589 existent deux fois dans le fichier (deux fils) : non renumerotes.
+**Inventaire (etat verifie le 27/10/2026)** :
+- Deja fait ailleurs : 1564 (1) comparaison `name` + tous les libelles de groupes (1577) ; 1564 (3) et 1573 (1) convention « absent du graphe » (1576 ; la 1582 a retire `list_involved_modules` et `inspect_module_extensions` des outils exposes au LLM, le code et les tests restent) ; 1573 (2) identifiant observe remplace par un identifiant de memoire : non reproduit apres la 1576 (rejeu unique, 1579, a confirmer sur plusieurs passes) ; 1573 (4) noms techniques : garde pilotee par le graphe (1580, 1581 ; restent le mot « XML ID » devant un libelle et l'URL inventee, prompt) ; 1573 (3) cout de la route « comment faire » : 57,9 a 68,4 s avec 2 appels LLM et 1 saut (1579 a 1581) contre 146,9 s en 1573, delai Odoo desormais unique et reglable (1578) : clos par mesure, aucun code ; pied de page attendu par `test_c1_6` (1586).
+- **Ouvert, traite ici** : (A) 1564 (2) : `analyze_data_constraints` rapporte toutes les contraintes des fichiers entiers, y compris celles d'autres modeles du meme fichier ; la garde `enforce_sql_constraint_fidelity` exige ensuite chacun de ces noms dans la reponse, et sinon remplace la reponse par l'observation brute (35 167 caracteres pour `account.move`, 1564). (B) 1564 (5) : latence de `analyze_data_constraints` (41 a 248 s) : un processus Semgrep par fichier.
+- **Ouvert, decision de pmm, non traite** : langue d'affichage des libelles de groupes (`rules/group_resolver.py::_localized_label` prefere encore `fr` ; architecture.md demande les termes de l'interface de l'utilisateur, la langue de la requete existe dans `state['language']` mais n'atteint pas `rules/`) ; 1571 (b) classement semantique dans `find_instance_candidates` (`semantic_status: 'not_run'`). La 1590 note que Code Intelligence est mis en pause pour le rendu du memoire (30/10) : ces deux points sont a arbitrer par pmm.
+**Cause de (B), mesuree (graphe non charge, Semgrep reel du venv, `sale/models`)** : `analyze_data_constraints_from_filepaths` appelle `run_semgrep_analysis` une fois par fichier ; chaque appel paie le demarrage de Semgrep (environ 2,5 s) : `sale_order.py` 5,0 s, `sale_order_line.py` 2,9 s, `res_partner.py` 2,6 s, soit 10,4 s un par un contre 3,6 s en un seul appel, avec exactement les memes 30 resultats. Le cout croit donc avec le nombre de fichiers du modele, pas avec leur contenu. Pas de cache : le defaut est le nombre de processus, pas le recalcul (le cache de la 1564 n'etait donc pas la bonne reponse, et il aurait laisse la premiere question lente).
+**Plan** : (1) `rules/data_constraints.py::run_semgrep_analysis(target_paths, config_path, semgrep_bin)` prend une sequence de chemins et les passe a UN seul processus Semgrep ; le chemin de chaque resultat vient du JSON (`item["path"]`) ; aucun chemin : rend `[]` sans lancer Semgrep ; un chemin absent leve toujours `FileNotFoundError`. `analyze_data_constraints_from_filepaths` ecarte les fichiers absents (message `Source file is unavailable`, inchange) puis fait un seul appel ; l'extraction AST des filtres d'exclusion reste par fichier. (2) Filtre par modele : `analyze_data_constraints_from_filepaths(..., relevant_models=None)` ; apres `_annotate_owner_models`, un match dont le modele proprietaire n'est ni dans `relevant_models` ni inconnu est ecarte (`None` : aucun filtre, comportement actuel) ; le resume et les Evidence sont donc calcules sur les seuls matches du modele et de ses ancetres. (3) `agent/tools/helpers.py::model_lineage(graph, model_name)` : le modele et tous les modeles qu'il etend, transitivement, par les aretes `EXTENDS` (`nx.descendants` sur une vue filtree) ; `analysis.py::analyze_data_constraints` le passe en `relevant_models`. Les contraintes d'un mixin herite (ex. `sequence.mixin` pour `account.move`) restent donc rapportees : Odoo les applique au modele. (4) Tests : `test_semgrep_runner.py` (3 appels passent une liste), `test_semgrep_runner_invocation.py` (un seul processus pour plusieurs fichiers, aucun processus sans fichier), `test_analyze_data_constraints.py` (un seul appel Semgrep pour deux fichiers ; une contrainte d'un autre modele du meme fichier est ecartee ; une contrainte d'un parent est conservee ; sans `relevant_models` rien n'est ecarte ; `model_lineage`).
+**Non modifie** : `enforce_sql_constraint_fidelity` et `postprocess.py` (une fois l'observation limitee au modele, la garde compare les bons noms ; sa regex ne reconnait pas `CREATE UNIQUE INDEX` dans le SQL brut, point distinct signale en 1564, non traite ici), regles Semgrep, `SEMGREP_TIMEOUT_SECONDS` (120 s : couvre maintenant un lot, plus une somme de fichiers).
+**Verification prevue** : `py_compile`, `test_semgrep_runner*`, `test_analyze_data_constraints`, `test_bloc_b1_evidence_analyze_data_constraints`, `test_sql_constraint_fidelity`, `test_poc_tool_surface`. Mesure reelle : `analyze_data_constraints` sur un modele a nombreux fichiers avant / apres (graphe lu sans le charger via le chargeur). Aucun commit, aucun push.
+
+
+## Section 1599 (suite) : realise (27/10/2026)
+
+Date : 27/10/2026. Dernier numero lu avant ecriture : 1599. Sauvegardes : `.scratch/avant_1599/`, versions finales dans `.scratch/apres_1599/`. Etat verifie avant d'agir : fichiers conformes aux sauvegardes (aucune ecriture d'une autre session sur ces fichiers ; `source_search.py`, `nodes.py`, `version.py`, `navigation.py`, `workflow.py` modifies par d'autres sections, non touches).
+**Fait (plan de la 1599)** : (1) `code_intelligence/rules/data_constraints.py` : `run_semgrep_analysis(target_paths, config_path, semgrep_bin)` prend une sequence de chemins et lance UN seul processus Semgrep (`item["path"]` donne le fichier de chaque resultat) ; sequence vide : `[]` sans processus (sans cible, Semgrep analyserait le repertoire courant) ; un chemin absent leve `FileNotFoundError`. `analyze_data_constraints_from_filepaths(..., relevant_models=None)` ecarte les fichiers absents (message inchange), fait un seul appel (aucun appel s'il ne reste aucun fichier), puis l'extraction AST des filtres d'exclusion par fichier, puis ecarte les matches dont le modele proprietaire n'est pas dans `relevant_models` (proprietaire inconnu : conserve ; `None` : aucun filtre). (2) `code_intelligence/agent/tools/helpers.py::model_lineage(graph, model_name)` : le modele et les modeles qu'il etend, transitivement, par les aretes `EXTENDS` seules (`DELEGATES_TO` exclu : une contrainte d'un modele delegue ne s'applique pas au delegant) ; `agent/tools/analysis.py::analyze_data_constraints` le passe en `relevant_models`. (3) Tests : `test_semgrep_runner.py` (3 appels passent une liste), `test_semgrep_runner_invocation.py` (+2 : plusieurs fichiers partagent un processus, aucun fichier = aucun processus), `test_analyze_data_constraints.py` (+7 : contrainte d'un autre modele du meme fichier ecartee, contrainte d'un parent conservee, sans filtre rien n'est ecarte, proprietaire inconnu conserve, un seul appel Semgrep pour deux fichiers, `model_lineage`, outil complet avec et sans arete `EXTENDS`).
+**Mesure reelle** (`.scratch/measure_1599.py`, graphe actuel schema 21 lu directement, Semgrep du venv) : `sale.order`, 82 fichiers : un processus par fichier 3,01 s par fichier, soit environ 247 s (extrapole sur 8 fichiers ; la boucle complete depasse mon delai de 175 s) ; un seul processus : **14,1 s**. `account.move`, 29 fichiers : environ 84 s contre **13,4 s**. Ordres de grandeur identiques a la 1564 (218 a 248 s et 78 s). Filtre par modele : `sale.order` 51 -> 47 matches (4 d'autres modeles) ; `account.move` 79 -> 57 (22 d'autres modeles), resume 47 374 -> 32 618 caracteres.
+**Verification** : `py_compile` et pyflakes propres ; 9 fichiers (`test_semgrep_runner`, `test_semgrep_runner_invocation` (le runner reel est execute), `test_analyze_data_constraints`, `test_bloc_b1_evidence_analyze_data_constraints`, `test_sql_constraint_fidelity`, `test_poc_tool_surface`, `test_model_suggestions`, `test_technical_identifiers`, `tests/test_single_investigation_loop`) : **96 passes** ; `active_graph.json` inchange (horodatage identique avant et apres ; aucun de ces fichiers n'utilise `real_graph`).
+**Decision de conception (a signaler)** : la 1564 proposait un cache Semgrep (« decision d'architecture, non propose sans accord »). La cause n'etait pas le recalcul mais le nombre de processus : un seul appel regle la latence sans cache, sans invalidation, sans etat, y compris pour la premiere question apres un demarrage. Aucun cache n'est ajoute.
+**Non verifie** : la reponse reelle de l'agent a une question sur les contraintes SQL de `account.move` / `sale.order` (LLM, banc N1 ACC-Q5 / SAL-Q5, a rejouer par pmm : attendu, plus de remplacement de la reponse par l'observation brute a cause d'un nom de contrainte d'un autre modele) ; le comportement de Semgrep avec une liste de fichiers tres longue sous Windows (limite de longueur de ligne de commande, environ 32 000 caracteres ; 82 chemins ici, a surveiller pour un modele de plus de 250 fichiers) ; les contraintes d'un mixin parent de parent : leurs fichiers ne sont pas scannes (`find_model_source_filepaths` ne suit qu'un niveau d'`EXTENDS`), limite anterieure inchangee.
+**Reste ouvert (inchange)** : (a) `enforce_sql_constraint_fidelity` : sa regex ne reconnait pas `CREATE UNIQUE INDEX` dans le SQL brut (ex. `account_move_unique_name`) : point distinct de la 1564 (2) ; (b) langue d'affichage des libelles de groupes (decision de pmm) ; (c) 1571 (b) classement semantique dans `find_instance_candidates` (decision de pmm ; Code Intelligence en pause selon la 1590) ; (d) la phrase du LLM « XML ID » devant un libelle et l'URL inventee (1581, prompt).
+**A lancer par pmm** : redemarrer uvicorn (code) ; rejouer ACC-Q5 et SAL-Q5 du banc N1 : le temps de `analyze_data_constraints` doit passer d'environ 80 a 250 s a une quinzaine de secondes. Fichiers modifies : `code_intelligence/rules/data_constraints.py`, `code_intelligence/agent/tools/analysis.py`, `code_intelligence/agent/tools/helpers.py`, `code_intelligence/tests/test_semgrep_runner.py`, `code_intelligence/tests/test_semgrep_runner_invocation.py`, `code_intelligence/tests/test_analyze_data_constraints.py`, `todo/contexte.txt`, `.scratch/measure_1599.py` (diagnostic). Aucun commit, aucun push.
+
+
+## Section 1600 : sources de la réponse documentaire : lien vers le fichier déjà en place, plage d'alias « (Sources S4-S5) » non retirée (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1599 (suite). Sauvegarde : `.scratch/avant_1600/` (`document_rag/generate_helpers.py`, `tests/test_strip_source_aliases.py`, `todo/contexte.txt`).
+**Mandat (pmm)** : réponse collée de MIRO AI à « comment coder efficacement avec une IA générative sur Odoo 17 ? » ; la section Sources n'affiche pas de lien vers le fichier.
+**Vérifié avant d'agir** : le lien est déjà fait (1595) : `miro_ai_assistant.xml` rend le titre en `<a href=source>` quand `source` commence par `http(s)://` ; le chunk de ce document dans `chroma_db` (14 chunks, `origin = google_drive`) porte bien l'URL Drive comme `source` ; `api/routes_ask.py` et `controllers/main.py::_answer_payload` transmettent `sources` tel quel. Un texte copié depuis le navigateur ne conserve pas les hyperliens : la réponse collée ne permet pas de conclure que le lien est absent à l'écran. Cause probable si absent : assets Odoo non rechargés (1595, « non vérifié »).
+**Constat nouveau** : la réponse contient « (Sources S4-S5) » ; le guide source ne contient ni « S4 » ni « S5 » (vérifié dans la version git) : c'est un alias interne resté dans `answer`. `strip_source_aliases` (1596) ne le retire pas : `_ALIAS_LIST` n'accepte que `, ; / & et and` entre deux alias, pas une plage.
+**Plan** : `document_rag/generate_helpers.py::_ALIAS_LIST` accepte aussi `-`, `–`, `—`, `à`, `to` entre deux alias ; un cas de plage ajouté à `tests/test_strip_source_aliases.py`. Rien d'autre.
+
+## Section 1600 (suite) : réalisé (27/10/2026)
+
+**Fait** : `document_rag/generate_helpers.py` : `_ALIAS_LIST` accepte aussi `-`, `–`, `—`, `à`, `to` entre deux alias (« (Sources S4-S5) », « [S1 à S3] », « (sources S2 – S4) » sont retirés). `tests/test_strip_source_aliases.py` : 2 cas de plage ajoutés.
+**Vérification (exécutions réelles)** : l'ancienne version renvoie « règles suivantes (Sources S4-S5) : » inchangé ; la nouvelle la retire ; `test_strip_source_aliases` (12) et `test_source_refs` passent.
+**Non modifié** : prompt, template, schéma, API. Lien vers le fichier : aucun code ajouté (déjà fait en 1595).
+**À lancer par pmm** : (a) `-u miro_ai` (ou assets régénérés) puis rafraîchir la page : le titre de la source doit être cliquable vers Drive ; (b) redémarrer uvicorn (code) ; (c) rejouer la question ; si le titre n'est toujours pas un lien après (a), me coller la réponse JSON de `/ask` (champ `sources[].source`). Aucun commit.
+
+
+## Section 1601 : relecture du RAG documentaire : tokenizer BM25 qui coupe les mots accentués, paramètres de `retrieve()` ignorés, benchmark comparant l'URL Drive à un nom de fichier (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1600 (suite). Sauvegarde : `.scratch/avant_1601/` (`bm25_index.py`, `search.py`, `scripts/benchmark_rag.py`, `config/settings.py`, `todo/contexte.txt`). **Mandat (pmm)** : « regarde ce qui va pas dans le code côté rag » ; aucun RAGAS n'a encore été fait (aucune occurrence de `ragas` dans le dépôt ni dans `requirements.txt` ; l'existant : recall@5 par mots-clés, `tests/eval_retrieval.py`, `scripts/benchmark_rag.py`).
+**Corrigé (exécutions réelles)** :
+(1) `document_rag/vectorstore/bm25_index.py::_tokenize` : `unicodedata.normalize("NFKD")` sépare la lettre et son accent, puis `[a-z0-9_]+` coupait le mot à l'accent : « contrôle » -> `contro`, « déploiement » -> `ploiement`, « défensif » -> `fensif`, « données » -> `donne`, `es`. Les accents sont maintenant retirés (`_strip_accents`) avant le découpage, et les mots vides sont normalisés de la même façon (« à », « été », « très » n'étaient jamais reconnus). Test ajouté (`test_accented_words_are_not_split`). Mesure sur les 9 questions du benchmark : rang de la source attendue 1 pour 8 questions sur 9 avant, 9 sur 9 après (DOCX-01 : rang 3 -> 1).
+(2) `scripts/benchmark_rag.py` : comparait `metadata.source` (désormais l'URL Drive) à un nom de fichier : 0/9 faux échecs depuis la migration Drive. Compare maintenant `source_display_title`. Résultat retrieval seul : 10/10, Hit@1 9/9.
+(3) `document_rag/vectorstore/search.py::retrieve` : `vector_weight`, `bm25_weight` et `relevance_threshold` étaient écrasés dans le corps (0,7 / 0,3 / 0,01) : les valeurs passées par l'appelant étaient ignorées (le test `relevance_threshold=0.8` passait à vide). Les défauts sont maintenant `RAG_VECTOR_WEIGHT`, `RAG_BM25_WEIGHT`, `RAG_RELEVANCE_THRESHOLD` de `config/settings.py` (mêmes valeurs qu'avant : comportement par défaut inchangé) et les paramètres sont honorés.
+**Vérification** : `tests/document_rag` + `tests/test_e2e_watcher_rag.py` : 161 passés. Suite complète non lancée. Aucun commit.
+**Constaté, non corrigé (décisions à prendre après une mesure)** :
+(a) Aucun seuil de pertinence absolu : `reciprocal_rank_fusion` divise les scores par le maximum (le premier vaut toujours 1,0), donc `relevance_threshold` est relatif et ne coupe rien ; seul `VECTOR_SIMILARITY_FLOOR` (0,20) filtre, et pas les résultats BM25. La question piège (machine à café) renvoie 7 chunks hors sujet au LLM ; les questions normales en reçoivent 6 à 10, dont la moitié hors sujet (aux rangs suivants, rrf 0,9 à 0,97). C'est la cause des chunks `wiki_onboarding_rh.txt` de la 1596. Seuil à calibrer avec context precision (RAGAS), pas à deviner.
+(b) `expand_contiguous_chunks` regroupe tous les chunks d'une source à la position de sa première occurrence : l'ordre par pertinence est perdu, et le contexte monte à 10 chunks sans budget.
+(c) `generate_node.py` : confiance déclarée par le LLM (1,0 même quand la réponse dépasse le guide, 1596) ; sources vides si `used_sources` est vide ; en repli, les 10 chunks deviennent les sources ; température 0,3 en dur ; blocs trace/timing dupliqués ; le message d'erreur renvoie `str(e2)` à l'utilisateur ; `top_k=10` en dur dans `core/graph/graph_nodes.py::retrieve`.
+(d) `document_rag/verification.py` n'est appelé par aucun code de production (seulement des tests) et importe `core.evaluation` : code mort ou fonction non branchée.
+(e) `filter_current_drive_chunks` est appelé 4 fois par requête (recherche vectorielle, BM25, après fusion, après expansion) ; `ChromaManager.get_stats` liste des types de chunks (`code_python`...) qui n'existent plus.
+**À lancer par pmm** : redémarrer uvicorn ; réindexation inutile (le tokenizer ne touche que l'index BM25, reconstruit en mémoire au démarrage et dès que les ids Chroma changent).
+
+
+## Section 1602 : jeu de 20 questions pour l'évaluation RAGAS et la comparaison de modèles (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1601. Aucun fichier existant modifié. **Mandat (pmm)** : comparaison de modèles pour le mémoire ; 20 questions ; références tirées des documents de git (mêmes que ceux du Drive).
+**Fait** : `tests/rag_eval_questions.json` (nouveau) : 20 questions (8 fait unique, 4 liste exhaustive, 2 lecture de tableau, 4 multi-documents, 2 sans réponse dans le corpus). Chaque question porte `reference` (réponse attendue), `reference_sources` (fichiers) et `facts` (éléments qui doivent figurer tels quels dans ces fichiers). Les textes ont été extraits de `git HEAD:document_rag/documents/` dans `.scratch/corpus_git/` (docx via python-docx, pdf via pdftotext). `facture_scannee.pdf` (scan, sans texte) n'est utilisé par aucune question.
+**Vérification (exécution réelle)** : 0 fait manquant sur les 20 questions (comparaison sans accents ni casse entre `facts` et le texte des sources).
+**Non fait** : script d'évaluation (`scripts/run_ragas_eval.py`), en attente du choix des modèles candidats et du juge. Rien lancé. Aucun commit.
+
+
+## Section 1603 : banc de décision du modèle : tool calling sur les banques CI, un processus par modèle (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1602. Sauvegarde : `.scratch/avant_1603/contexte.txt` (aucun fichier existant modifié : seuls des fichiers nouveaux sont créés).
+**Mandat (pmm)** : « oui vas y » après ma proposition : décider d'abord le modèle de tout le projet par un banc de tool calling (Code Intelligence et outils ORM de la même boucle), puis RAGAS sur les finalistes seulement ; `ragas` n'est pas installé à ce stade (le `--dry-run` de `pip` ne casse aucun paquet : `ragas 0.4.3` et une vingtaine de dépendances nouvelles). Candidats proposés, à confirmer par pmm (la ligne `Capabilities` de `ollama show` doit contenir `tools`) : `qwen3:14b` (référence), `gpt-oss:20b`, `mistral-small3.2:24b`, `qwen3:8b`, option `qwen3:30b-a3b` ; juge RAGAS de l'étape 2 : `gemma3:27b` (ou `12b` si débordement CPU). Llama 3.1 8B, Mistral 7B et Phi-3.5 du Tableau 34 écartés pour ce banc (outils faibles ou absents).
+**Constats (code lu et mesuré)** : (1) `core/llm/llm_client.py` importe `LLM_MODEL` et `LLM_NO_THINK_MARKER` par valeur : modifier `config.settings` en cours d'exécution ne change rien, et la 1537 interdit une variable d'environnement pour le modèle. (2) `code_intelligence/agent/loop.py::run_react_loop` expose dans une même boucle ReAct les outils CI et les outils ORM typés (`TYPED_ORM_LANGCHAIN_TOOLS`) : le banc CI mesure donc aussi le tool calling ORM de cette boucle ; `erp_data/orm_agent_node.py` a sa propre boucle `bind_tools`, non couverte (banc à définir après lecture de `erp_data/tests/test_erp_accuracy.py`). (3) `scripts/run_bloc_n1_benchmark.py` ne calcule que la couverture d'outils ; la qualité de la réponse est renvoyée à une revue humaine. (4) langgraph rejette les arguments invalides et les noms d'outil inconnus avant `execute_tool_calls` : seuls les messages de l'agent les montrent. (5) Ollama garde les modèles chargés (`keep_alive` -1 : `qwen3:14b` 14,5 Go + `bge-m3`) : deux gros modèles ensemble débordent sur le CPU et faussent les temps. (6) `LLM_REQUEST_TIMEOUT_SECONDS = 90` : un modèle trop lent est compté `interrupted`, comme en production.
+**Plan** : nouveau `scripts/run_model_decision_bench.py` (aucun code de production modifié ; `requests` est déjà dans `requirements.txt`) : (1) `--model M` : un processus par modèle ; refus si `/api/show` ne déclare pas `tools` ; décharge des autres modèles chargés (sauf `EMBEDDING_MODEL`), chargement de `M`, mesure de la part en VRAM et de la fenêtre de contexte (`/api/ps`), décharge de `M` à la fin (`--keep-loaded` pour l'éviter). (2) `LLM_MODEL` et `LLM_NO_THINK_MARKER` remplacés pendant le run dans `config.settings` et `core.llm.llm_client` (même règle que `settings.py` pour `qwen3`). (3) Questions : `load_questions` du runner N1 (banques `native_n1` et `custom_b9` par défaut, `--bank`, `--ids`, `--passes`), identité de test et agent identiques au runner N1. (4) Mesures par question, sans LLM juge, depuis les messages de l'agent et le SUMMARY : outils attendus manquants, outils tentés, résultats d'appels (ok, invalide, échec d'exécution, doublon, refus, budget, introuvable dans le graphe), repli (`fallback_reason`), sauts, appels LLM, durée, erreur d'infrastructure ; la réponse est conservée pour la revue humaine des finalistes. (5) Résultats ajoutés à `captures/model_decision_bench.jsonl` (reprise après interruption, `--retry-interrupted`, `--fresh` pour un modèle) ; `--report` : tableau comparatif par modèle (couverture, repli, taux d'appels valides, p50 et p90, part en VRAM) et couverture par question. (6) Tests hermétiques `tests/test_model_decision_bench.py` (classement des appels, statistiques, remplacement du modèle, préparation du serveur simulée).
+**Non modifié** : agent, outils, prompts, `config/settings.py`, runner N1, banques. **Hors périmètre** : banc `erp_data`, RAGAS, installation de `ragas`, choix du juge. Aucun commit.
+
+
+## Section 1604 : Mémoire de Master ENI — corrections issues de la lecture des sections 1601 à 1603 (27/10/2026)
+
+Date : 27/10/2026. Fichier : `todo/MASTER_ENI.docx`. Sauvegarde : `todo/MASTER_ENI.pre_rag_fix.docx` (et `.scratch/memoire_backup/`). Script : `.scratch/fix_rag_facts.py`. Aucun code du projet modifié.
+**Mandat (pmm)** : « lis contexte, à propos du choix du modèle et le ragas ».
+**Corrigé dans le mémoire (erreurs de ma rédaction de la section 1590)** : poids de fusion 0,7 / 0,3 (`RAG_VECTOR_WEIGHT`, `RAG_BM25_WEIGHT`) au lieu de 0,6 / 0,3 (Tableaux 35 et 39) ; passages retournés 10 (`RAG_TOP_K`) au lieu de 5 ; la « vérification déterministe de complétude » (8.3.3) n'est pas branchée en production (1601 d) : phrase remplacée. **Ajouté** : résultat du banc de recherche seule (10/10, Hit@1 9/9 après la correction du tokenizer, 1601) en 9.2 ; limite « pas de seuil de pertinence absolu » (1601 a) en 9.5.
+**État lu** : `scripts/run_model_decision_bench.py` créé à 15:03 (section 1603, plan seul, ni tests ni résultats), `scripts/run_ragas_eval.py` absent, `ragas` non installé, `tests/rag_eval_questions.json` (20 questions) présent. Le Tableau 34 (comparaison de modèles) n'est toujours pas mesuré.
+
+
+## Section 1605 : reprise du banc de décision du modèle (1603) : vérification du script, tests hermétiques (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1604. Sauvegarde : `.scratch/avant_1605/contexte.txt`. **Mandat (pmm)** : « reprends la mise en place du banc » (suite de la 1603).
+**Constat (exécutions réelles)** : `scripts/run_model_decision_bench.py` (334 lignes, 15:03) existe et n'a pas été exécuté : `py_compile` et `pyflakes` propres, import réussi ; tous les symboles importés existent (`FALLBACK`, `INFRA_OUTCOMES`, `MAX_CONSECUTIVE_INFRA_FAILURES`, `capture_summaries`, `outcome` de `run_agent_variants_bench` ; `load_questions`, `bind_requester_identity`, `build_agent_state`, `_extract_tools_used`, `read_installed_modules` du runner N1 ; `NOT_FOUND_MARKER`, `BackendUnavailable`, `require_backends`, `warm_semantic_index`). Les quatre préfixes d'observation de `OBSERVATION_KINDS` correspondent aux textes de `agent/tools/execution.py` (lignes 58, 62, 76, 82, 88, 151). `create_react_agent` est importé dans le corps de `run_react_loop` : le remplacement par `RecordingAgent` est donc pris en compte. `LLM_MODEL` n'est lu par valeur que dans `core/llm/llm_client.py` (et `synthesis_bench.py`, hors banc) : le remplacement dans `settings` et `llm_client` suffit. Aucun test (`tests/test_model_decision_bench.py` absent), aucun résultat (`captures/model_decision_bench.jsonl` absent ; `captures/` est ignoré par git).
+**Serveur (mesuré)** : Ollama local joignable ; modèles installés : `bge-m3:latest` et `qwen3:14b` seulement (`capabilities` : completion, tools, thinking ; 100 % en VRAM, contexte 32768). `gpt-oss:20b`, `mistral-small3.2:24b`, `qwen3:8b`, `qwen3:30b-a3b` : absents (404), à télécharger par pmm.
+**Plan** : (1) `tests/test_model_decision_bench.py` (nouveau, chargé comme `test_agent_variants_bench.py`, aucun serveur, aucun LLM) : classement des observations (`classify`) et des appels (`tool_call_stats`) ; remplacement puis restauration de `LLM_MODEL` et `LLM_NO_THINK_MARKER` (`model_override`) ; préparation du serveur simulée (refus sans `tools`, décharge des autres modèles sauf l'embedding, fraction VRAM) ; reprise (`pending_runs`, `--retry-interrupted`), `--fresh` (`discard_model`) ; statistiques (`model_stats` : erreurs d'infrastructure exclues des taux) ; arrêt après trois échecs d'infrastructure consécutifs (`execute`) ; `RecordingAgent`. (2) Corriger le script seulement si un test révèle un défaut ; chaque correction sera journalisée en suite. Aucun code de production touché.
+**Non fait, à lancer par pmm** : télécharger les candidats retenus (`ollama pull ...`) ; lancer le banc modèle par modèle (long : plusieurs dizaines de minutes par modèle). Aucun commit.
+
+
+## Section 1605 (suite) : réalisé (27/10/2026)
+
+**Fait** : `tests/test_model_decision_bench.py` (nouveau, 22 cas, hermétique : aucun serveur, aucun LLM) : classement des observations et des appels, remplacement puis restauration de `LLM_MODEL` / `LLM_NO_THINK_MARKER`, préparation du serveur simulée (refus sans `tools`, décharge des autres modèles sauf l'embedding, fraction VRAM), reprise et `--retry-interrupted`, `--fresh`, statistiques (erreurs d'infrastructure exclues des taux, aucun modèle valide sans division par zéro), arrêt après trois échecs d'infrastructure consécutifs et remise à zéro du compteur après un succès, `RecordingAgent` et restauration de `create_react_agent`. Un premier échec venait du test (l'enregistrement simulé écrasait l'identité de la question), pas du script : test corrigé, script inchangé. `scripts/run_model_decision_bench.py` : aucune modification.
+**Vérification (exécutions réelles)** : `pyflakes` propre ; `test_model_decision_bench`, `test_agent_variants_bench`, `test_benchmark_tools` : 39 passés. Passage de bout en bout : `run_model_decision_bench.py --model qwen3:14b --ids PUR-Q4 --keep-loaded` : modèle 100 % en VRAM, graphe et index sémantique prêts, PUR-Q4 répondue en 35,7 s, outils tentés `describe_workflow` puis `button_execution_path` (2 appels valides, 0 invalide, 0 outil attendu manquant, 2 sauts, 2 appels LLM), réponse conservée, rapport imprimé ; aucune trace d'erreur. Cette ligne reste dans `captures/model_decision_bench.jsonl` (passe 1 valide de `qwen3:14b` pour PUR-Q4 : une reprise ne la rejoue pas).
+**Non fait, à lancer par pmm** (long, un processus par modèle, un seul gros modèle chargé à la fois) : (1) `ollama pull` des candidats retenus (aujourd'hui seul `qwen3:14b` est installé) ; (2) `python scripts/run_model_decision_bench.py --model qwen3:14b` (référence, reprend après PUR-Q4), puis un run par candidat ; `--passes 2` ou plus pour mesurer la variance ; (3) `--report` pour le tableau comparatif. Écart à noter : `captures/` est ignoré par git, les résultats ne sont donc pas versionnés. Aucun commit : `scripts/run_model_decision_bench.py` et `tests/test_model_decision_bench.py` sont nouveaux (à ajouter explicitement).
+
+
+## Section 1606 : serveur Ollama : modèles déplacés sur le NVMe, candidats du banc téléchargés (27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1605 (suite). Aucun fichier du dépôt modifié ; opérations faites par pmm sur l'EC2 (disque racine 48 Go plein à 100 % : `ollama pull` échouait).
+**Fait (sortie collée par pmm)** : NVMe d'instance formaté (ext4) et monté sur `/mnt/nvme` ; modèles copiés puis supprimés de `/usr/share/ollama/.ollama/models` ; `OLLAMA_MODELS=/mnt/nvme/ollama` dans `/etc/systemd/system/ollama.service.d/override.conf`. `ollama list` : `qwen3:14b`, `bge-m3`, `gpt-oss:20b`, `mistral-small3.2:24b` ; puis `qwen3:8b` et `qwen3:30b-a3b` téléchargés. `gpt-oss:20b` déclare `tools` et `thinking`.
+**Limite connue** : le NVMe est un stockage d'instance, vidé quand l'EC2 est arrêtée puis relancée (pas lors d'un simple redémarrage système) : il faudra reformater et retélécharger les modèles ; `fstab` avec `nofail` recommandé.
+**À lancer par pmm** : vérifier `tools` dans `Capabilities` de `mistral-small3.2:24b`, `qwen3:8b`, `qwen3:30b-a3b` (`ollama show <m>`), puis le banc (1605 suite). Aucun commit.
+
+
+## Section 1607 : comparaison de modèles pour le mémoire : plan de l'évaluation RAGAS du RAG documentaire (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1606. Aucun fichier existant modifié ; aucun code écrit.
+**Mandat (pmm)** : le mémoire exclut Code Intelligence ; le Tableau 34 (comparaison de modèles) n'est pas mesuré et doit l'être. Le banc CI de la 1603-1605 (`run_model_decision_bench.py`, testé, 47 questions) ne couvre donc pas le mémoire : conservé, non lancé pour le mémoire. Constat annexe : lors du run `qwen3:14b` de pmm, `/api/ps` rapportait `context_length` 4096 (32768 mesuré en 1605) : les lignes de `captures/model_decision_bench.jsonl` de ce run sont invalides (`--fresh` avant tout usage). Le projet ne fixe `num_ctx` nulle part et `ChatOpenAI` sur `/v1` ne peut pas le transmettre : le contexte dépend du serveur (`OLLAMA_CONTEXT_LENGTH`).
+**Lu** : `tests/rag_eval_questions.json` (20 questions : `reference`, `reference_sources`, `facts`, `answerable`) ; `document_rag.generate_node.generate(state)` appelable seul avec `{"question", "retrieved_chunks", "timing"}` (comme `scripts/benchmark_rag.py`) ; `requirements.txt` contient `ragas` sans version (ajout non commité), `ragas` non installé.
+**Plan** : nouveau `scripts/run_ragas_eval.py`, deux phases pour éviter de recharger les modèles. (1) Génération, un processus par modèle (`--model M`) : chunks récupérés une seule fois par question (même chemin que la production), mis en cache dans un fichier de captures, donc identiques pour tous les modèles ; `generate()` appelé avec `LLM_MODEL` remplacé (`model_override` et préparation du serveur réutilisés du banc 1603, DRY) ; enregistrement de la réponse, des contextes, des sources citées, de la durée. (2) Jugement, `--judge J` : un seul chargement du juge pour toutes les captures ; métriques RAGAS faithfulness, answer_relevancy (embeddings `bge-m3`), context_precision et context_recall (références) ; les 2 questions sans réponse dans le corpus sont notées par un test déterministe de refus, pas par RAGAS. `--report` : tableau par modèle (moyennes, durée p50/p90, part en VRAM). Tests hermétiques pour le cache, la reprise et l'agrégation.
+**Préalables à lancer par pmm** : `OLLAMA_CONTEXT_LENGTH=32768` sur le serveur ; `ollama pull gemma3:27b` (juge) ; `pip install ragas`, puis épingler la version dans `requirements.txt` (convention du fichier : versions exactes). Candidats : `qwen3:14b`, `gpt-oss:20b`, `mistral-small3.2:24b`, `qwen3:8b` (+ `qwen3:30b-a3b` optionnel) ; le juge ne doit pas être un candidat. Aucun commit.
+
+
+## Section 1608 : comparaison mesurée des modèles sur le RAG documentaire (étape avant RAGAS) (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1607. Sauvegarde : `.scratch/avant_1608/` (`contexte.txt`, `scripts/run_model_decision_bench.py`, `tests/test_model_decision_bench.py`).
+**Mandat (pmm)** : mémoire de master (Code Intelligence exclu) ; il reste la comparaison mesurée des modèles pour justifier Qwen ou en choisir un autre s'il fait déjà l'affaire ; RAGAS vient après.
+**Constat (exécutions réelles)** : `scripts/run_ragas_eval.py` absent ; `ragas` non installé ; Ollama local : `qwen3:14b`, `qwen3:8b`, `qwen3:30b-a3b`, `mistral-small3.2:24b`, `gpt-oss:20b`, `bge-m3` présents, contexte 32768 mesuré sur `gpt-oss:20b`. `generate(state)` n'a pas besoin du graphe : il prend `question`, `retrieved_chunks`, `timing` ; il avale les exceptions et renvoie « Désolé, une erreur s'est produite... » comme réponse (à détecter). `is_out_of_scope` ne court-circuite aucune des deux questions pièges : le modèle est bien testé. Le prompt impose pour l'absence d'information la phrase « Je n'ai pas trouvé cette information dans la base de connaissance interne ».
+**Décision de conception (écart au plan 1607)** : deux scripts au lieu d'un. L'étape 1 (génération et mesures déterministes, sans juge LLM) suffit à comparer les modèles sur ce que le mémoire cite (fidélité aux faits, citation des sources, abstention, latence, VRAM) et à désigner les finalistes ; l'étape 2 (RAGAS, juge `gemma3:27b`) ne tourne que sur les finalistes, dans `scripts/run_ragas_eval.py`, après l'étape 1 et après installation de `ragas`. Les deux lisent le même fichier de captures.
+**Plan** : (1) `core/evaluation/ollama_server.py` (nouveau) : `server_call`, `loaded_models`, `set_keep_alive`, `require_tool_support`, `prepare_server`, `model_override` déplacés tels quels depuis `run_model_decision_bench.py` (DRY : le banc RAG ne doit pas importer le banc Code Intelligence) ; `run_model_decision_bench.py` les importe ; `tests/test_model_decision_bench.py` patche `server_call` dans le nouveau module (seule modification de ce test). (2) `scripts/run_rag_model_eval.py` (nouveau) : `--model M` un processus par modèle ; contextes récupérés une seule fois par `retrieve` de `core/graph/graph_nodes.py` (chemin de production, `RAG_TOP_K`) et mis en cache dans `captures/rag_eval_contexts.json` (clé : id et texte de la question ; `--refresh-contexts` pour reconstruire) : tous les modèles reçoivent les mêmes passages ; `generate()` appelé sous `model_override` ; résultats ajoutés à `captures/rag_model_eval.jsonl` (reprise, `--passes`, `--retry-errors`, `--fresh`, arrêt après trois erreurs consécutives, `--keep-loaded`) ; `--report` : tableau par modèle et matrice question x modèle. Mesures par question, sans LLM : `fact_recall` (part des `facts` retrouvés dans la réponse, sans accents, casse ni espaces) et `all_facts` ; `source_recall` (part des `reference_sources` citées dans `sources`) ; pour les deux pièges, `abstained` (marqueurs d'absence, heuristique : les réponses sont conservées pour lecture) ; durée de génération, longueur de réponse, confiance déclarée, `error` (réponse de repli de `generate`). (3) `tests/test_rag_model_eval.py` hermétique (normalisation, métriques, cache de contextes, reprise, arrêt, statistiques).
+**Limite assumée** : `fact_recall` est une borne basse stricte (une paraphrase correcte mais sans la formulation exacte compte comme manquante) ; la sémantique est l'objet de RAGAS à l'étape 2. `sources` est la liste `used_sources` déclarée par le LLM (le repli de `format_output` n'est pas appliqué). Rien de la production n'est modifié. Aucun commit.
+
+
+## Section 1609 : reprise de la 1608 : étape 1 retrouvée sur disque (non journalisée), écriture du banc RAG (plan, journal avant code, 27/10/2026)
+
+Date : 27/10/2026. Dernier numéro lu avant écriture : 1608. Sauvegarde : `.scratch/avant_1609/contexte.txt`. **Mandat (pmm)** : « reprends, rien est lancé, `OLLAMA_CONTEXT_LENGTH=32768` fait ».
+**Écart relevé (collision de session)** : l'étape 1 du plan 1608 était déjà exécutée sur disque entre 16:15 et 16:17 sans entrée de journal : `core/evaluation/ollama_server.py` (déplacement tel quel de `server_call`, `loaded_models`, `set_keep_alive`, `require_tool_support`, `prepare_server`, `model_override`), `core/evaluation/run_store.py` (nouveau : `run_key`, `load_runs`, `append_run`, `discard_model`, `pending_runs`, extraits du banc CI), `tests/test_ollama_server.py` (nouveau : les 3 tests de serveur retirés de `test_model_decision_bench.py`), `scripts/run_model_decision_bench.py` et `tests/test_model_decision_bench.py` modifiés pour les utiliser. Vérifié par moi : `test_model_decision_bench.py` 19 passés ; `pyflakes` : `import json` inutilisé dans `run_model_decision_bench.py` (reste du refactor, à retirer). Processus 286613 `run_model_decision_bench.py --model gpt-oss:20b` (banc CI, lancé à 15:55) toujours actif à 16:22 : il occupe le GPU, à arrêter par pmm avant tout banc RAG (`prepare_server` décharge les autres modèles).
+**Constats (exécutions réelles)** : `retrieve` de `core/graph/graph_nodes.py` rend 12 passages pour la première question (clés `id`, `document`, `metadata`, `score`, `rrf_score`), sérialisables en JSON tels quels (0,9 s). `metadata['source']` est une URL Google Drive : la source d'un passage et d'une `SourceReference` se compare par `title` (nom de fichier), pas par `source` (écart au plan 1608, qui disait `sources`). `tests/rag_eval_questions.json` : clés `description` et `questions` ; `facts` des questions piégées vide ; MULTI-01 a deux variantes du même fait (avec et sans accents) : identiques après normalisation.
+**Plan (étape 2 du 1608, inchangé sinon)** : (1) retirer `import json` inutilisé du banc CI ; (2) `scripts/run_rag_model_eval.py` : questions du fichier JSON, contextes en cache `captures/rag_eval_contexts.json` (clé : id, invalidé si le texte change), `generate()` sous `model_override`, enregistrement par `runStore`, mesures déterministes (`fact_recall`, `all_facts`, `source_recall`, `abstained`, `raw_fallback` = échec de la sortie structurée, durée, `error`), `--report` ; (3) `tests/test_rag_model_eval.py` hermétique. Aucun code de production touché. Aucun commit.
+
+
+## Section 1610 : banc de comparaison RAG prêt à mesurer (27/10/2026)
+
+**Fait** : `scripts/run_rag_model_eval.py` complété pour exiger par défaut le même contexte Ollama de 32768 tokens pour chaque modèle (échec explicite si la valeur remontée par le serveur diffère ou manque), avec `--context-length` pour adapter volontairement le protocole. Trois générations par question par défaut (`--passes`), plus enregistrement et rapport de la confiance déclarée et de la longueur moyenne des réponses. Le rapport indique que la confiance est diagnostique, pas une mesure de qualité. Les réponses et métriques déterministes restent enregistrées dans `captures/rag_model_eval.jsonl`; les contextes de retrieval demeurent communs entre modèles.
+**Candidats et commande** : exécuter successivement `python scripts/run_rag_model_eval.py --model qwen3:14b`, puis `gpt-oss:20b`, `mistral-small3.2:24b`, `qwen3:8b`, `qwen3:30b-a3b`, puis `python scripts/run_rag_model_eval.py --report`. Ne conclure en faveur de Qwen qu'après comparaison des résultats et lecture qualitative des réponses ; le score strict lexical est une borne basse, RAGAS demeure l'étape suivante pour les finalistes.
+**Vérification** : `tests/test_rag_model_eval.py` et `tests/test_ollama_server.py` : 24 passés ; pyflakes et `--help` OK. Pas d'exécution des modèles (aucun résultat comparatif généré ici). Aucun commit.
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_model_decision_bench.py --model qwen3:14b
+python scripts/run_model_decision_bench.py --model gpt-oss:20b
+python scripts/run_model_decision_bench.py --model mistral-small3.2:24b
+python scripts/run_model_decision_bench.py --model qwen3:8b
+python scripts/run_model_decision_bench.py --model qwen3:30b-a3b
+python scripts/run_model_decision_bench.py --report
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 4096}
+Graph and semantic index ready (fr): ['success']
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: fields_get(auditlog.log.line.view) (107 chars)
+[1/47] MNT-Q1 pass 1: answered, missing tools ['evaluate_record_rules', 'who_has_access_to'] (61.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[2/47] MNT-Q2 pass 1: no_analysis_observation, missing tools ['describe_workflow', 'read_source_code'] (114.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[3/47] MNT-Q3 pass 1: no_analysis_observation, missing tools ['list_involved_modules', 'trace_full_inheritance'] (97.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[4/47] MNT-Q4 pass 1: answered, missing tools ['button_execution_path'] (62.8s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[5/47] MNT-Q5 pass 1: answered, missing tools none (69.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+^CTraceback (most recent call last):
+  File "/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py", line 334, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py", line 323, in main
+    finished = execute(todo, runs, args.model, serverInfo)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py", line 214, in execute
+    **serverInfo, **run_once(item),
+                    ^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py", line 151, in run_once
+    result = code_intelligence_agent(build_agent_state(item))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/code_intelligence/agent/loop.py", line 202, in code_intelligence_agent
+    return CodeIntelligenceAgentRunner(state).run()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/code_intelligence/agent/loop.py", line 183, in run
+    answer = run_react_loop(ctx, llm, state.get('chat_history', []))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/code_intelligence/agent/loop.py", line 101, in run_react_loop
+    result = agent.invoke(
+             ^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py", line 117, in invoke
+    result = self.agent.invoke(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/pregel/main.py", line 3913, in invoke
+    for chunk in self.stream(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/pregel/main.py", line 2967, in stream
+    for _ in runner.tick(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/pregel/_runner.py", line 207, in tick
+    run_with_retry(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/pregel/_retry.py", line 617, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 684, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/_internal/_runnable.py", line 419, in invoke
+    ret = context.run(self.func, *args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langgraph/prebuilt/chat_agent_executor.py", line 677, in call_model
+    response = cast(AIMessage, dynamic_model.invoke(model_input, config))  # type: ignore[arg-type]
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 3444, in invoke
+    input_ = context.run(step.invoke, input_, config)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 5311, in invoke
+    return self._call_with_config(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 2289, in _call_with_config
+    context.run(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/config.py", line 526, in call_func_with_variable_args
+    return func(input, **kwargs)  # type: ignore[call-arg]
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 5168, in _invoke
+    output = call_func_with_variable_args(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/config.py", line 526, in call_func_with_variable_args
+    return func(input, **kwargs)  # type: ignore[call-arg]
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/code_intelligence/agent/loop.py", line 84, in invokeModel
+    response, wait = invoke_with_rate_limit(
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/core/llm/llm_client.py", line 94, in invoke_with_rate_limit
+    result = llm_with_tools.invoke(messages)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/runnables/base.py", line 6002, in invoke
+    return self.bound.invoke(
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 476, in invoke
+    self.generate_prompt(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1849, in generate_prompt
+    return self.generate(prompt_messages, stop=stop, callbacks=callbacks, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1656, in generate
+    self._generate_with_cache(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1994, in _generate_with_cache
+    result = self._generate(
+             ^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_openai/chat_models/base.py", line 1733, in _generate
+    raw_response = self.client.with_raw_response.create(**payload)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_legacy_response.py", line 367, in wrapped
+    return cast(LegacyAPIResponse[R], func(*args, **kwargs))
+                                      ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/resources/chat/completions/completions.py", line 1281, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_base_client.py", line 1332, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_base_client.py", line 1037, in request
+    response = self._send_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_client.py", line 478, in _send_request
+    response = self._send_with_auth_retry(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_client.py", line 456, in _send_with_auth_retry
+    response = super()._send_request(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/openai/_base_client.py", line 964, in _send_request
+    return self._client.send(request, stream=stream, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+    return self._connection.handle_request(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+    raise exc
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+    ) = self._receive_response_headers(**kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+    event = self._receive_event(timeout=timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_sync/http11.py", line 217, in _receive_event
+    data = self._network_stream.read(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/httpcore/_backends/sync.py", line 128, in read
+    return self._sock.recv(max_bytes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+^C
+gpt-oss:20b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+Graph and semantic index ready (fr): ['success']
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+[1/48] MNT-Q1 pass 1: interrupted, missing tools none (104.8s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+Observation truncated before display: read_source_code() (9037 chars)
+[2/48] MNT-Q2 pass 1: interrupted, missing tools ['describe_workflow'] (33.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+[3/48] MNT-Q3 pass 1: incomplete_investigation, missing tools ['list_involved_modules', 'trace_full_inheritance'] (112.1s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[4/48] MNT-Q4 pass 1: answered, missing tools ['button_execution_path'] (76.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+[5/48] MNT-Q5 pass 1: interrupted, missing tools ['analyze_data_constraints'] (51.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: describe_workflow(purchase.order) (2530 chars)
+[6/48] PUR-Q1 pass 1: answered, missing tools ['evaluate_record_rules', 'read_source_code', 'who_has_access_to'] (83.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: describe_workflow(purchase.order) (2530 chars)
+[7/48] PUR-Q2 pass 1: answered, missing tools ['read_source_code'] (15.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[8/48] PUR-Q3 pass 1: empty_final_message, missing tools ['list_involved_modules', 'trace_full_inheritance'] (79.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[9/48] PUR-Q4 pass 1: answered, missing tools none (6.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[10/48] PUR-Q5 pass 1: answered, missing tools ['analyze_data_constraints'] (69.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[11/48] SAL-Q1 pass 1: answered, missing tools ['who_has_access_to'] (42.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+[12/48] SAL-Q2 pass 1: answered, missing tools ['describe_workflow'] (88.2s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_method_override_chain(sale.order) (1810 chars)
+Observation truncated before display: analyze_security_locks(sale.order) (8849 chars)
+[13/48] SAL-Q3 pass 1: answered, missing tools ['list_involved_modules', 'trace_full_inheritance'] (112.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+Investigation tool read_source_fragment failed (ValueError)
+[14/48] SAL-Q4 pass 1: answered, missing tools ['button_execution_path'] (90.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+Investigation tool read_source_fragment failed (ValueError)
+[15/48] SAL-Q5 pass 1: answered, missing tools ['analyze_data_constraints'] (116.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+Observation truncated before display: analyze_security_locks(stock.move) (12452 chars)
+[16/48] STK-Q1 pass 1: interrupted, missing tools none (89.3s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[17/48] STK-Q2 pass 1: answered, missing tools ['describe_workflow'] (77.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[18/48] STK-Q3 pass 1: incomplete_investigation, missing tools ['list_involved_modules', 'trace_full_inheritance'] (151.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+Observation truncated before display: fields_get(stock.move) (171 chars)
+[19/48] STK-Q4 pass 1: incomplete_investigation, missing tools ['button_execution_path'] (109.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[20/48] STK-Q5 pass 1: incomplete_investigation, missing tools ['analyze_data_constraints'] (115.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: read_source_code() (8880 chars)
+[21/48] ACC-Q1 pass 1: answered, missing tools ['evaluate_record_rules', 'who_has_access_to'] (109.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[22/48] ACC-Q2 pass 1: answered, missing tools ['analyze_security_locks'] (115.5s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[23/48] ACC-Q3 pass 1: no_analysis_observation, missing tools ['list_involved_modules', 'trace_full_inheritance'] (136.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+System investigation interrupted (InternalServerError)
+[24/48] ACC-Q4 pass 1: interrupted, missing tools ['button_execution_path'] (120.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_data_constraints(account.move) (28983 chars)
+[25/48] ACC-Q5 pass 1: answered, missing tools ['read_source_code'] (55.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+[26/48] CNA-Q1 pass 1: interrupted, missing tools none (60.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_security_locks(account.move) (13940 chars)
+Observation truncated before display: button_execution_path(account.move) (409 chars)
+[27/48] CNA-Q2 pass 1: answered, missing tools none (130.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[28/48] CNA-Q3 pass 1: empty_final_message, missing tools none (57.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[29/48] CNV-Q1 pass 1: answered, missing tools none (36.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[30/48] CNV-Q2 pass 1: no_analysis_observation, missing tools none (139.8s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: describe_workflow(hr.leave) (2407 chars)
+Observation truncated before display: read_source_code() (8938 chars)
+[31/48] HRL-Q1 pass 1: incomplete_investigation, missing tools none (90.0s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_security_locks(hr.leave) (14319 chars)
+[32/48] HRL-Q2 pass 1: answered, missing tools none (50.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_security_locks(hr.leave) (14355 chars)
+[33/48] HRL-Q3 pass 1: answered, missing tools none (49.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[34/48] PRQ-Q1 pass 1: answered, missing tools none (51.2s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+[35/48] PRQ-Q2 pass 1: answered, missing tools none (94.8s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[36/48] PRQ-Q3 pass 1: answered, missing tools none (59.3s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+[37/48] ALN-Q1 pass 1: interrupted, missing tools none (89.3s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[38/48] ALN-Q2 pass 1: no_analysis_observation, missing tools none (159.9s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+System investigation interrupted (InternalServerError)
+[39/48] ALN-Q3 pass 1: interrupted, missing tools none (55.2s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+Observation truncated before display: analyze_security_locks(account.move) (13948 chars)
+[40/48] AUT-Q1 pass 1: answered, missing tools none (67.4s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Observation truncated before display: analyze_security_locks(account.move) (13948 chars)
+[41/48] AUT-Q2 pass 1: answered, missing tools none (52.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[42/48] AUT-Q3 pass 1: incomplete_investigation, missing tools none (131.0s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+Investigation tool read_source_fragment failed (ValueError)
+Investigation tool read_source_fragment failed (ValueError)
+[43/48] REI-Q1 pass 1: answered, missing tools none (80.3s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+Investigation tool read_source_fragment failed (ValueError)
+System investigation interrupted (InternalServerError)
+Observation truncated before display: read_source_code() (173 chars)
+[44/48] REI-Q2 pass 1: interrupted, missing tools none (117.0s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[45/48] REI-Q3 pass 1: empty_final_message, missing tools none (71.6s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[46/48] DDI-Q1 pass 1: no_analysis_observation, missing tools none (60.1s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[47/48] DDI-Q2 pass 1: no_analysis_observation, missing tools none (22.7s)
+/home/user/odoo-ia-prototype/scripts/run_model_decision_bench.py:125: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+  with mock.patch.object(langgraph.prebuilt, 'create_react_agent', lambda *a, **k: RecordingAgent(build(*a, **k), box)):
+[48/48] DDI-Q3 pass 1: incomplete_investigation, missing tools none (123.6s)
+
+Tool calling per model (interrupted and error runs are excluded from the rates)
+model                  runs infra  cover  fallbk calls    ok  bad  nf  hops   p50s   p90s  vram
+gpt-oss:20b              48     9    51%     13%   320   73%   15   2   8.1     80    137  1.00
+qwen3:14b                 6     0    33%     33%    12  100%    0   0   2.0     66    115  1.00
+
+cover = questions with every expected tool used; fallbk = no_analysis_observation; ok = valid tool calls;
+bad = invalid or failed calls; nf = identifiers absent from the graph; vram < 1.00 means CPU offload (latency not comparable).
+
+expected tools covered per question (over the passes done)
+question               gpt-oss:20b             qwen3:14b
+PUR-Q4                         1/1                   1/1
+MNT-Q1                         1/1                   0/1
+MNT-Q2                         0/1                   0/1
+MNT-Q3                         0/1                   0/1
+MNT-Q4                         0/1                   0/1
+MNT-Q5                         0/1                   1/1
+PUR-Q1                         0/1                   0/0
+PUR-Q2                         0/1                   0/0
+PUR-Q3                         0/1                   0/0
+PUR-Q5                         0/1                   0/0
+SAL-Q1                         0/1                   0/0
+SAL-Q2                         0/1                   0/0
+SAL-Q3                         0/1                   0/0
+SAL-Q4                         0/1                   0/0
+SAL-Q5                         0/1                   0/0
+STK-Q1                         1/1                   0/0
+STK-Q2                         0/1                   0/0
+STK-Q3                         0/1                   0/0
+STK-Q4                         0/1                   0/0
+STK-Q5                         0/1                   0/0
+ACC-Q1                         0/1                   0/0
+ACC-Q2                         0/1                   0/0
+ACC-Q3                         0/1                   0/0
+ACC-Q4                         0/1                   0/0
+ACC-Q5                         0/1                   0/0
+CNA-Q1                         1/1                   0/0
+CNA-Q2                         1/1                   0/0
+CNA-Q3                         1/1                   0/0
+CNV-Q1                         1/1                   0/0
+CNV-Q2                         1/1                   0/0
+HRL-Q1                         1/1                   0/0
+HRL-Q2                         1/1                   0/0
+HRL-Q3                         1/1                   0/0
+PRQ-Q1                         1/1                   0/0
+PRQ-Q2                         1/1                   0/0
+PRQ-Q3                         1/1                   0/0
+ALN-Q1                         1/1                   0/0
+ALN-Q2                         1/1                   0/0
+ALN-Q3                         1/1                   0/0
+AUT-Q1                         1/1                   0/0
+AUT-Q2                         1/1                   0/0
+AUT-Q3                         1/1                   0/0
+REI-Q1                         1/1                   0/0
+REI-Q2                         1/1                   0/0
+REI-Q3                         1/1                   0/0
+DDI-Q1                         1/1                   0/0
+DDI-Q2                         1/1                   0/0
+DDI-Q3                         1/1                   0/0
+
+
+
+python scripts/run_rag_model_eval.py --model qwen3:14b
+python scripts/run_rag_model_eval.py --model gpt-oss:20b
+python scripts/run_rag_model_eval.py --model mistral-small3.2:24b
+python scripts/run_rag_model_eval.py --model qwen3:8b
+python scripts/run_rag_model_eval.py --model qwen3:30b-a3b
+python scripts/run_rag_model_eval.py --report
+
+

@@ -381,6 +381,16 @@ def add_workflow_nodes_and_edges(
         if f"model:{model_name}" in G:
             G.nodes[f"model:{model_name}"]["state_field"] = stateField
         selection = selection_values(decls, stateField)
+        stateWrites = []
+        for decl in decls:
+            for method in decl.methods:
+                if any(entry["method_name"] == method.name for entry in stateWrites):
+                    continue
+                writtenStates = [state for state in written_states(decls, method.name, stateField) if selection is None or state in selection]
+                if writtenStates:
+                    stateWrites.append({"method_name": method.name, "states": writtenStates})
+        if f"model:{model_name}" in G:
+            G.nodes[f"model:{model_name}"]["state_writes"] = stateWrites
         form_buttons = []
         for mod in modules_dict.values():
             for view in mod.views:

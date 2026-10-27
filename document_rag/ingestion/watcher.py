@@ -12,6 +12,7 @@ import sys
 from threading import Lock, Timer
 from typing import Any, Iterable
 
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.ingest_config import DOCS_DIR
@@ -40,8 +41,8 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
         self,
         docs_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = RAG_CHUNK_SIZE,
+        chunk_overlap: int = RAG_CHUNK_OVERLAP,
     ):
         self.docs_manager = docs_manager or ChromaManager()
         self.debounce_seconds = debounce_seconds
@@ -186,8 +187,8 @@ class IngestionWatcher:
         watched_paths: Iterable[str | Path] | None = None,
         docs_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = RAG_CHUNK_SIZE,
+        chunk_overlap: int = RAG_CHUNK_OVERLAP,
     ):
         if Observer is None:
             raise ImportError("watchdog is required to run ingestion watcher")

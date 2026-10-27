@@ -64,13 +64,18 @@ def test_no_hardcoded_default_secret_remains_in_signing_paths():
 
 def test_signed_tokens_expire_after_five_minutes():
     root = Path(__file__).resolve().parents[1]
+    # The Odoo controller issues its token in ask_flow.py through a named constant.
+    ask_flow = (root / "odoo_addons/miro_ai/controllers/ask_flow.py").read_text(encoding="utf-8")
+    assert "JWT_LIFETIME_SECONDS = 300" in ask_flow
+    assert '"exp": int(time.time()) + JWT_LIFETIME_SECONDS' in ask_flow
+    bot = (root / "odoo_addons/miro_ai_discuss/models/miro_ai_bot.py").read_text(encoding="utf-8")
+    assert '"exp": int(time.time()) + 300' in bot
     for relative in (
         "odoo_addons/miro_ai/controllers/main.py",
+        "odoo_addons/miro_ai/controllers/ask_flow.py",
         "odoo_addons/miro_ai_discuss/models/miro_ai_bot.py",
     ):
-        source = (root / relative).read_text(encoding="utf-8")
-        assert '"exp": int(time.time()) + 300' in source, relative
-        assert "+ 3600" not in source, relative
+        assert "+ 3600" not in (root / relative).read_text(encoding="utf-8"), relative
 
 
 def test_settings_model_not_readable_by_internal_user():

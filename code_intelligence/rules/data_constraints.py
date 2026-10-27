@@ -14,7 +14,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import AbstractSet, Iterable, List, Optional, Sequence
 import logging
 import re
 import textwrap
@@ -59,15 +59,20 @@ def _find_semgrep_binary() -> str:
 
 
 def run_semgrep_analysis(
-    target_path: Path,
+    target_paths: Sequence[Path],
     config_path: Path,
     semgrep_bin: Optional[str] = None,
 ) -> List[SemgrepMatch]:
     """
-    Run Semgrep on target_path using config_path and return structured SemgrepMatch items.
+    Run one Semgrep process on all target_paths using config_path and return structured
+    SemgrepMatch items. Starting Semgrep costs seconds, so files are never analysed one by one.
     """
-    if not target_path.exists():
-        raise FileNotFoundError(f"Semgrep target path does not exist: {target_path}")
+    if not target_paths:
+        return []
+
+    for target_path in target_paths:
+        if not target_path.exists():
+            raise FileNotFoundError(f"Semgrep target path does not exist: {target_path}")
 
     if not config_path.exists():
         raise FileNotFoundError(f"Semgrep configuration path does not exist: {config_path}")
@@ -81,7 +86,7 @@ def run_semgrep_analysis(
         "--config",
         str(config_path),
         "--json",
-        str(target_path),
+        *map(str, target_paths),
     ]
 
     try:
@@ -100,7 +105,7 @@ def run_semgrep_analysis(
 
         matches: List[SemgrepMatch] = []
         for item in results:
-            path = item.get("path", str(target_path))
+            path = item["path"]
             start_l = item.get("start", {}).get("line", 1)
             end_l = item.get("end", {}).get("line", start_l)
             check_id = item.get("check_id", "")
@@ -129,7 +134,7 @@ def run_semgrep_analysis(
 
     except Exception as e:
         _logger.error("Error executing data_constraints runner: %s", e)
-        raise RuntimeError(f"Semgrep analysis failed for '{target_path}': {e}") from e
+        raise RuntimeError(f"Semgrep analysis failed for {len(target_paths)} file(s): {e}") from e
 
 
 def _string_constants(node: ast.AST) -> List[str]:
@@ -709,11 +714,15 @@ def analyze_data_constraints_from_filepaths(
     model_name: str,
     filepaths: Iterable[str],
     config_dir: Optional[Path] = None,
+    relevant_models: Optional[AbstractSet[str]] = None,
 ) -> DataConstraintsAnalysis:
     """
     Run Semgrep across the given (already-resolved) filepaths and build both
     summary_text and Evidence in a single pass over the collected matches --
     no duplicated composition loop.
+
+    A source file often declares several models: when relevant_models is given, a
+    match owned by another model is dropped (a match with no known owner is kept).
 
     config_dir defaults to code_intelligence/semgrep_rules/ (sibling flat
     folder, single parent hop from this file's own package dir).
@@ -723,18 +732,27 @@ def analyze_data_constraints_from_filepaths(
 
     all_matches: List[SemgrepMatch] = []
     analysis_errors: List[str] = []
+    existing_paths: List[Path] = []
     for fp in sorted(filepaths):
         p = Path(fp)
         if not p.exists():
             analysis_errors.append(f"Source file is unavailable: {fp}")
             continue
+        existing_paths.append(p)
+    if existing_paths:
         try:
-            all_matches.extend(run_semgrep_analysis(p, config_dir))
+            all_matches.extend(run_semgrep_analysis(existing_paths, config_dir))
         except (OSError, RuntimeError, ValueError) as error:
             analysis_errors.append(str(error))
+    for p in existing_paths:
         all_matches.extend(_extract_static_exclusion_filters(p))
 
     _annotate_owner_models(all_matches)
+    if relevant_models is not None:
+        all_matches = [
+            match for match in all_matches
+            if not match.owner_models or relevant_models.intersection(match.owner_models)
+        ]
     return DataConstraintsAnalysis(
         model_name=model_name,
         matches=all_matches,

@@ -4,13 +4,9 @@ One approved shared Drive corpus per target RAG collection. No mapping between G
 
 ## Install and authenticate
 
-Inside the project virtual environment:
+Dependencies (`google-auth`, `filelock`) are part of `requirements.txt`, installed in the project virtual environment.
 
-```bash
-pip install -r requirements-google-drive.txt
-```
-
-Enable Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account with reader access only to the approved folders. Share those folders with the service account. On AWS, use supported workload identity federation or a credential file provisioned outside the repository. Authorized-user ADC is also supported; there is no interactive OAuth setup in this feature.
+Enable Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account with reader access only to the approved folders. Share those folders with the service account. On AWS, use supported workload identity federation or a credential file provisioned outside the repository (or in the git-ignored `secrets/` folder at the repository root; the path is relative to the directory the worker is started from). Authorized-user ADC is also supported; there is no interactive OAuth setup in this feature.
 
 Never commit credential JSON, index it as a document, or paste keys into chat. Configuration is centralized in `config/google_drive.py`; the existing Chroma and embedding settings remain authoritative.
 
@@ -48,7 +44,7 @@ After a complete inventory, Drive chunks for files absent from the selected corp
 
 If a configured root returns 404, it is missing or inaccessible; the entire Drive corpus of that collection is deactivated and purged rather than guessing which roots own old chunks. Local documents remain. Recovery can reindex the shared corpus. Generic 403 errors remain ambiguous and pause synchronization without purging; investigate them operationally. A download error occurring after inventory does not automatically revoke an existing indexed copy.
 
-The main retrieval pipeline checks current chunk IDs and the `drive_active` flag for vector/lexical candidates, before and after contiguous expansion. Stale BM25 entries for removed/deactivated Drive chunks are excluded. Availability lookup failures drop Drive candidates rather than trusting cached text. Tombstones stay effective if physical cleanup fails after deactivation; failure of deactivation itself aborts and requires operator intervention. New documents are visible to vector retrieval after ingestion; an existing cached BM25 index still needs rebuilding/restarting to include new lexical entries.
+The main retrieval pipeline checks current chunk IDs and the `drive_active` flag for vector/lexical candidates, before and after contiguous expansion. Stale BM25 entries for removed/deactivated Drive chunks are excluded. Availability lookup failures drop Drive candidates rather than trusting cached text. Tombstones stay effective if physical cleanup fails after deactivation; failure of deactivation itself aborts and requires operator intervention. New documents are visible to vector retrieval after ingestion. The shared lexical (BM25) index compares its chunk ids with ChromaDB on each retrieval and rebuilds itself when they differ, so another process (the Drive worker, the file watcher) can update the corpus without restarting the API.
 
 This is periodic shared-corpus reconciliation, not instantaneous revocation or an end-user permission check. Detection waits until a successful cycle; outages can extend that delay. Already generated answers, chat history and requests already in flight are not erased by chunk removal. Do not use a private/dynamically restricted corpus with this shared-reader model.
 

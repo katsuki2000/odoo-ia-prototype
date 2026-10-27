@@ -255,7 +255,8 @@ class RoutingTests(unittest.TestCase):
     def test_introspection_has_no_global_graph_access(self):
         source = (ROOT / 'code_intelligence/agent/tools/introspection.py').read_text()
         self.assertNotIn('_GRAPH_REF', source)
-        self.assertIn('get_graph_ref()', source)
+        # The request-scoped graph is read through helpers._require_graph() (backed by get_graph_ref()).
+        self.assertIn('_require_graph()', source)
 
 
 NATIVE_AVAILABLE = importlib.util.find_spec('langgraph') is not None and importlib.util.find_spec('langchain_core') is not None

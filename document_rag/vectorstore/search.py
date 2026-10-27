@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
-from config.settings import VECTOR_SIMILARITY_FLOOR
+from config.settings import RAG_BM25_WEIGHT, RAG_RELEVANCE_THRESHOLD, RAG_VECTOR_WEIGHT, VECTOR_SIMILARITY_FLOOR
 from document_rag.vectorstore.bm25_index import _STOP_WORDS, _tokenize, BM25Index, bm25_search
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search_hybrid import hybrid_search, vector_search
@@ -17,20 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 def retrieve(query: str, top_k: int = 5, chroma_manager: ChromaManager | list[ChromaManager] | None = None,
-             bm25_index: BM25Index | None = None, vector_weight: float = 0.6, bm25_weight: float = 0.4,
-             relevance_threshold: float = 0.3, min_similarity: float = VECTOR_SIMILARITY_FLOOR,
+             bm25_index: BM25Index | None = None, vector_weight: float = RAG_VECTOR_WEIGHT,
+             bm25_weight: float = RAG_BM25_WEIGHT, relevance_threshold: float = RAG_RELEVANCE_THRESHOLD, min_similarity: float = VECTOR_SIMILARITY_FLOOR,
              where: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     if chroma_manager is None:
         chroma_manager = ChromaManager()
     if bm25_index is None:
         bm25_index = BM25Index()
         bm25_index.build_from_chroma(chroma_manager)
-    vector_weight = 0.7
-    bm25_weight = 0.3
     candidate_count = top_k * 20
     fused_results = hybrid_search(chroma_manager=chroma_manager, bm25_index=bm25_index, query=query,
                                    top_k=max(100, candidate_count), vector_weight=vector_weight, bm25_weight=bm25_weight,
-                                   relevance_threshold=0.01, min_similarity=min_similarity, where=where)
+                                   relevance_threshold=relevance_threshold, min_similarity=min_similarity, where=where)
     fused_results = filter_current_drive_chunks(fused_results, chroma_manager)
     if not fused_results:
         logger.warning('No results after hybrid search for query: %s', query[:100])
@@ -69,7 +67,7 @@ def get_retriever() -> tuple[ChromaManager, BM25Index]:
     global _shared_chroma, _shared_bm25
     if _shared_chroma is None:
         _shared_chroma = ChromaManager()
-    if _shared_bm25 is None or not _shared_bm25.is_built:
+    if _shared_bm25 is None or not _shared_bm25.is_built or not _shared_bm25.matches(_shared_chroma):
         _shared_bm25 = BM25Index()
         _shared_bm25.build_from_chroma(_shared_chroma)
     return _shared_chroma, _shared_bm25

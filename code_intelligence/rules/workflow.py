@@ -23,11 +23,32 @@ class WorkflowProcessResult:
     summary_text: str = ""
     # structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
+    # state field of the model and the public methods that write it without a derived button transition
+    state_field: str = ""
+    state_methods: List[Dict[str, Any]] = field(default_factory=list)
+
+
+def _state_overview_text(stateField: str, states: List[str], stateMethods: List[Dict[str, Any]]) -> str:
+    """State values and the methods writing them, for a model whose view buttons yield no (or only some) transitions."""
+    lines: List[str] = []
+    if stateField and states:
+        lines.append(f"The state field '{stateField}' has the values: {', '.join(states)}.")
+    if stateMethods:
+        lines.append("Methods that write this state field and are not linked to a derived button transition:")
+        for entry in stateMethods:
+            lines.append(
+                f"- `{entry['method_name']}()` writes: {', '.join(entry['states'])}. The origin state, the callers and the "
+                "checks inside the method are not derived here; read the method before concluding."
+            )
+    return "\n".join(lines)
 
 
 def _build_workflow_evidence(
     model_name: str,
     transitions: List[Dict[str, Any]],
+    states: List[str] = (),
+    stateField: str = "",
+    stateMethods: List[Dict[str, Any]] = (),
 ) -> List[Evidence]:
     """
     B1: one Evidence per TRANSITIONS_VIA edge actually found.
@@ -67,6 +88,27 @@ def _build_workflow_evidence(
             value="no_transition_derived",
             confidence="LOW",
         ))
+        if stateField and states:
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=f"Model '{model_name}' has the state field '{stateField}' with the values: {', '.join(states)}.",
+                source=f"state_field:{model_name}:{stateField}",
+                value=",".join(states),
+                confidence="HIGH",
+            ))
+
+    for entry in stateMethods:
+        for state in entry["states"]:
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=(
+                    f"Method '{entry['method_name']}()' of model '{model_name}' writes the state '{state}' on "
+                    f"'{stateField}'; it is not linked to a derived button transition."
+                ),
+                source=f"state_write:{model_name}:{entry['method_name']}:{state}",
+                value=state,
+                confidence="HIGH",
+            ))
 
     return evidence
 
@@ -118,18 +160,29 @@ def describe_workflow(
                 })
 
     model_tags = tags_for_node_attrs(G.nodes[model_node])
+    stateField = G.nodes[model_node].get("state_field", "")
+    buttonMethods = {tr["method_name"] for tr in transitions}
+    stateMethods = [
+        entry for entry in (G.nodes[model_node].get("state_writes") or [])
+        if not entry["method_name"].startswith("_") and entry["method_name"] not in buttonMethods
+    ]
+    sortedStates = sorted(list(states))
 
     if not transitions:
+        summary = (
+            f"{NO_WORKFLOW_TRANSITION_MARKER} for '{model_name}'. "
+            "The graph may omit workflows expressed with unsupported patterns or fields."
+        )
+        overview = _state_overview_text(stateField, sortedStates, stateMethods)
         return WorkflowProcessResult(
             model_name=model_name,
             status=QueryStatus.EMPTY,
-            states=sorted(list(states)),
+            states=sortedStates,
             model_tags=model_tags,
-            summary_text=(
-                f"{NO_WORKFLOW_TRANSITION_MARKER} for '{model_name}'. "
-                "The graph may omit workflows expressed with unsupported patterns or fields."
-            ),
-            evidence=_build_workflow_evidence(model_name, transitions),
+            summary_text=summary + ("\n" + overview if overview else ""),
+            evidence=_build_workflow_evidence(model_name, transitions, sortedStates, stateField, stateMethods),
+            state_field=stateField,
+            state_methods=stateMethods,
         )
 
     steps_text = []
@@ -149,13 +202,18 @@ def describe_workflow(
             "\nNote: 'Role: [All Users]' means no group is declared on the button in the XML views; "
             "ACL, record rules and Python checks inside the method can still restrict who may use it."
         )
+    overview = _state_overview_text(stateField, [], stateMethods)
+    if overview:
+        summary += "\n" + overview
 
     return WorkflowProcessResult(
         model_name=model_name,
         status=QueryStatus.FOUND,
-        states=sorted(list(states)),
+        states=sortedStates,
         transitions=transitions,
         model_tags=model_tags,
         summary_text=summary,
-        evidence=_build_workflow_evidence(model_name, transitions),
+        evidence=_build_workflow_evidence(model_name, transitions, sortedStates, stateField, stateMethods),
+        state_field=stateField,
+        state_methods=stateMethods,
     )

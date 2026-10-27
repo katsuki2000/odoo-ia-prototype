@@ -4,6 +4,7 @@ import json
 from threading import Event
 from urllib.error import HTTPError
 
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.google_drive import document_suffix, ingest_google_drive, validate_drive_id
 
 
@@ -53,7 +54,7 @@ class InventorySnapshotClient:
         self.client.download(record, destination)
 
 
-def synchronize_google_drive(client, folderIds, manager, loader=None, chunkSize=512, chunkOverlap=50, maxFiles=10000):
+def synchronize_google_drive(client, folderIds, manager, loader=None, chunkSize=RAG_CHUNK_SIZE, chunkOverlap=RAG_CHUNK_OVERLAP, maxFiles=10000):
     if not folderIds:
         raise ValueError('Configure at least one approved Drive folder.')
     if chunkSize <= 0 or not 0 <= chunkOverlap < chunkSize or maxFiles <= 0:

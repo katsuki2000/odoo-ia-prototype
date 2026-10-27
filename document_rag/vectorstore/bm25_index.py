@@ -16,8 +16,12 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-# Common French + English stop words to skip for BM25 tokenization
-_STOP_WORDS = frozenset([
+def _strip_accents(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+
+
+# Common French + English stop words to skip for BM25 tokenization (accent-free, like the tokens)
+_STOP_WORDS = frozenset(_strip_accents(word) for word in [
     # French
     "le", "la", "les", "un", "une", "des", "du", "de", "d", "l",
     "et", "ou", "en", "au", "aux", "ce", "ces", "est", "sont",
@@ -39,9 +43,8 @@ _STOP_WORDS = frozenset([
 
 
 def _tokenize(text: str) -> list[str]:
-    """Tokenize text for BM25 indexing, normalizing unicode and filtering stop words."""
-    text = unicodedata.normalize("NFKD", text).lower()
-    tokens = re.findall(r"[a-z0-9_]+", text)
+    """Tokenize text for BM25 indexing: accent-free lowercase words, stop words removed."""
+    tokens = re.findall(r"[a-z0-9_]+", _strip_accents(text).lower())
     return [t for t in tokens if t not in _STOP_WORDS and len(t) > 1]
 
 
@@ -62,6 +65,12 @@ class BM25Index:
     @property
     def size(self) -> int:
         return len(self._doc_ids)
+
+    def matches(self, chroma_manager: ChromaManager | list[ChromaManager]) -> bool:
+        """Whether the indexed chunk ids are exactly those currently stored in ChromaDB."""
+        managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
+        current = {chunk_id for manager in managers for chunk_id in manager.collection.get(include=[]).get("ids", [])}
+        return current == set(self._doc_ids)
 
     def build_from_chroma(
         self, chroma_manager: ChromaManager | list[ChromaManager]
@@ -88,13 +97,12 @@ class BM25Index:
 
         if not all_ids:
             logger.warning("No documents found in ChromaDB for BM25 indexing")
-            return 0
 
         self._doc_ids = all_ids
         self._doc_texts = all_documents
         self._doc_metadatas = all_metadatas
         self._corpus_tokens = [_tokenize(doc) for doc in all_documents]
-        self._bm25 = BM25Okapi(self._corpus_tokens)
+        self._bm25 = BM25Okapi(self._corpus_tokens) if all_ids else None
 
         logger.info("BM25 index built with %d documents (%d collections)", len(all_ids), len(managers))
         return len(all_ids)

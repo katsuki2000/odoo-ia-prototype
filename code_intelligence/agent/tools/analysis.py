@@ -19,6 +19,7 @@ from code_intelligence.agent.tools.helpers import (
     _is_wildcard_model,
     get_llm_ref,
     find_model_source_filepaths,
+    model_lineage,
     find_server_action_nodes,
     _is_custom_server_action_module,
     _sort_server_action_entries_custom_first,
@@ -143,7 +144,8 @@ def analyze_data_constraints(model_name: str) -> str:
     if not filepaths:
         return f"No Python source files located for model '{model_name}'."
 
-    result = analyze_data_constraints_from_filepaths(model_name, filepaths)
+    result = analyze_data_constraints_from_filepaths(
+        model_name, filepaths, relevant_models=model_lineage(G, model_name))
     record_evidence(result.evidence)
     return result.summary_text
 

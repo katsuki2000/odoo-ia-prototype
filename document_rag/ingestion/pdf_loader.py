@@ -1,11 +1,12 @@
 """
 PDF document loader with OCR support for scanned PDFs.
 
-Chunks documents with RecursiveCharacterTextSplitter (512 tokens, 50 overlap).
+Chunks documents with RecursiveCharacterTextSplitter (sizes from config.settings).
 """
 
 from __future__ import annotations
 
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 import hashlib
 import logging
 import re
@@ -67,8 +68,8 @@ class PDFLoader:
 
     def __init__(
         self,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = RAG_CHUNK_SIZE,
+        chunk_overlap: int = RAG_CHUNK_OVERLAP,
         ocr_threshold: float = 0.1,
     ):
         self.chunk_size = chunk_size
@@ -174,8 +175,8 @@ class PDFLoader:
 
 def load_pdf_directory(
     directory: str | Path,
-    chunk_size: int = 512,
-    chunk_overlap: int = 50,
+    chunk_size: int = RAG_CHUNK_SIZE,
+    chunk_overlap: int = RAG_CHUNK_OVERLAP,
     scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     directory = Path(directory)

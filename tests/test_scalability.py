@@ -5,32 +5,35 @@ and verifying it completes in under 6 minutes (< 360 seconds) with correct chunk
 """
 
 import pytest
-from scripts.run_scalability_test import run_scalability_benchmark
+from scripts.run_scalability_test import CorpusUnavailable, run_scalability_benchmark
 
 
 @pytest.mark.integration
 def test_scalability_benchmark_under_6_minutes():
     """
-    Verify that duplicating the document corpus and running full incremental
-    ingestion completes in < 360 seconds on CPU.
+    Verify that downloading the Google Drive corpus once, duplicating it locally and
+    running full incremental ingestion completes in < 360 seconds on CPU (the download
+    is measured separately and excluded from the budget).
 
-    Recalibrated (todo/contexte.txt section 669/670): the original ~2500-chunk
-    target assumed duplicating Odoo addon code (.py) alongside documents --
-    invalidated by the permanent RAG-scope restriction to documents only
-    (section 347-353, SUPPORTED_EXTENSIONS in incremental.py no longer includes
-    .py). document_rag/documents/ (10 files, 140KB, incl. one scanned/OCR PDF)
-    measures ~27 chunks/copy at chunk_size=512. multiplier=22 gives ~594 chunks
-    (measured: 270 chunks at multiplier=10 -- exact 27/copy) -- ~19% margin over
-    the 500-chunk target. Timing measured directly (not estimated): 10 copies
-    (270 chunks, OCR included) took 139.21s (13.92s/copy) -> 22 copies
-    extrapolate to ~306s, leaving a comfortable margin under the 360s budget.
+    The corpus is no longer in document_rag/documents/ (it lives in Drive), so the test
+    is skipped when the Drive corpus is not configured or not reachable.
+
+    Calibration (todo/contexte.txt section 1598, measured 27/10/2026 on the 18-file Drive
+    corpus, 1 copy): 45 chunks and 25.0 s per copy (OCR included; download 31 s, excluded).
+    multiplier=12 gives 540 chunks (>= 500, 8% margin) and ~300 s extrapolated linearly
+    (360 s budget, ~17% margin). The previous multiplier of 22 would give ~990 chunks in
+    ~550 s, above the budget. The linear extrapolation is an assumption until the full
+    12-copy run has been measured.
     """
-    metrics = run_scalability_benchmark(
-        multiplier=22,
-        max_time_seconds=360.0,
-        min_chunks=500,
-        collection_name="test_scalability_collection",
-    )
+    try:
+        metrics = run_scalability_benchmark(
+            multiplier=12,
+            max_time_seconds=360.0,
+            min_chunks=500,
+            collection_name="test_scalability_collection",
+        )
+    except CorpusUnavailable as error:
+        pytest.skip(str(error))
 
     assert metrics["total_chunks_indexed"] >= 500, (
         f"Expected at least 500 chunks, but indexed {metrics['total_chunks_indexed']}"

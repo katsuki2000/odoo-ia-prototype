@@ -10,9 +10,43 @@ from core.schemas import SourceReference, source_display_title
 logger = logging.getLogger(__name__)
 
 
+_ALIAS = r"S\d{1,2}"
+_ALIAS_LIST = rf"{_ALIAS}(?:\s*(?:,|;|/|&|-|–|—|et|and|à|to)\s*{_ALIAS})*"
+_ALIAS_PATTERNS = [
+    # [Source S2](http://...) or [S2](...): a link whose text is only an alias
+    re.compile(rf"^[ \t]*\[\s*(?:sources?\s*)?{_ALIAS_LIST}\s*\]\([^)]*\)[ \t]*|[ \t]*\[\s*(?:sources?\s*)?{_ALIAS_LIST}\s*\]\([^)]*\)", re.IGNORECASE | re.MULTILINE),
+    # [Source S2], [Sources S2, S3], [S2]
+    re.compile(rf"^[ \t]*\[\s*(?:sources?\s*:?\s*)?{_ALIAS_LIST}\s*\][ \t]*|[ \t]*\[\s*(?:sources?\s*:?\s*)?{_ALIAS_LIST}\s*\]", re.IGNORECASE | re.MULTILINE),
+    # (source S2), (sources S3 et S4)
+    re.compile(rf"^[ \t]*\(\s*sources?\s*:?\s*{_ALIAS_LIST}\s*\)[ \t]*|[ \t]*\(\s*sources?\s*:?\s*{_ALIAS_LIST}\s*\)", re.IGNORECASE | re.MULTILINE),
+]
+
+
+def strip_source_aliases(answer: str) -> str:
+    """Remove the per-call source aliases (S1, S2, ...) the LLM left inside the answer text.
+
+    The aliases are internal: sources are declared in `used_sources` and rendered by the UI.
+    Fenced code blocks are left untouched.
+    """
+    if not answer:
+        return answer
+    parts = answer.split("```")
+    for index in range(0, len(parts), 2):
+        text = parts[index]
+        for pattern in _ALIAS_PATTERNS:
+            text = pattern.sub("", text)
+        parts[index] = text
+    return "```".join(parts)
+
+
 def build_source_aliases(chunks: list) -> dict:
     """Build short per-call alias map (S1, S2, ...) over retrieved chunks."""
     return {f"S{i + 1}": chunk for i, chunk in enumerate(chunks)}
+
+
+def format_context(alias_map: dict) -> str:
+    """Render the aliased chunks as the context block of the documentary prompt."""
+    return "".join(f"[Source {alias}]\n{chunk.get('document', '')}\n\n" for alias, chunk in alias_map.items())
 
 
 def verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:

@@ -11,6 +11,8 @@ from tempfile import TemporaryDirectory
 from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
+
 
 DRIVE_API = 'https://www.googleapis.com/drive/v3/files'
 DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
@@ -119,7 +121,7 @@ class GoogleDriveClient:
                 stream.write(chunk)
 
 
-def ingest_google_drive(client, folderIds, manager, loader=None, chunkSize=512, chunkOverlap=50, maxFiles=10000):
+def ingest_google_drive(client, folderIds, manager, loader=None, chunkSize=RAG_CHUNK_SIZE, chunkOverlap=RAG_CHUNK_OVERLAP, maxFiles=10000):
     """Refresh readable documents; never automatically delete absent Drive files."""
     if not folderIds:
         raise ValueError('Configure at least one approved Google Drive folder.')

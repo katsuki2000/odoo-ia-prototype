@@ -1,0 +1,57 @@
+BON DE COMMANDE FOURNISSEUR — BC-2025-00142
+Émetteur : MIRO K.E. SARL — Bâtiment B, Zone Galaxy, Ankorondrano,
+Antananarivo 101, Madagascar
+NIF : 4001289345 | STAT : 62011 11 2018 0 10234 | RCS : Antananarivo
+2018 B 00412
+
+
+
+Fournisseur : MADAGASCAR INFORMATIQUE SERVICES (MIS) SARL
+Adresse : Immeuble Fitaratra, Route des Hydrocarbures, Ankorondrano
+NIF Fournisseur : 3000845129 | Contact commercial : M. Hery RAKOTO
+
+
+
+Date de commande : 15/09/2025
+Référence devis fournisseur : DEV-MIS-8842 du 08/09/2025
+Modalités de paiement : Virement bancaire sous 30 jours fin de mois
+Lieu de livraison : Dépôt Central Miro K.E., Zone Galaxy, Ankorondrano
+
+
+Détail des articles commandés
+Référence      Description    Quantité      Prix           Total HT
+               de l'article                 Unitaire HT    (Ar)
+                                            (Ar)
+SRV-DELL-      Serveur Rack 1               24 500 000     24 500 000
+R650           Dell
+               PowerEdge
+               R650xs Xeon
+               Silver 16C,
+               64 Go RAM
+MEM-32G-       Barrette     4               1 200 000      4 800 000
+ECC            mémoire 32
+               Go DDR4-
+               3200 ECC
+               RDIMM Dell
+SSD-960-SAS    Disque SSD   2               1 850 000      3 700 000
+               Entreprise
+               960 Go SAS
+               12Gbps Hot-
+               Plug
+
+
+Total Hors Taxes :                   33 000 000 Ar
+TVA (20%) :                          6 600 000 Ar
+Total Toutes Taxes Comprises         39 600 000 Ar
+(TTC) :
+
+
+Conditions de livraison et validation
+Date de livraison convenue : au plus tard le 30/09/2025.
+
+Le bon de livraison physique devra mentionner impérativement le numéro
+de BC : BC-2025-00142.
+
+Bon pour accord et commande - Signé pour MIRO K.E. : Direction des
+Achats & Direction Générale.
+

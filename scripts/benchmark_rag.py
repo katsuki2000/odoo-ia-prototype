@@ -20,6 +20,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.schemas import source_display_title
 from document_rag.vectorstore.search import quick_retrieve
 
 # Jeu de test couvrant l'ensemble des formats et cas d'usage
@@ -129,7 +130,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
         retrieval_duration = time.time() - t0
         total_retrieval_time += retrieval_duration
 
-        retrieved_sources = [c.get("metadata", {}).get("source") for c in chunks if c.get("metadata")]
+        retrieved_sources = [source_display_title(c["metadata"]) for c in chunks if c.get("metadata")]
         first_src = retrieved_sources[0] if retrieved_sources else "Aucun"
 
         retrieval_ok = False

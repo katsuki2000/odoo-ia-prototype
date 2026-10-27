@@ -1,0 +1,52 @@
+Procédure de Clôture Comptable Périodique sous
+Odoo 17
+Société : Miro K.E. | Département : Direction Financière et Comptable |
+Version : 2.4
+Date d'application : Exercice 2025-2026 | Référence documentaire : DOC-
+COMPTA-2025-CLOTURE
+
+1. Objectifs et principes généraux
+Cette procédure décrit la séquence obligatoire des opérations de clôture
+mensuelle et annuelle sur l'environnement ERP Odoo 17 de Miro K.E. Elle a
+pour but de garantir l'exhaustivité des écritures, la sincérité du bilan et le
+respect des échéances légales malgaches (Direction Générale des Impôts).
+
+2. Calendrier d'exécution et responsabilités
+    Échéance cible            Opération comptable        Responsable assigné
+                              Odoo
+    J+3 ouvré                 Saisie et intégration de   Comptable Trésorerie
+                              l'ensemble des relevés
+                              bancaires +
+                              Rapprochement
+                              bancaire
+    J+5 ouvré                 Validation des             Responsable Stocks &
+                              réceptions de stocks et    Achats
+                              débouclage des
+                              comptes d'attente
+                              (Compte 408 / Factures
+                              non parvenues)
+    J+10 ouvré                Calcul et                  Comptable Général
+                              comptabilisation des
+                              dotations aux
+                              amortissements et
+                              provisions pour risques
+    J+15 ouvré                Déclaration de TVA         DAF
+                              (TVA collectée vs
+                              déductible) et
+                              verrouillage de la
+                              période dans Odoo
+
+
+3. Contrôle des écritures et verrouillage dans Odoo
+Avant de poser le verrou définitif sur la période comptable :
+
+     Contrôler la balance générale : le total Débit doit être strictement égal au
+      total Crédit.
+   Vérifier qu'aucune écriture ne subsiste en statut Brouillon (Draft) pour la
+    période.
+   Lettrer 100% des comptes clients (411) et comptes fournisseurs (401).
+   Accéder à Comptabilité → Configuration → Dates de verrouillage et
+    renseigner la Date de verrouillage pour les non-conseillers.
+   Une fois le verrou posé, seule la Direction Générale et le Commissaire
+    aux Comptes peuvent déroger exceptionnellement à la réouverture.
+

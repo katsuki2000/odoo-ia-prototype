@@ -14,7 +14,7 @@ def test_semgrep_runner_sql_constraints():
     config_path = base_dir / "sql_constraints.yaml"
     target_path = base_dir / "sql_constraints.py"
 
-    matches = run_semgrep_analysis(target_path, config_path)
+    matches = run_semgrep_analysis([target_path], config_path)
     assert len(matches) == 2
 
     check_ids = [m.check_id for m in matches]
@@ -30,7 +30,7 @@ def test_semgrep_runner_domain_relational():
     config_path = base_dir / "domain_relational.yaml"
     target_path = base_dir / "domain_relational.py"
 
-    matches = run_semgrep_analysis(target_path, config_path)
+    matches = run_semgrep_analysis([target_path], config_path)
     assert len(matches) == 4
 
     check_ids = [m.check_id for m in matches]
@@ -57,7 +57,7 @@ def test_semgrep_runner_raw_sql_unique_constraints():
     config_path = base_dir / "raw_sql_constraints.yaml"
     target_path = base_dir / "raw_sql_constraints.py"
 
-    matches = run_semgrep_analysis(target_path, config_path)
+    matches = run_semgrep_analysis([target_path], config_path)
     assert len(matches) == 2
 
     check_ids = {m.check_id.rsplit(".", 1)[-1] for m in matches}

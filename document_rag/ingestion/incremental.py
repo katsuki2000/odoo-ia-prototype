@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.ingestion.pdf_loader import PDFLoader
@@ -33,7 +34,7 @@ class IncrementalResult:
 
 
 def reindex_if_changed(roots: Iterable[str | Path], docs_manager: ChromaManager | None = None,
-                       chunk_size: int = 512, chunk_overlap: int = 50) -> dict[str, Any]:
+                       chunk_size: int = RAG_CHUNK_SIZE, chunk_overlap: int = RAG_CHUNK_OVERLAP) -> dict[str, Any]:
     started_at = start_timer()
     docs_manager = docs_manager or ChromaManager()
     result = IncrementalResult()

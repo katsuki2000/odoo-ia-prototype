@@ -20,6 +20,8 @@ _logger = logging.getLogger(__name__)
 
 ORPHAN_ACTION_MARKER = "elle n'est rattachee a aucun menu"
 MAX_CLIENT_ACTION_MENUS = 5
+MAX_LISTED_FIELDS = 25
+MAX_LISTED_BUTTONS = 15
 
 def search_dynamic_view_or_menus(
     G: nx.DiGraph,
@@ -278,6 +280,66 @@ def _client_action_menus(G: nx.DiGraph, model_name: str):
     return candidates[:MAX_CLIENT_ACTION_MENUS]
 
 
+def _field_display_label(data) -> str:
+    labels = node_labels(data)
+    if data.get("label_source") == "generated" and len(labels) > 1:
+        labels = labels[1:]
+    return " / ".join(labels)
+
+
+def _form_overview(G: nx.DiGraph, model_name: str):
+    """Fields of the model and buttons indexed in its XML views, so a "how do I" answer is not written from memory."""
+    fields: List[str] = []
+    buttons: List[str] = []
+    for _, target, edge_data in G.out_edges(f"model:{model_name}", data=True):
+        data = G.nodes.get(target, {})
+        if edge_data.get("edge_type") == "HAS_FIELD" and data.get("node_type") == "Field":
+            fields.append(f"{_field_display_label(data)} ({data.get('field_type', '')})")
+        elif edge_data.get("edge_type") == "HAS_BUTTON" and data.get("node_type") == "Button":
+            buttons.append(str(data.get("label") or data.get("name") or "").strip())
+    buttons = list(dict.fromkeys(label for label in buttons if label))
+    if not fields:
+        return "", []
+    parts: List[str] = []
+    evidence: List[Evidence] = []
+    if len(fields) <= MAX_LISTED_FIELDS:
+        parts.append(f"Champs du modele '{model_name}' ({len(fields)}) : {', '.join(fields)}.")
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Model '{model_name}' has the fields: {', '.join(fields)}",
+            source=f"fields:{model_name}",
+            value=len(fields),
+            confidence="HIGH",
+        ))
+    else:
+        parts.append(f"Le modele '{model_name}' a {len(fields)} champs (liste omise).")
+    if not buttons:
+        parts.append("Aucun bouton n'est declare dans les vues XML indexees de ce modele.")
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"No button is declared in the indexed XML views of model '{model_name}'",
+            source=f"buttons:{model_name}",
+            value=0,
+            confidence="MEDIUM",
+        ))
+    elif len(buttons) <= MAX_LISTED_BUTTONS:
+        parts.append(f"Boutons declares dans les vues XML indexees : {', '.join(buttons)}.")
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Model '{model_name}' has the buttons declared in its indexed XML views: {', '.join(buttons)}",
+            source=f"buttons:{model_name}",
+            value=len(buttons),
+            confidence="HIGH",
+        ))
+    else:
+        parts.append(f"{len(buttons)} boutons declares dans les vues XML indexees (liste omise).")
+    parts.append(
+        "Un champ liste n'est pas forcement affiche dans la vue, et l'absence de bouton ne couvre pas un bouton "
+        "ajoute dynamiquement ou par une vue non indexee."
+    )
+    return " ".join(parts), evidence
+
+
 def describe_navigation_path(
     G: nx.DiGraph,
     model_name: str,
@@ -321,6 +383,7 @@ def describe_navigation_path(
     if button_label_or_name:
         button_result = button_execution_path(G, button_label_or_name, model_name, user_groups=user_groups)
 
+    overview, overviewEvidence = _form_overview(G, model_name)
     menu_candidates = _menus_opening_model(G, model_name, button_result.origin_states if button_result else None)
     if not menu_candidates:
         window_actions = G.nodes[model_node_id].get("window_actions") or []
@@ -378,6 +441,10 @@ def describe_navigation_path(
                 value=data.get("xml_id", ""),
                 confidence="MEDIUM",
             ) for node_id, data in clientMenus)
+        if overview:
+            summary += " " + overview
+            steps.append(f"{len(steps) + 1}. Form overview: {overview}")
+            evidence.extend(overviewEvidence)
         return NavigationPathResult(
             model_name=model_name,
             button_identifier=button_label_or_name,
@@ -437,6 +504,9 @@ def describe_navigation_path(
     if button_result:
         execution_steps.extend(f"4.{i + 1}. {s}" for i, s in enumerate(button_result.execution_steps))
         evidence.extend(button_result.evidence)
+    if overview:
+        execution_steps.append(f"5. Form overview: {overview}")
+        evidence.extend(overviewEvidence)
 
     combined_required_groups = set(menu_groups)
     if button_result:
@@ -488,6 +558,8 @@ def describe_navigation_path(
         )
     if button_result:
         summary_parts.append(button_result.summary_text)
+    if overview:
+        summary_parts.append(overview)
     if unavailable_reason:
         summary_parts.append(f"NON DISPONIBLE POUR LE DEMANDEUR : {unavailable_reason}")
 

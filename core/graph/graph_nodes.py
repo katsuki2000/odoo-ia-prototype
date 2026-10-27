@@ -2,6 +2,7 @@
 
 import logging
 
+from config.settings import RAG_TOP_K
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, SourceReference, source_display_title
 from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
@@ -33,7 +34,7 @@ def answered_by_documents(state: RAGState) -> bool:
 def retrieve(state: RAGState) -> dict:
     try:
         chromaManager, bm25Index = get_retriever()
-        chunks = search_retrieve(query=state['question'], top_k=10,
+        chunks = search_retrieve(query=state['question'], top_k=RAG_TOP_K,
             chroma_manager=chromaManager, bm25_index=bm25Index)
     except Exception as error:
         logger.error('Document retrieval failed (%s)', type(error).__name__)

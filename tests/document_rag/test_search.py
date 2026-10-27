@@ -46,6 +46,9 @@ class TestTokenizer(unittest.TestCase):
         self.assertNotIn("une", tokens)
         self.assertNotIn("dans", tokens)
 
+    def test_accented_words_are_not_split(self):
+        self.assertEqual(_tokenize("Contrôle des écritures défensif"), ["controle", "ecritures", "defensif"])
+
     def test_code_tokens_preserved(self):
         tokens = _tokenize("def _compute_total(self): account_move_line")
         self.assertIn("_compute_total", tokens)

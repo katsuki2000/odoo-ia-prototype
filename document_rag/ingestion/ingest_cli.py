@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 import sys
 
-from config.settings import CHROMA_PATH
+from config.settings import CHROMA_PATH, RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.ingest_config import DOCS_DIR, LOGS_DIR
 
 logger = logging.getLogger(__name__)
@@ -45,13 +45,13 @@ def main() -> int:
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=512,
+        default=RAG_CHUNK_SIZE,
         help="Chunk size for text splitting",
     )
     parser.add_argument(
         "--chunk-overlap",
         type=int,
-        default=50,
+        default=RAG_CHUNK_OVERLAP,
         help="Overlap between chunks",
     )
 

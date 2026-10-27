@@ -11,6 +11,7 @@ Simple chunking with metadata extraction.
 
 from __future__ import annotations
 
+from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 import hashlib
 import logging
 import re
@@ -30,8 +31,8 @@ class WikiLoader:
 
     def __init__(
         self,
-        chunk_size: int = 512,
-        chunk_overlap: int = 50,
+        chunk_size: int = RAG_CHUNK_SIZE,
+        chunk_overlap: int = RAG_CHUNK_OVERLAP,
     ):
         """
         Initialize wiki loader.
@@ -274,8 +275,8 @@ class WikiLoader:
 
 def load_wiki_directory(
     directory: str | Path,
-    chunk_size: int = 512,
-    chunk_overlap: int = 50,
+    chunk_size: int = RAG_CHUNK_SIZE,
+    chunk_overlap: int = RAG_CHUNK_OVERLAP,
     scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     """

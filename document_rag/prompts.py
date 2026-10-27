@@ -49,8 +49,8 @@ Ne mentionne le statut que si cela aide l'utilisateur à comprendre la situation
 
 # Citations
 
-1. Cite toujours les sources documentaires utilisées.
-2. Si plusieurs sources confirment la même information, mentionne-les toutes.
+1. Les sources se déclarent uniquement dans "used_sources" : l'interface les affiche elle-même à l'utilisateur. N'écris jamais dans "answer" un alias (S1, S2, ...), un nom de fichier ou une mention du type "(sources S3 et S4)".
+2. Si plusieurs sources confirment la même information, liste-les toutes dans "used_sources".
 3. Si une partie seulement de la réponse est documentée, distingue clairement ce qui est confirmé de ce qui ne l'est pas.
 4. Chaque bloc de contexte ci-dessous commence par un marqueur "[Source Sx]" (S1, S2, ...) -- un alias court propre à ce tour, jamais un identifiant stable ou un chemin de fichier. Dans ta réponse structurée, remplis "used_sources" avec la liste des alias Sx des blocs que tu as RÉELLEMENT utilisés pour écrire "answer" -- jamais un alias que tu n'as pas exploité, jamais un alias inventé.
 
