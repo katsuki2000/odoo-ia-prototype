@@ -9,17 +9,14 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from config.settings import CI_MAX_HOPS
 from core.guardrails import REACT_RECURSION_LIMIT
-from core.session.reasoning_trace_logger import ReasoningTraceLogger, MAX_HOPS_PER_QUESTION
+from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 
-BRANCH_ORDER = ["documentaire", "donnees_erp", "code_intelligence", "hybride"]
+BRANCH_ORDER = ["documentaire", "donnees_erp"]
 BRANCH_LABELS = {
     "documentaire": "RAG simple (documentaire)",
     "donnees_erp": "Function Calling (donnees_erp)",
-    "code_intelligence": "Code Intelligence (agent composite)",
-    "hybride": "Hybride (RAG + FC combines)",
 }
 
 
@@ -42,7 +39,7 @@ def _stats(values):
 
 def build_budget_report(log_filepath: Path = None) -> str:
     """Aggregate all SUMMARY records by branch and render a Markdown table
-    comparing llm_call_count / hop_count across the three RAG branches."""
+    comparing llm_call_count / hop_count across the two branches."""
     logger = ReasoningTraceLogger(log_filepath=log_filepath)
     summaries = logger.read_recent(limit=100000, record_type="SUMMARY")
 
@@ -56,10 +53,9 @@ def build_budget_report(log_filepath: Path = None) -> str:
     if not summaries:
         lines.append(
             "Aucune trace enregistree pour le moment -- ce rapport se remplit au fil des "
-            "questions reellement posees (documentaire / donnees_erp / code_intelligence "
+            "questions reellement posees (documentaire / donnees_erp "
             "logguent chacune une SUMMARY dans `reasoning_trace.jsonl` a chaque appel). "
-            "Lancer `scripts/run_adversarial_benchmark.py` ou interroger le pipeline via "
-            "`rag.graph.query_graph()` pour peupler ce rapport avec des chiffres reels.\n"
+            "Interroger le pipeline via `core.graph.graph.query_graph()` pour peupler ce rapport avec des chiffres reels.\n"
         )
         return "\n".join(lines)
 
@@ -104,11 +100,8 @@ def build_budget_report(log_filepath: Path = None) -> str:
         )
 
     lines.append(
-        f"\n*Plafond de sauts par question  : `code_intelligence` applique "
-        f"`CI_MAX_HOPS={CI_MAX_HOPS}` (config/settings.py), `donnees_erp` applique "
-        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentaire` ne fait jamais de hop (0 par construction). "
-        f"Valeur generique de reference : `MAX_HOPS_PER_QUESTION={MAX_HOPS_PER_QUESTION}` "
-        f"(core.session.reasoning_trace_logger).*\n"
+        f"\n*Plafond de sauts par question : `donnees_erp` applique "
+        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentaire` ne fait jamais de hop (0 par construction).*\n"
     )
 
     lines.append("---\n## Lecture\n")
@@ -117,8 +110,6 @@ def build_budget_report(log_filepath: Path = None) -> str:
         "(1 en generation structuree, +1 seulement si le fallback texte-brut est declenche).\n"
         f"- `donnees_erp` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) allers-retours "
         "outil+LLM, plus 1 appel de synthese forcee si la limite est atteinte sans reponse finale.\n"
-        f"- `code_intelligence` est la branche la plus couteuse : boucle unique, jusqu'a `CI_MAX_HOPS` ({CI_MAX_HOPS}) "
-        "appels d'outils, un appel LLM par tour plus la reponse finale.\n"
     )
 
     return "\n".join(lines)

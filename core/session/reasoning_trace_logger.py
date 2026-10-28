@@ -14,16 +14,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config.settings import CI_MAX_HOPS
-
 _logger = logging.getLogger(__name__)
-
-# Maximum tool hops per question guardrail -- kept in sync with
-# code_intelligence.agent.context.CI_MAX_HOPS (raised from 4 to 6, see
-# that module's comment for why); test_j46_j48_reasoning_trace.py asserts
-# the two never drift apart. Real call sites always pass hop_cap=ctx.hop_cap
-# explicitly (postprocess.py) -- this is only the fallback default below.
-MAX_HOPS_PER_QUESTION = CI_MAX_HOPS
 
 
 @dataclass
@@ -60,7 +51,7 @@ class ReasoningRouting:
 class ReasoningSummary:
     trace_id: str
     timestamp: str
-    branch: str  # "documentaire" | "donnees_erp" | "code_intelligence" | "hybride"
+    branch: str  # "documentaire" | "donnees_erp"
     question_preview: str  # first ~80 chars only -- log hygiene, never the full question
     hop_count: int
     llm_call_count: int
@@ -162,7 +153,7 @@ class ReasoningTraceLogger:
         hop_count: int,
         llm_call_count: int,
         total_time_ms: float,
-        hop_cap: int = MAX_HOPS_PER_QUESTION,
+        hop_cap: Optional[int] = None,
         fallback_reason: Optional[str] = None,
         final_message_preview: Optional[str] = None,
     ) -> ReasoningSummary:
@@ -174,13 +165,13 @@ class ReasoningTraceLogger:
             hop_count=hop_count,
             llm_call_count=llm_call_count,
             total_time_ms=round(total_time_ms, 3),
-            hop_cap_hit=hop_count >= hop_cap,
+            hop_cap_hit=hop_cap is not None and hop_count >= hop_cap,
             fallback_reason=fallback_reason,
             final_message_preview=final_message_preview,
         )
         self._write({"record_type": "SUMMARY", **asdict(summary)})
         _logger.info(
-            "Reasoning trace [%s] SUMMARY: branch=%s hops=%d/%d llm_calls=%d total=%.2fms fallback=%s",
+            "Reasoning trace [%s] SUMMARY: branch=%s hops=%d/%s llm_calls=%d total=%.2fms fallback=%s",
             trace_id, branch, hop_count, hop_cap, llm_call_count, total_time_ms, fallback_reason,
         )
         return summary

@@ -33,11 +33,7 @@ class AskResponseV1(BaseModel):
     confidence: float = 1.0
     ocr_warning: bool = False
     route: Optional[str] = None
-    evidence_status: Optional[str] = None
-    resolved_concept: Optional[dict] = None
-    loop_resolved_concept: Optional[dict] = None
     omitted_for_authorization: list[dict] = Field(default_factory=list)
-    investigation_plan: Optional[dict] = None
     evidence_dossier: list[dict] = Field(
         default_factory=list,
         description=(

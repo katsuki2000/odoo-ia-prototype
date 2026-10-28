@@ -19,8 +19,7 @@ class QueryRoute(str, Enum):
     """Classification of the query type for routing."""
     DOCUMENTARY = "documentaire"
     ERP_DATA = "donnees_erp"
-    HYBRID = "hybride"
-    CODE_INTELLIGENCE = "code_intelligence"
+
 
 class SourceReference(BaseModel):
     """Reference to a source document used for answering."""
@@ -91,40 +90,6 @@ class AssistantResponse(BaseModel):
     route: Optional[str] = Field(
         default=None,
         description="Which QueryRoute branch handled this turn",
-    )
-    resolved_concept: Optional[dict] = Field(
-        default=None,
-        description="Deterministic business_resolver output for this turn",
-    )
-    evidence_status: Optional[str] = Field(
-        default=None,
-        description="Sourcing evidence status (RESOLU/NON_RESOLU)",
-    )
-    loop_resolved_concept: Optional[dict] = Field(
-        default=None,
-        description="Concept the code_intelligence_agent loop actually used (LLM arbitration, model cap)",
-    )
-    investigation_plan: Optional[dict] = Field(
-        default=None,
-        description="Structured investigation plan produced before tool execution (Bloc P1)",
-    )
-    ci_evidence_sufficiency: Optional[dict] = Field(
-        default=None,
-        description=(
-            "Post-analysis CI answer sufficiency verdict (sufficient/insufficient/"
-            "conflicting, core/evidence/evidence_sufficiency.py) -- only set when the "
-            "code_intelligence_agent branch ran this turn. Set regardless of "
-            "whether the RAG fallback fired, so the original CI verdict stays "
-            "traceable even when the final answer came from generate() instead."
-        ),
-    )
-    rag_fallback: bool = Field(
-        default=False,
-        description=(
-            "True when the final answer was produced by the documentary RAG "
-            "fallback after the code_intelligence_agent branch ran, so the "
-            "CI sufficiency verdict does not describe the answer returned."
-        ),
     )
     verification: Optional[VerificationReport] = Field(
         default=None,

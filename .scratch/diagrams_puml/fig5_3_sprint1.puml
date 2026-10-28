@@ -1,0 +1,90 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+class Settings {
+    + EMBEDDING_MODEL: str = "bge-m3"
+    + OLLAMA_BASE_URL: str = "http://localhost:11434"
+    + CHROMA_PATH: str = "vectorstore/chroma_db"
+    + RAG_CHUNK_SIZE: int = 512
+    + RAG_CHUNK_OVERLAP: int = 64
+    + ODOO_URL_DEFAULT: str = "http://127.0.0.1:8069"
+    + ODOO_DB_DEFAULT: str = "odoo-dev"
+    --
+    + resolve_allowed_models(): tuple
+}
+
+class OllamaEmbeddingFunction {
+    + endpoint: str
+    + model: str
+    + api_key: str
+    + timeout: float
+    + max_retries: int
+    + batch_size: int
+    --
+    + name(): str
+    + _embed_batch(texts: list[str]): list[list[float]]
+}
+
+class FastAPIApp {
+    + title: str = "MIRO AI Backend"
+    + version: str = "1.0.0"
+    --
+    + health_check(): dict
+    + startup_event(): void
+    + shutdown_event(): void
+}
+
+FastAPIApp ..> Settings : charge la configuration >
+OllamaEmbeddingFunction ..> Settings : initialise selon >
+
+@enduml

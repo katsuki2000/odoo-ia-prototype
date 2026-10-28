@@ -14,12 +14,12 @@ PROBE = (
     "'LLM_TARGET', 'LLM_BASE_URL', 'LLM_MODEL', 'LLM_API_KEY', "
     "'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL', 'LLM_EXTRA_HEADERS')}))"
 )
-TARGET_VARIABLES = ('LLM_TARGET',)
+TARGET_VARIABLES = ('LLM_TARGET', 'OLLAMA_HOST', 'LLM_BASE_URL', 'LLM_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_API_KEY')
 
 
 def run_probe(extraEnv):
     environment = {key: value for key, value in os.environ.items()
-                   if key not in TARGET_VARIABLES and not key.startswith(('AWS_', 'KAGGLE_'))}
+                   if key not in TARGET_VARIABLES and not key.startswith('KAGGLE_')}
     environment.update(extraEnv)
     return subprocess.run([sys.executable, '-c', PROBE], cwd=ROOT, env=environment,
                           capture_output=True, text=True, timeout=60)
@@ -39,28 +39,27 @@ def test_default_target_is_aws_and_has_no_implicit_server():
     assert values['LLM_EXTRA_HEADERS'] == {}
 
 
-def test_aws_variables_drive_llm_and_embeddings():
-    values = load_settings({'AWS_OLLAMA_HOST': 'https://llm.internal:11434'})
+def test_ollama_host_drives_llm_and_embeddings():
+    values = load_settings({'OLLAMA_HOST': 'https://llm.internal:11434'})
     assert values['LLM_BASE_URL'] == 'https://llm.internal:11434/v1'
     assert values['EMBEDDING_BASE_URL'] == 'https://llm.internal:11434/v1'
     assert values['LLM_MODEL'] == 'qwen3:14b'
 
 
-def test_unprefixed_variables_are_ignored():
-    values = load_settings({'OLLAMA_HOST': 'http://generic:11434', 'LLM_MODEL': 'generic-model'})
+def test_default_target_ignores_kaggle_variables():
+    values = load_settings({'KAGGLE_OLLAMA_HOST': 'https://tunnel.example'})
     assert values['LLM_BASE_URL'] == ''
-    assert values['LLM_MODEL'] == 'qwen3:14b'
 
 
 def test_models_are_constants_not_environment_settings():
-    values = load_settings({'AWS_LLM_MODEL': 'from-aws', 'AWS_OLLAMA_MODEL': 'from-aws', 'AWS_EMBEDDING_MODEL': 'from-aws'})
+    values = load_settings({'LLM_MODEL': 'from-env', 'OLLAMA_MODEL': 'from-env', 'EMBEDDING_MODEL': 'from-env'})
     assert values['LLM_MODEL'] == 'qwen3:14b'
     assert values['EMBEDDING_MODEL'] == 'bge-m3:latest'
 
 
 def test_kaggle_target_uses_its_own_host_and_header():
     values = load_settings({'LLM_TARGET': 'kaggle', 'KAGGLE_OLLAMA_HOST': 'https://tunnel.example',
-                            'AWS_OLLAMA_HOST': 'https://llm.internal:11434'})
+                            'OLLAMA_HOST': 'https://llm.internal:11434'})
     assert values['LLM_BASE_URL'] == 'https://tunnel.example/v1'
     assert values['LLM_EXTRA_HEADERS'] == {'ngrok-skip-browser-warning': '1'}
 

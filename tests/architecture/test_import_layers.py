@@ -1,6 +1,6 @@
 """Import direction between the shared kernel, the orchestration layer and the engines.
 
-Engines (code_intelligence, document_rag, erp_data) depend on the kernel only.
+Engines (document_rag, erp_data) depend on the kernel only.
 The kernel depends on neither the engines nor the orchestration layer.
 KNOWN_VIOLATIONS lists the imports still to be removed; the test fails when a new
 violation appears or when a listed one has been fixed, so the list only shrinks.
@@ -11,16 +11,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-ENGINES = ("code_intelligence", "document_rag", "erp_data")
+ENGINES = ("document_rag", "erp_data")
 KERNEL = ("core.llm", "core.session", "core.schemas", "core.output", "core.evidence")
 ORCHESTRATION = ("core.graph", "core.routing", "core.verification", "core.evaluation")
 
 KNOWN_VIOLATIONS = frozenset({
-    ("core.evidence.evidence_check", "code_intelligence.agent.resolution.matching"),
-    ("core.evidence.evidence_sufficiency", "code_intelligence.rules.common"),
     ("core.schemas", "core.verification.claims"),
-    ("document_rag.verification", "core.evaluation.oracles.documentation"),
-    ("document_rag.verification", "core.evaluation.protocol_metrics"),
 })
 
 

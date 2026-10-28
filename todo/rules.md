@@ -21,4 +21,4 @@ config/settings.py : l'environnement ne porte que ce qui change d'un poste ou d'
 
 > lorsque plusieurs options s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
 
-focus addon Odoo : `miro_ai` seulement. Ne pas modifier, tester, ni prioriser `miro_ai_discuss` 
+

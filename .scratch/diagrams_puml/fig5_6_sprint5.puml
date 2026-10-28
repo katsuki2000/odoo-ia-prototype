@@ -1,0 +1,96 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+class GenerateNode {
+    + prompt_template: str
+    --
+    + generate(state: RAGState): dict
+    + _assemble_context(chunks: list): str
+    + _invoke_llm(prompt: str): LLMResponse
+}
+
+class VerifyAnswerNode {
+    --
+    + verify_answer(state: RAGState): dict
+    + check_claim_support(answer: str, sources: list): VerificationReport
+    + sanitize_unsupported_facts(answer: str): str
+}
+
+class AssistantResponse {
+    + answer: str
+    + sources: list[SourceReference]
+    + confidence: float
+    + route: QueryRoute
+}
+
+class SourceReference {
+    + source: str
+    + doc_type: str
+    + title: str
+    + snippet: str
+    + page: int
+}
+
+class VerificationReport {
+    + is_grounded: bool
+    + unsupported_claims: list[str]
+    + verified_citations: list[str]
+    + confidence_adjustment: float
+}
+
+GenerateNode ..> AssistantResponse : synthétise >
+GenerateNode --> VerifyAnswerNode : soumet pour vérification >
+VerifyAnswerNode ..> VerificationReport : produit rapport >
+AssistantResponse *-- SourceReference : contient >
+
+@enduml

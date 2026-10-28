@@ -73,17 +73,7 @@ def try_recover_tool_use_failed(exc: Exception) -> Optional[ToolCallFallback]:
 
 
 def reduce_message_context(messages: list) -> list:
-    """Truncate excessively long messages to stay within payload limits.
-
-    Emergency fallback only, triggered by an actual 413 from the LLM
-    provider -- much blunter than the application-layer per-tool/per-turn
-    caps in code_intelligence/agent/context.py (_truncate_observation,
-    _truncate_observation_for_budget), which should normally keep the
-    request under this limit already. Logged (unlike before) because a
-    real 413 on account.move-heavy questions showed this path silently
-    destroying most of an already-fetched observation, feeding the
-    synthesis LLM a near-empty context and producing an uncited
-    hallucination."""
+    """Truncate excessively long tool messages after a provider payload-size error (emergency fallback)."""
     reduced = []
     truncated_count = 0
     for msg in messages:
@@ -134,7 +124,7 @@ def reduce_message_context(messages: list) -> list:
             reduced.append(msg)
     if truncated_count:
         logger.warning(
-            "Node [code_intelligence_agent]: emergency context reduction after "
+            "LLM client: emergency context reduction after "
             "a provider payload-size error rewrote %d message(s), some to as "
             "little as %d chars -- evidence may be missing from the answer "
             "this produces.",

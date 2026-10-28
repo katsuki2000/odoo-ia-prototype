@@ -43,7 +43,6 @@ def test_out_of_scope_gate_short_circuits_for_out_of_scope_question(question):
     assert result["response"].sources == []
     assert result["response"].confidence == 0.0
     assert result["retrieved_chunks"] == []
-    assert result["investigation_plan"] is None
     assert result["route"] == "out_of_scope"
 
 

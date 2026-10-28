@@ -1,0 +1,99 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+node "<<device>>\nPoste Utilisateur (Client Web)" as NodeClient {
+    node "<<execution environment>>\nNavigateur Web (Chrome / Firefox)" {
+        component [<<component>>\nInterface Client Odoo 17\n(Composant OWL 2.0 miro_ai)] as CompOWL
+    }
+}
+
+node "<<device>>\nServeur ERP d'Entreprise\n(on-premise / cloud privé Miro K.E.)" as NodeOdoo {
+    node "<<execution environment>>\nRuntime Odoo 17 (Python 3.11)" {
+        component [<<component>>\nAddon Odoo miro_ai\n(Contrôleur, Log, Settings)] as CompMiroAddon
+        component [<<component>>\nMoteur Odoo 17 Core\n(ORM, Sécurité RBAC, XML-RPC)] as CompOdooCore
+    }
+    node "<<execution environment>>\nServeur Base de Données" {
+        database "<<database>>\nPostgreSQL 16\n(Base odoo-dev)" as DBPostgres
+    }
+}
+
+node "<<device>>\nServeur IA Dédié Souverain\n(on-premise Miro K.E.)" as NodeAI {
+    node "<<execution environment>>\nConteneur Docker : Backend IA" {
+        component [<<component>>\nMiddleware FastAPI & LangGraph\n(Port 8000, Uvicorn)] as CompFastAPI
+        database "<<filesystem>>\nStockage ChromaDB\n(Embeddings BGE-M3 1024d)" as DBChroma
+        folder "<<filesystem>>\nCorpus Documentaire\n(docs/ PDF, Wikis Markdown)" as FolderDocs
+    }
+    
+    node "<<execution environment>>\nConteneur Docker : Moteur LLM" {
+        component [<<component>>\nServeur d'Inférence Ollama / vLLM\n(Port 11434)] as CompOllama
+    }
+    
+    node "<<device>>\nAccélération Matérielle" {
+        component [<<hardware>>\nCarte GPU NVIDIA RTX\n(12 / 16 Go VRAM)] as CompGPU
+    }
+}
+
+CompOWL -- CompMiroAddon : HTTPS / RPC\n(Port 8069)
+CompMiroAddon -- CompFastAPI : HTTP REST asynchrone (Job Polling)\n(Port 8000, Signature HMAC SHA-256 JWT)
+CompFastAPI -- CompOdooCore : XML-RPC /xmlrpc/2/object\n(Port 8069, lecture seule sous uid demandeur)
+
+CompMiroAddon -- CompOdooCore : appels internes Python
+CompOdooCore -- DBPostgres : SQL TCP/IP (Port 5432)
+
+CompFastAPI -- CompOllama : HTTP REST API (Port 11434)
+CompOllama .. CompGPU : Inférence CUDA Tensor Cores
+
+CompFastAPI -- DBChroma : requêtes vectorielles (ChromaDB API)
+CompFastAPI -- FolderDocs : ingestion & tokenisation
+
+@enduml

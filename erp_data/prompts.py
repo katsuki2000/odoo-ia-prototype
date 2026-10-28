@@ -49,22 +49,8 @@ def build_orm_agent_messages(
     ]
 
 
-def build_hybrid_combine_prompt(question: str, doc_answer: str, data_answer: str) -> str:
-    """Build the hybrid synthesis prompt from document and live ERP findings."""
-    return (
-        "Tu es l'agent de synthèse finale.\n"
-        f"Question : {question}\n\n"
-        f"Procédures trouvées dans les documents :\n{doc_answer}\n\n"
-        f"Résultats observés dans l'ERP :\n{data_answer}\n\n"
-        "Combine uniquement les informations étayées par ces sources. Distingue les procédures "
-        "documentaires des faits de l'instance et signale toute contradiction ou information manquante. "
-        "Format Markdown uniquement, sans HTML brut."
-    )
-
-
 __all__ = [
     "ORM_AGENT_SYSTEM_PROMPT",
     "build_orm_synthesis_prompt",
     "build_orm_agent_messages",
-    "build_hybrid_combine_prompt",
 ]

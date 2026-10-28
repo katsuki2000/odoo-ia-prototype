@@ -37,3 +37,21 @@ def test_alias_opening_a_line_leaves_no_leading_space():
 def test_empty_and_none_like_values():
     assert strip_source_aliases("") == ""
     assert strip_source_aliases(None) is None
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("Un montant de 33 000 000 Ar (voir S1). Selon la procédure (S3), ce montant.",
+     "Un montant de 33 000 000 Ar. Selon la procédure, ce montant."),
+    ("Politique définie dans la source S2.", "Politique définie dans la source."),
+    ("Le document S1 indique que oui.", "Le document indique que oui."),
+    ("Comme indiqué en page 1 de S1 (33 000 Ar).", "Comme indiqué en page 1 (33 000 Ar)."),
+    ("- S3 : texte cité", "- texte cité"),
+    ("« Texte. » — **Source S4**", "« Texte. »"),
+])
+def test_bare_alias_forms_are_removed(raw, expected):
+    assert strip_source_aliases(raw) == expected
+
+
+def test_bare_alias_forms_untouched_in_code_blocks():
+    text = "Avant.\n```\nvoir (S1) et la source S2\n```\nAprès."
+    assert strip_source_aliases(text) == text

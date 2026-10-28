@@ -14,8 +14,9 @@ run resumes where it stopped. The measures need no judge model; the answers are 
     python scripts/run_rag_model_eval.py --model qwen3:30b-a3b
     python scripts/run_rag_model_eval.py --report
 
-fact_recall is a strict lower bound: a correct paraphrase that omits the exact wording of a fact
-counts as missing. abstained is a keyword heuristic. The semantic judgement is left to RAGAS.
+fact_recall is the share of the key values of the question (number, name, command) found in the answer.
+Scores are recomputed from the stored answers at each load, so editing the facts needs no new run.
+abstained is a keyword heuristic. The semantic judgement is left to RAGAS.
 All candidates use the same cached retrieval contexts and are required to report the same
 Ollama context length; raw answers are retained for qualitative review.
 """
@@ -27,6 +28,7 @@ import re
 import statistics
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 import requests
@@ -38,7 +40,6 @@ from core.evaluation import run_store as runStore
 from core.evaluation.ollama_server import model_override, prepare_server, set_keep_alive
 from core.evaluation.preflight import BackendUnavailable, require_backends
 from core.graph.graph_nodes import retrieve
-from core.routing.routing_keywords import _fold_accents
 from document_rag.generate_node import generate
 
 QUESTIONS_PATH = projectRoot / 'tests' / 'rag_eval_questions.json'
@@ -46,6 +47,11 @@ CONTEXTS_PATH = projectRoot / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = projectRoot / 'captures' / 'rag_model_eval.jsonl'
 MAX_CONSECUTIVE_ERRORS = 3
 GENERATION_ERROR_PREFIX = 'Désolé, une erreur'
+
+
+def _fold_accents(text):
+    """Strip diacritics (NFD, combining marks removed)."""
+    return "".join(ch for ch in unicodedata.normalize("NFD", text) if unicodedata.category(ch) != "Mn")
 
 
 def normalize(text):
@@ -80,14 +86,33 @@ def load_contexts(questions, refresh):
     return {item['id']: cached[item['id']]['chunks'] for item in questions}
 
 
+def contains_fact(foldedAnswer, fact):
+    """A normalized fact occurs in the answer; a number is never matched inside a longer one (4 heures vs 24 heures)."""
+    needle = re.escape(normalize(fact))
+    before = r'(?<!\d)' if needle[0].isdigit() else ''
+    after = r'(?!\d)' if needle[-1].isdigit() else ''
+    return re.search(before + needle + after, foldedAnswer) is not None
+
+
 def score(item, answer, citedSources):
     folded = normalize(answer)
     facts, references = item['facts'], item['reference_sources']
     return {
-        'fact_recall': sum(normalize(fact) in folded for fact in facts) / len(facts) if facts else None,
+        'fact_recall': sum(contains_fact(folded, fact) for fact in facts) / len(facts) if facts else None,
         'source_recall': len(set(references) & set(citedSources)) / len(references) if references else None,
         'abstained': any(marker in folded for marker in ABSTENTION_MARKERS),
     }
+
+
+def load_scored_runs():
+    """Recorded runs, scores recomputed from the stored answers with the current question set."""
+    runs = runStore.load_runs(RESULTS_PATH)
+    questionsById = {item['id']: item for item in load_questions(None)}
+    for record in runs.values():
+        item = questionsById.get(record['question_id'])
+        if item and not record['error']:
+            record.update(score(item, record['answer'], record['cited_sources']))
+    return runs
 
 
 def require_context_length(serverInfo, expected):
@@ -237,7 +262,7 @@ def main():
     args = parser.parse_args()
 
     if args.report:
-        print_report(runStore.load_runs(RESULTS_PATH))
+        print_report(load_scored_runs())
         return 0
     if not args.model:
         parser.error('--model is required unless --report is given')
@@ -252,7 +277,7 @@ def main():
         return 1
     if args.fresh:
         runStore.discard_model(RESULTS_PATH, args.model)
-    runs = runStore.load_runs(RESULTS_PATH)
+    runs = load_scored_runs()
     todo = list(runStore.pending_runs(args.model, questions, args.passes, runs,
                                       lambda previous: args.retry_errors and bool(previous['error'])))
     if not todo:

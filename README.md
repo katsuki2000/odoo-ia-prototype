@@ -3,9 +3,9 @@
 MIRO AI is a proof of concept for a private assistant connected to an Odoo 17 instance. It has two response modes:
 
 - **Documentation**: retrieve internal procedures and documents with the existing RAG pipeline (ChromaDB).
-- **Odoo system**: use one system agent to investigate the installed Odoo source and, when current business data is needed, query Odoo through typed, read-only ORM tools.
+- **Odoo system**: answer questions about current business data with one agent that queries Odoo through typed, read-only ORM tools, under the identity of the requesting user.
 
-The agent uses a bounded set of Code Intelligence tools for access and visibility, approvals and workflows, and form validations. The LLM helps select tools and explain the observations; it is not treated as proof of instance-specific behavior. The objective is to reduce unsupported answers, make the basis of responses inspectable, and state uncertainty when the available evidence is insufficient. This PoC does not claim to eliminate hallucinations.
+The LLM helps select tools and explain the observations. The objective is to reduce unsupported answers, make the basis of responses inspectable, and state uncertainty when the available evidence is insufficient. The Code Intelligence agent (source-code analysis through an Odoo knowledge graph) is not part of this branch: it is kept on `main`.
 
 Inference uses a privately controlled Ollama- or vLLM-compatible endpoint. The endpoint is configured in `.env`; there is no implicit cloud-provider fallback.
 
@@ -69,7 +69,7 @@ The `.env` holds **secrets, service addresses, and paths that vary by machine or
 
 **Inference server (Ollama / vLLM)**: there is no implicit server; set the address of the target in `.env` (an unset address makes the application refuse to start the LLM client):
 ```dotenv
-AWS_OLLAMA_HOST=http://<aws-instance-address>:11434
+OLLAMA_HOST=http://<aws-instance-address>:11434
 ```
 To use the temporary Kaggle host instead, set `LLM_TARGET=kaggle` and `KAGGLE_OLLAMA_HOST=https://<ngrok-tunnel>`.
 
@@ -113,7 +113,7 @@ addons_path = addons,<path-to-this-repository>/odoo_addons
 
 ### Step 7 : Verify the custom Odoo modules
 
-All custom modules (`miro_ai`, `miro_ai_discuss`, the business modules and the bundled OCA modules) are bundled inside this repository in `odoo_addons/`, one folder per module. Business modules deliberately use different name prefixes (`miro_`, `acme_`, `ext_` or none): nothing in the code depends on a prefix. Because you added them to `addons_path` in Step 6, Odoo detects them automatically.
+The custom module `miro_ai` is bundled inside this repository in `odoo_addons/`. Because you added that folder to `addons_path` in Step 6, Odoo detects it automatically.
 
 ### Step 8 : Initialize Odoo and install modules
 
@@ -126,10 +126,8 @@ python3 odoo-bin -c odoo.conf -d odoo-dev -i base --stop-after-init
 # Install miro_ai module
 python3 odoo-bin -c odoo.conf -d odoo-dev -i miro_ai --stop-after-init
 
-# Install maintenance, the business modules and the OCA modules that have all their dependencies here
-# (list: scripts/odoo_modules_to_install.txt ; external Python packages first:
-#  pip install cryptography mako odoo_test_helper odoorpc openupgradelib 'paramiko<4.0.0' pygount pysftp 'sentry_sdk<=1.9.0')
-python3 odoo-bin -c odoo.conf -d odoo-dev -i "$(paste -sd, ~/odoo-ia-prototype/scripts/odoo_modules_to_install.txt)" --stop-after-init
+# Install the native maintenance module (used by the benchmark questions)
+python3 odoo-bin -c odoo.conf -d odoo-dev -i maintenance --stop-after-init
 ```
 
 
@@ -143,18 +141,7 @@ source .venv/bin/activate
 python3 scripts/full_setup.py
 ```
 
-### Step 10 : Rebuild the Code Intelligence Knowledge Graph
-
-```bash
-cd ~/odoo-ia-prototype
-source .venv/bin/activate
-
-python3 scripts/rebuild_graph.py
-```
-
-This scans all Odoo addons and generates `code_intelligence/active_graph.json` 
-
-### Step 11 : Ingest documents into the vector store (ChromaDB)
+### Step 10 : Ingest documents into the vector store (ChromaDB)
 
 ```bash
 cd ~/odoo-ia-prototype
@@ -210,7 +197,6 @@ source .venv/bin/activate
 # Run targeted test suites
 pytest tests/test_local_llm_provider.py -v
 pytest erp_data/tests/test_odoo_tools.py -v
-pytest code_intelligence/tests/test_j46_j48_reasoning_trace.py -v
 
 # Run non-integration unit tests safely
 pytest tests/ -m "not integration"
@@ -231,16 +217,9 @@ odoo-ia-prototype/
 │   ├── graph/                  # Main LangGraph pipeline, routing and final verification
 │   └── evidence/                # Observations collected from tools
 ├── document_rag/               # Internal-document ingestion, retrieval and generation
-├── code_intelligence/
-│   ├── agent/                  # Single Odoo system agent, prompts and investigation loop
-│   │   └── tools/              # Bounded tool interface exposed to the agent
-│   ├── extractor/              # Python/XML/CSV source extraction
-│   ├── graph/                  # Odoo knowledge-graph construction and loading
-│   ├── rules/                  # Deterministic access, workflow and validation analysis
-│   └── semgrep_rules/          # Static patterns used by data-constraint analysis
 ├── erp_data/runtime/           # Typed, read-only Odoo ORM tools
 ├── odoo_addons/miro_ai/        # Odoo 17 chat interface and authenticated backend client
-├── scripts/                    # Graph rebuilding, setup and evaluation utilities
+├── scripts/                    # Setup and evaluation utilities
 ├── tests/                      # Unit, integration and PoC evaluation tests
 ├── captures/                   # Evaluation traces and replay results
 ├── todo/
@@ -251,7 +230,7 @@ odoo-ia-prototype/
 └── requirements.txt            # Python dependencies
 ```
 
-The system agent receives the following tool groups: source discovery and reading; access and record visibility; navigation and buttons; workflow and approval analysis; server actions and method overrides; form/data constraints; and read-only ORM queries. The documentary path remains a separate RAG route. There is no second ERP agent in the PoC.
+The system mode runs one agent loop over the typed, read-only ORM tools (`fields_get`, `search`, `read`, `search_read`, `search_count`, `read_group`, `name_search`); it refuses out-of-scope, prompt-injection and mass-extraction requests before any tool call. The documentary path remains a separate RAG route.
 
 ---
 
@@ -264,13 +243,13 @@ The system agent receives the following tool groups: source discovery and readin
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `LLM_TARGET` | No | `aws` | Inference host: `aws` (production) or `kaggle` (temporary dev host) |
-| `<TARGET>_OLLAMA_HOST` | Yes | none | Ollama server address, read with the prefix of the target (`AWS_` or `KAGGLE_`) |
-| `<TARGET>_LLM_BASE_URL` / `<TARGET>_LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
-| `<TARGET>_EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
+| `OLLAMA_HOST` | Yes | none | Ollama server address (`KAGGLE_OLLAMA_HOST` when `LLM_TARGET=kaggle`; every inference variable takes the `KAGGLE_` prefix on that target) |
+| `LLM_BASE_URL` / `LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
+| `EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
-| `ODOO_URL` | No | `http://localhost:<http_port of odoo.conf>`, else `http://localhost:8069` | Odoo XML-RPC server URL (overrides odoo.conf) |
-| `ODOO_DB` | No | `db_name` of odoo.conf when it names a single database, else `odoo-dev` | Odoo database name (overrides odoo.conf) |
+| `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
+| `ODOO_DB` | No | `odoo-dev` | Odoo database name |
 | `ODOO_USERNAME` | No | `admin` | XML-RPC service username |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
 
@@ -280,8 +259,7 @@ The system agent receives the following tool groups: source discovery and readin
 
 | Problem | Cause | Solution |
 |---|---|---|
-| `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the Ollama server or check `<TARGET>_OLLAMA_HOST` |
+| `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the Ollama server or check `OLLAMA_HOST` |
 | `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
-| `active_graph.json` not found | Graph has not been built on this machine | Run `python3 scripts/rebuild_graph.py` |
 | MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |
 | `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_PASSWORD` in `.env` |

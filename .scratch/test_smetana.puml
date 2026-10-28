@@ -1,0 +1,7 @@
+@startuml
+!pragma layout smetana
+class Test {
+  + id: int
+  + name: str
+}
+@enduml

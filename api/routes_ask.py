@@ -126,11 +126,7 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
             confidence=response.confidence if hasattr(response, 'confidence') else 1.0,
             ocr_warning=response.ocr_warning if hasattr(response, 'ocr_warning') else False,
             route=getattr(response, "route", None),
-            evidence_status=getattr(response, "evidence_status", None),
-            resolved_concept=getattr(response, "resolved_concept", None),
-            loop_resolved_concept=getattr(response, "loop_resolved_concept", None),
             omitted_for_authorization=omitted_list,
-            investigation_plan=getattr(response, "investigation_plan", None),
             evidence_dossier=evidence_dossier_list,
         )
     except HTTPException:

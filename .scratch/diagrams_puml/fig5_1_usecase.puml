@@ -1,0 +1,97 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+left to right direction
+
+actor "Utilisateur Odoo\n(Interne / Client)" as User
+actor "Administrateur\nSystème / Odoo" as Admin
+actor "Système Odoo 17\n(ERP & Sécurité)" as Odoo <<Système>>
+
+rectangle "Assistant IA MIRO — Odoo 17" {
+    usecase "Poser une question\n(Widget Systray OWL)" as UC_Ask
+    usecase "Choisir le mode de source\n(Documentation / Système)" as UC_Mode
+    usecase "Consulter les sources\ndocumentaires (RAG hybride)" as UC_Rag
+    usecase "Interroger les données\nERP en temps réel (ORM)" as UC_Orm
+    usecase "Visualiser le plan d'investigation\net badges de confiance" as UC_Evidence
+    usecase "Consulter l'historique\ndes conversations" as UC_History
+    usecase "S'authentifier\nsur Odoo 17" as UC_Auth
+    
+    usecase "Configurer les paramètres\nMIRO AI (miro.ai.settings)" as UC_Config
+    usecase "Consulter le journal d'audit\net requêtes (miro.ai.log)" as UC_Audit
+    usecase "Gérer l'ingestion documentaire\n(Corpus PDF / Wikis)" as UC_Ingest
+    
+    usecase "Fournir l'identité de session\n(uid, company_id, groupes)" as UC_Scope
+    usecase "Appliquer les droits d'accès\n(ir.model.access & ir.rule)" as UC_Acl
+}
+
+User --> UC_Ask
+User --> UC_History
+User --> UC_Auth
+
+UC_Ask ..> UC_Mode : «extend»
+UC_Ask ..> UC_Rag : «include»
+UC_Ask ..> UC_Orm : «include»
+UC_Ask ..> UC_Evidence : «include»
+UC_Ask ..> UC_Auth : «include»
+
+Admin --> UC_Config
+Admin --> UC_Audit
+Admin --> UC_Ingest
+
+Odoo --> UC_Scope
+Odoo --> UC_Acl
+
+UC_Orm ..> UC_Acl : «include»
+UC_Auth ..> UC_Scope : «include»
+
+@enduml

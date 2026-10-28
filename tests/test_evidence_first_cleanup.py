@@ -1,20 +1,13 @@
 """Offline boundary regressions executing production functions with explicit substitutes."""
 
 import ast
-from dataclasses import dataclass
 from enum import Enum
-from itertools import zip_longest
-import heapq
-import json
 import logging
 from pathlib import Path
-from threading import RLock
 import time
 from types import ModuleType, SimpleNamespace as NS
 import unittest
 from unittest.mock import Mock, patch
-import unicodedata
-from typing import Optional, List, Set, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,16 +46,16 @@ class RoutingTests(unittest.TestCase):
         self.select = Mock(return_value=NS(source='systeme', confidence=.9))
         self.ns = load('core/routing/routing.py', {'route', 'route_decision'}, {
             'time': time, 'SOURCE_SELECTION_MIN_CONFIDENCE': .75, 'SOURCE_CLARIFICATION': 'source_clarification',
-            'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentaire', 'CODE_INTELLIGENCE': 'code_intelligence'}),
+            'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentaire', 'ERP_DATA': 'donnees_erp'}),
             'select_source': self.select, 'AssistantResponse': NS})
 
     def test_explicit_sources_bypass_selection(self):
-        self.assertEqual(self.ns['route']({'source_mode': 'systeme'})['route'], 'code_intelligence')
+        self.assertEqual(self.ns['route']({'source_mode': 'systeme'})['route'], 'donnees_erp')
         self.assertEqual(self.ns['route']({'source_mode': 'documentation'})['route'], 'documentaire')
         self.select.assert_not_called()
 
     def test_confident_automatic_system_selection(self):
-        self.assertEqual(self.ns['route']({'question': 'approve'})['route'], 'code_intelligence')
+        self.assertEqual(self.ns['route']({'question': 'approve'})['route'], 'donnees_erp')
 
     def test_confident_automatic_document_selection(self):
         self.select.return_value = NS(source='documentation', confidence=.9)
@@ -119,94 +112,13 @@ class SourceContractTests(unittest.TestCase):
         self.invoke.assert_not_called()
 
 
-class DisclosureTests(unittest.TestCase):
-    def setUp(self):
-        self.settings = ModuleType('config.settings')
-        self.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS = frozenset()
-        resolver = ModuleType('code_intelligence.rules.group_resolver')
-        resolver._expand_implied_user_groups = lambda graph, group, result: result.update(
-            {'custom.reviewer'} if group == 'custom.supervisor' else set())
-        utils = ModuleType('code_intelligence.utils')
-        utils.SENSITIVE_BYPASS_MARKER = '[SENSITIVE]'
-        self.modules = {'config.settings': self.settings, resolver.__name__: resolver, utils.__name__: utils}
-        self.ns = load('code_intelligence/rules/security_locks.py', {
-            'OmittedItem', '_expand_user_groups_ordered', '_find_elevating_group', '_has_elevated_access',
-            '_redact_sensitive_bypass_lines', 'gate_observation', 'filter_disclosed_evidence'},
-            {'dataclass': dataclass, '_OMITTED_MARKER': 'ELEMENT OMITTED FOR AUTHORIZATION REASON'})
-
-    def gate(self, groups):
-        with patch.dict('sys.modules', self.modules):
-            return self.ns['gate_observation']('locks', 'custom.case',
-                'condition remains\n[SENSITIVE] hardcoded-secret@example.test', object(), groups)
-
-    def test_default_policy_denies_even_a_group_named_in_the_source(self):
-        text, omitted = self.gate(['custom.reviewer'])
-        self.assertNotIn('hardcoded-secret', text)
-        self.assertTrue(omitted)
-        self.assertNotIn('hardcoded-secret', repr(omitted))
-        self.assertIn('condition remains', text)
-
-    def test_configured_group_can_disclose(self):
-        self.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS = frozenset({'custom.reviewer'})
-        text, omitted = self.gate(['custom.reviewer'])
-        self.assertIn('hardcoded-secret', text)
-        self.assertEqual(omitted, [])
-
-    def test_unrelated_or_unknown_groups_do_not_authorize(self):
-        self.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS = frozenset({'custom.reviewer'})
-        for groups in (None, [], ['custom.writer']):
-            self.assertTrue(self.gate(groups)[1])
-
-    def test_implied_policy_group_is_supported(self):
-        self.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS = frozenset({'custom.reviewer'})
-        self.assertFalse(self.gate(['custom.supervisor'])[1])
-
-    def test_dossier_cannot_bypass_text_redaction(self):
-        normal, sensitive = NS(scope={}), NS(scope={'sensitive': True})
-        self.assertEqual(self.ns['filter_disclosed_evidence']([normal, sensitive], False), [normal])
-        self.assertEqual(self.ns['filter_disclosed_evidence']([normal, sensitive], True), [normal, sensitive])
-
-    def test_no_source_or_acl_read_is_an_authority(self):
-        tree = ast.parse((ROOT / 'code_intelligence/rules/security_locks.py').read_text())
-        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
-                     and node.name in {'_find_elevating_group', '_has_elevated_access'}]
-        names = {node.id for function in functions for node in ast.walk(function) if isinstance(node, ast.Name)}
-        self.assertFalse(names & {'_eval_single_permission', '_extract_has_group_xmlids_from_source', 'read_source_text'})
-
-
 class VerificationTests(unittest.TestCase):
     def setUp(self):
         self.graph = object()
-        self.provider = Mock(return_value=self.graph)
-        graphModule = ModuleType('code_intelligence.graph')
-        graphModule.get_code_intelligence_graph = self.provider
-        self.modules = {graphModule.__name__: graphModule}
-        self.ns = load('core/graph/verify_node.py', {'_load_graph', '_build_context'}, {
+        self.ns = load('core/graph/verify_node.py', {'_build_context'}, {
             '_evidence': lambda state: (('actual evidence',), ()),
             'answered_by_documents': lambda state: state.get('route') == 'documentaire',
             'default_base_model_methods': lambda: set(), 'VerificationContext': NS})
-
-    def test_same_request_graph_is_reused_by_identity(self):
-        context = self.ns['_build_context']({'knowledge_graph': self.graph})
-        self.assertIs(context.graph, self.graph)
-        self.provider.assert_not_called()
-
-    def test_documentary_verification_does_not_load_a_code_graph(self):
-        with patch.dict('sys.modules', self.modules):
-            context = self.ns['_build_context']({'route': 'documentaire'})
-        self.assertIsNone(context.graph)
-        self.provider.assert_not_called()
-
-    def test_fallback_uses_snapshot_aware_provider(self):
-        with patch.dict('sys.modules', self.modules):
-            self.assertIs(self.ns['_build_context']({'language': 'fr_FR'}).graph, self.graph)
-        self.provider.assert_called_once_with(translation_languages=['fr_FR'], request_language='fr_FR')
-
-    def test_invalid_snapshot_does_not_fall_back_to_legacy_graph(self):
-        self.provider.side_effect = ValueError('invalid snapshot')
-        with patch.dict('sys.modules', self.modules):
-            self.assertIsNone(self.ns['_build_context']({}).graph)
-        self.assertEqual(self.provider.call_count, 1)
 
     def test_user_question_is_not_treated_as_factual_evidence(self):
         context = self.ns['_build_context']({'question': 'invented claim', 'knowledge_graph': self.graph})
@@ -218,71 +130,10 @@ class OwnershipAndRetirementTests(unittest.TestCase):
         owned = Mock(return_value=('chroma', 'bm25'))
         search = Mock(return_value=[{'document': 'actual'}])
         ns = load('core/graph/graph_nodes.py', {'retrieve'}, {
-            'get_retriever': owned, 'search_retrieve': search})
+            'get_retriever': owned, 'search_retrieve': search, 'RAG_TOP_K': 10})
         fakeGraph = ModuleType('core.graph.graph')
         fakeGraph.get_retriever = Mock(side_effect=AssertionError('compatibility target used'))
         with patch.dict('sys.modules', {fakeGraph.__name__: fakeGraph}):
             self.assertTrue(ns['retrieve']({'question': 'policy'})['retrieved_chunks'])
         owned.assert_called_once()
         fakeGraph.get_retriever.assert_not_called()
-
-    def test_group_state_has_one_owner(self):
-        client = NS(get_group_xmlids=Mock(return_value={7: 'custom.reviewer'}))
-        ns = load('code_intelligence/agent/context.py', {'_resolve_user_group_xmlids'}, {
-            '_GROUP_RESOLUTION_LOCK': RLock(), '_GROUP_XMLID_CACHE': {},
-            '_get_admin_rpc_client': lambda: (client, 1)})
-        fakeGraph = ModuleType('core.graph.graph')
-        fakeGraph._GROUP_XMLID_CACHE = {7: 'wrong.instance.group'}
-        with patch.dict('sys.modules', {fakeGraph.__name__: fakeGraph}):
-            self.assertEqual(ns['_resolve_user_group_xmlids']([7]), ['custom.reviewer'])
-            self.assertEqual(ns['_resolve_user_group_xmlids']([7]), ['custom.reviewer'])
-        client.get_group_xmlids.assert_called_once()
-
-    def test_group_resolution_failure_stays_unknown(self):
-        ns = load('code_intelligence/agent/context.py', {'_resolve_user_group_xmlids'}, {
-            '_GROUP_RESOLUTION_LOCK': RLock(), '_GROUP_XMLID_CACHE': {},
-            '_get_admin_rpc_client': Mock(side_effect=TimeoutError)})
-        self.assertEqual(ns['_resolve_user_group_xmlids']([7]), [])
-
-
-class SecurityEvidenceTests(unittest.TestCase):
-    def evidence(self, **overrides):
-        ns = load('code_intelligence/rules/security_evidence.py', {'build_security_lock_evidence'}, {
-            'make_evidence': lambda **values: NS(**values), 'EvidenceSourceType': NS(CODE='code')})
-        args = dict(filepath='addons/custom_case/models/case.py', hardcoded_logins=[], exception_messages=[],
-            exception_conditions=[], exception_guard_fields=[], exception_linenos=[],
-            required_groups=['custom.reviewer'], required_group_methods=['approve'], required_group_linenos=[22],
-            dynamic_dispatch_types=[])
-        args.update(overrides)
-        return ns['build_security_lock_evidence'](**args)
-
-    def test_group_calls_are_observations_not_required_groups(self):
-        for gating in (True, False):
-            evidence = self.evidence(required_group_is_gating=[gating])
-            group = next(item for item in evidence if ':group:' in item.source)
-            self.assertIn('contains a has_group()', group.claim)
-            self.assertNotIn('requires group', group.claim)
-            self.assertEqual(group.scope['authorization_verdict'], 'not_evaluated')
-            self.assertEqual(group.scope['lineno'], 22)
-
-    def test_or_alternative_does_not_assert_unconditional_authorization(self):
-        group = next(item for item in self.evidence(required_group_alt_conditions=['record.total < 200'])
-                     if ':group:' in item.source)
-        self.assertIn('record.total < 200', group.claim)
-        self.assertNotIn('sufficient path', group.claim)
-
-    def test_exception_condition_and_method_are_kept(self):
-        items = self.evidence(exception_messages=['blocked'], exception_conditions=['record.total > 200'],
-            exception_linenos=[25], exception_methods=['approve'])
-        item = next(item for item in items if ':exception:25' in item.source)
-        self.assertIn('record.total > 200', item.claim)
-        self.assertIn('approve()', item.claim)
-
-    def test_sensitive_login_evidence_is_explicitly_marked(self):
-        items = self.evidence(hardcoded_logins=['private@example.test'])
-        login = next(item for item in items if item.source.endswith(':hardcoded_logins'))
-        self.assertTrue(login.scope['sensitive'])
-
-
-if __name__ == '__main__':
-    unittest.main()

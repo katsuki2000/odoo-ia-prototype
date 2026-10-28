@@ -1,0 +1,107 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+class MiroAiSettings <<models.Model>> {
+    + name: Char
+    + api_url: Char
+    + api_token: Char (JWT Secret)
+    + request_timeout: Integer
+    + activer_ventes: Boolean
+    + activer_stocks: Boolean
+    + activer_comptabilite: Boolean
+    + activer_tickets: Boolean
+    --
+    + get_signing_secret(): str
+    + get_active_settings(): record
+}
+
+class MiroAiLog <<models.Model>> {
+    + question: Text
+    + answer: Text
+    + user_id: Many2one(res.users)
+    + company_id: Many2one(res.company)
+    + session_id: Char
+    + response_time_ms: Integer
+    + sources_text: Text (JSON)
+    + metadata_text: Text (JSON)
+    + state: Selection (success/error)
+    --
+    + log_query(question, answer, ...): record
+    + get_sessions(limit): list
+    + get_session_history(session_id): list
+}
+
+class OdooConnector {
+    + url: str
+    + db: str
+    + username: str
+    + common: ServerProxy
+    + models: ServerProxy
+    --
+    + execute_kw(model, method, args, kwargs): Any
+}
+
+class OrmRuntimeReadTools {
+    --
+    + orm_fields_get(model: str): OrmToolResult
+    + orm_search(model: str, domain: list): OrmToolResult
+    + orm_read(model: str, ids: list, fields: list): OrmToolResult
+    + orm_search_read(model, domain, fields, limit): OrmToolResult
+    + orm_search_count(model, domain): OrmToolResult
+    + orm_read_group(model, domain, groupby): OrmToolResult
+}
+
+MiroAiLog ..> MiroAiSettings : contrôlé sous >
+OrmRuntimeReadTools --> OdooConnector : exécute sous uid strict >
+
+@enduml

@@ -1,0 +1,180 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+package "Client Odoo 17 (miro_ai)" {
+    class MiroAiSystray <<Component OWL 2.0>> {
+        + isOpen: bool
+        + loading: bool
+        + sourceMode: str
+        + sessionId: str
+        + sendMessage(): void
+        + askAndWait(): Promise
+    }
+    
+    class MiroAiController <<http.Controller>> {
+        + ask(question, session_id): dict
+        + ask_result(job_id): dict
+        + history(session_id): dict
+    }
+    
+    class AskFlow {
+        + generate_jwt_token(): str
+        + issue_requester_key(): str
+        + revoke_requester_keys(): void
+    }
+    
+    class MiroAiSettings <<models.Model>> {
+        + api_url: Char
+        + api_token: Char
+        + get_signing_secret(): str
+    }
+    
+    class MiroAiLog <<models.Model>> {
+        + question: Text
+        + answer: Text
+        + log_query(): record
+    }
+}
+
+package "Middleware IA (FastAPI & LangGraph)" {
+    class FastAPIApp {
+        + post_ask_job(): dict
+        + get_job_result(): dict
+    }
+    
+    class AskJobsManager {
+        + submit_job(payload): str
+        + get_job_status(id): dict
+    }
+    
+    class LangGraphPipeline {
+        + workflow: StateGraph
+        + build_graph(): CompiledGraph
+        + query_graph(question, uid, ...): AssistantResponse
+    }
+    
+    class RouteNode {
+        + select_source(question): Selection
+        + route(state: RAGState): dict
+    }
+    
+    class AssistantResponse {
+        + answer: str
+        + sources: list[SourceReference]
+        + confidence: float
+    }
+}
+
+package "Moteur RAG Documentaire Hybride" {
+    class IngestionOrchestrator {
+        + ingest_all(): dict
+    }
+    class ChromaManager {
+        + query(text, top_k): dict
+        + add_chunks(): list
+    }
+    class BM25Index {
+        + search(query, top_k): list
+    }
+    class SearchHybrid {
+        + retrieve(query, top_k): list
+        + reciprocal_rank_fusion(): list
+    }
+    class GenerateNode {
+        + generate(state): dict
+    }
+    class VerifyAnswerNode {
+        + verify_answer(state): dict
+    }
+}
+
+package "Accès ERP & Sécurité Runtime" {
+    class OrmAgentLoop {
+        + orm_agent_loop(state: RAGState): dict
+    }
+    class OrmRuntimeReadTools {
+        + orm_search_read(): OrmToolResult
+        + orm_search_count(): OrmToolResult
+        + orm_read_group(): OrmToolResult
+    }
+    class OdooConnector {
+        + url: str
+        + db: str
+        + execute_kw(model, method, args, kw): Any
+    }
+}
+
+MiroAiSystray --> MiroAiController : RPC JSON >
+MiroAiController --> AskFlow : prépare JWT & clé >
+MiroAiController --> MiroAiLog : journalise audit >
+MiroAiController --> MiroAiSettings : lit paramètres >
+MiroAiController ..> FastAPIApp : REST asynchrone (HTTP 202) >
+
+FastAPIApp --> AskJobsManager : gère file d'attente >
+AskJobsManager --> LangGraphPipeline : exécute tâche de fond >
+
+LangGraphPipeline --> RouteNode : oriente requête >
+RouteNode --> SearchHybrid : branche documentaire >
+RouteNode --> OrmAgentLoop : branche système ERP >
+
+SearchHybrid --> ChromaManager : dense BGE-M3 >
+SearchHybrid --> BM25Index : lexical exact >
+SearchHybrid --> GenerateNode : passages récupérés >
+GenerateNode --> VerifyAnswerNode : synthèse sourcée >
+VerifyAnswerNode ..> AssistantResponse : réponse validée >
+
+OrmAgentLoop --> OrmRuntimeReadTools : inspection & lecture >
+OrmRuntimeReadTools --> OdooConnector : XML-RPC sous uid demandeur >
+OdooConnector ..> "Client Odoo 17 (miro_ai)" : interroge instance Odoo >
+
+@enduml

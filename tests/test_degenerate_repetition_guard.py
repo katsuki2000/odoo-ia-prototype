@@ -1,23 +1,5 @@
 """
-tests/test_degenerate_repetition_guard.py
-
-Unit tests for rag.graph._detect_degenerate_repetition /
-_strip_degenerate_repetition -- the guard added after the Q1.1 benchmark
-run surfaced ~140 consecutive repetitions of "Accountant Manager" in a
-Code Intelligence synthesis answer (llama-3.1-8b-instant decoding
-collapse at temperature=0, no frequency/presence penalty).
-
-Scope: these are pure, dependency-free unit tests of the detector/stripper
-themselves. The retry-and-strip ORCHESTRATION inside
-code_intelligence_agent's synthesis block (frequency_penalty on the LLM,
-one retry with an anti-repetition instruction, strip as last resort) is
-NOT independently unit-tested here -- it composes _invoke_with_rate_limit
-(already tested indirectly via the live benchmark) with these two pure
-functions, and a full mock of the ReAct loop's LLM/tool plumbing needed to
-reach that code path in isolation would mostly be testing mock wiring
-rather than real behavior. The adversarial benchmark rerun is what
-actually validates the end-to-end path (this was surfaced live on Q1.1,
-so a rerun is the real regression check).
+Unit tests of the degenerate-repetition detectors and strippers (core.output).
 """
 from core.graph.graph import _detect_degenerate_repetition, _strip_degenerate_repetition
 

@@ -15,7 +15,6 @@ from core.state import RAGState
 from core.schemas import AssistantResponse
 from core.verification.claims import VerifierMode
 from erp_data import orm_agent_node
-from tests.t2_graph_factory import build_graph as build_code_graph
 
 DOC_QUESTION = "Selon le wiki, quelle est la procedure ?"
 PLAIN_QUESTION = "Qui peut approuver une commande ?"
@@ -24,7 +23,6 @@ UNKNOWN_GROUP_ANSWER = "Le groupe purchase.group_purchase_director peut approuve
 
 @pytest.fixture(autouse=True)
 def isolated_runtime(monkeypatch):
-    monkeypatch.setattr("code_intelligence.graph.loader.get_code_intelligence_graph", lambda **_: build_code_graph())
     monkeypatch.setattr(verify_node, "default_base_model_methods", lambda: frozenset({"write"}))
     start_evidence_collection()
     yield
@@ -70,7 +68,7 @@ def test_report_mode_attaches_the_report_and_keeps_the_answer(run_node):
     assert response.answer == UNKNOWN_GROUP_ANSWER
     assert response.verification.claims_total == 1
     assert [(item.text, item.reason) for item in response.verification.unsupported] == [
-        ("purchase.group_purchase_director", "unknown_group"),
+        ("purchase.group_purchase_director", "not_in_evidence"),
     ]
 
 
@@ -111,7 +109,6 @@ def test_documentary_branch_is_grounded_in_the_retrieved_chunks_only(run_node):
         VerifierMode.REPORT, "Le seuil est de 5 000 euros, puis 9 999.",
         question=DOC_QUESTION,
         route="documentaire",
-        ci_evidence_sufficiency={"status": "insufficient"},
         retrieved_chunks=[{"document": "Le seuil est de 5000 euros."}],
         raw_tool_output="limite 9999",
     )
@@ -130,20 +127,6 @@ def test_answer_is_not_reformatted_before_claims_are_extracted(run_node):
     answer = '<ol start="7"><li>un</li></ol>'
     state, _ = run_node(VerifierMode.REPORT, answer)
     assert state["response"].answer == answer
-
-
-def test_unavailable_graph_degrades_to_evidence_only(run_node, monkeypatch):
-    def broken_loader(**_):
-        raise RuntimeError("graph unavailable")
-
-    monkeypatch.setattr("code_intelligence.graph.get_code_intelligence_graph", broken_loader)
-    state, _ = run_node(
-        VerifierMode.REPORT, UNKNOWN_GROUP_ANSWER + " Le groupe account.group_account_manager aussi.",
-        raw_tool_output="(groupes: account.group_account_manager)",
-    )
-    assert [(item.text, item.reason) for item in state["response"].verification.unsupported] == [
-        ("purchase.group_purchase_director", "not_in_evidence"),
-    ]
 
 
 def test_verifier_failure_never_breaks_the_answer(run_node, monkeypatch, caplog):
@@ -229,4 +212,4 @@ def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
     assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "route", "verify_answer"}
-    assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate"}
+    assert _incoming(graph_view, "verify_answer") == {"generate", "orm_agent_loop"}

@@ -1,7 +1,7 @@
 """
 orm_agent_node.py
 
-ORM ReAct agent loop (ERP data queries) and hybrid pipeline node.
+ORM ReAct agent loop (ERP data queries).
 """
 
 import logging
@@ -10,9 +10,11 @@ import time
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from core.schemas import AssistantResponse, SourceReference
-from core.guardrails import OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_out_of_scope
+from config.settings import MASSIVE_EXTRACTION_REFUSAL_MSG, PROMPT_INJECTION_REFUSAL_MSG
+from core.guardrails import (
+    OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_massive_extraction_request, is_out_of_scope, is_prompt_injection,
+)
 from core.state import RAGState
-from document_rag.generate_node import generate
 from core.llm.llm_client import invoke_with_rate_limit as _invoke_with_rate_limit
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 
@@ -39,9 +41,12 @@ def orm_agent_loop(state: RAGState) -> dict:
     _llm_call_count = 0
     _hop_index = 0
 
-    if is_out_of_scope(question):
-        logger.info("Node [orm_agent_loop]: Out of scope question.")
-        response = AssistantResponse(answer=OUT_OF_SCOPE_ANSWER, sources=[], confidence=0.0)
+    refusal = (OUT_OF_SCOPE_ANSWER if is_out_of_scope(question) else
+               PROMPT_INJECTION_REFUSAL_MSG if is_prompt_injection(question) else
+               MASSIVE_EXTRACTION_REFUSAL_MSG if is_massive_extraction_request(question) else None)
+    if refusal:
+        logger.info("Node [orm_agent_loop]: Early refusal (out of scope, prompt injection or massive extraction).")
+        response = AssistantResponse(answer=refusal, sources=[], confidence=0.0)
         timing = state.get("timing", {}).copy()
         timing["generation_time"] = time.time() - start_time
         _trace_logger.log_summary(
@@ -150,53 +155,3 @@ def orm_agent_loop(state: RAGState) -> dict:
         "timing": timing,
         "raw_tool_output": "\n\n".join(str(obs) for obs in tool_observations),
     }
-
-
-def hybrid_node(state: RAGState) -> dict:
-    """Agent that orchestrates a hybrid query by dispatching to doc and data agents sequentially."""
-    start_time = time.time()
-    logger.info("Node [hybrid_node]: Delegating to doc agent and data agent")
-
-    doc_state = state.copy()
-    doc_result = generate(doc_state)
-    doc_answer = doc_result.get("raw_answer", "")
-
-    data_state = state.copy()
-    data_state["retrieved_chunks"] = []
-    data_state["question"] = state["question"]
-    data_result = orm_agent_loop(data_state)
-    data_answer = data_result.get("raw_answer", "")
-
-    from erp_data.prompts import build_hybrid_combine_prompt
-    combine_prompt = build_hybrid_combine_prompt(state["question"], doc_answer, data_answer)
-
-    try:
-        _combine_llm_box = [_build_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
-
-        def _rebuild_combine_llm():
-            _combine_llm_box[0] = _build_llm(temperature=0.3, max_retries=0, max_tokens=1024)
-            return _combine_llm_box[0]
-
-        final_resp, _ = _invoke_with_rate_limit(
-            _combine_llm_box[0], [HumanMessage(content=combine_prompt)],
-            rebuild_llm=_rebuild_combine_llm,
-        )
-        final_answer = final_resp.content
-    except Exception as e:
-        logger.error("Hybrid combine failed: %s", e)
-        final_answer = f"{doc_answer}\n\n{data_answer}"
-
-    sources = []
-    if doc_result.get("response") and doc_result["response"].sources:
-        sources.extend(doc_result["response"].sources)
-    if data_result.get("response") and data_result["response"].sources:
-        sources.extend(data_result["response"].sources)
-
-    confidence = 0.5
-    if doc_result.get("response") and data_result.get("response"):
-        confidence = min(doc_result["response"].confidence, data_result["response"].confidence)
-
-    response = AssistantResponse(answer=final_answer, sources=sources, confidence=confidence)
-    timing = state.get("timing", {}).copy()
-    timing["hybrid_time"] = time.time() - start_time
-    return {"response": response, "raw_answer": final_answer, "timing": timing}

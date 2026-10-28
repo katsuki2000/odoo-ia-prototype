@@ -106,9 +106,7 @@ function createMessage(id, sender, content, extra = {}) {
         sources: [],
         route: null,
         confidence: 1.0,
-        evidence_status: null,
         omitted_for_authorization: [],
-        investigation_plan: null,
         cancelled: false,
     }, extra);
 }
@@ -128,9 +126,7 @@ function buildMessagesFromHistory(history) {
             sources: turn.sources || [],
             route: turn.route || null,
             confidence: turn.confidence !== undefined && turn.confidence !== null ? turn.confidence : 1.0,
-            evidence_status: turn.evidence_status || null,
             omitted_for_authorization: turn.omitted_for_authorization || [],
-            investigation_plan: turn.investigation_plan || null,
         }));
     }
     return { messages, nextId };
@@ -376,9 +372,7 @@ export class MiroAiSystray extends Component {
                     sources: response.sources || [],
                     route: response.route || null,
                     confidence: response.confidence !== undefined ? response.confidence : 1.0,
-                    evidence_status: response.evidence_status || null,
                     omitted_for_authorization: response.omitted_for_authorization || [],
-                    investigation_plan: response.investigation_plan || null,
                 }));
                 if (response.session_id) {
                     this.state.sessionId = response.session_id;
@@ -396,7 +390,6 @@ export class MiroAiSystray extends Component {
                 const errMsg = communicationErrorLabel();
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
                     confidence: 0.0,
-                    evidence_status: "ERROR",
                 }));
                 this.notification.add(connectionErrorLabel(), { type: "danger" });
             }

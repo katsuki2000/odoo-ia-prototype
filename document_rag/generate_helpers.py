@@ -19,6 +19,16 @@ _ALIAS_PATTERNS = [
     re.compile(rf"^[ \t]*\[\s*(?:sources?\s*:?\s*)?{_ALIAS_LIST}\s*\][ \t]*|[ \t]*\[\s*(?:sources?\s*:?\s*)?{_ALIAS_LIST}\s*\]", re.IGNORECASE | re.MULTILINE),
     # (source S2), (sources S3 et S4)
     re.compile(rf"^[ \t]*\(\s*sources?\s*:?\s*{_ALIAS_LIST}\s*\)[ \t]*|[ \t]*\(\s*sources?\s*:?\s*{_ALIAS_LIST}\s*\)", re.IGNORECASE | re.MULTILINE),
+    # (S3), (voir S1), (cf. S1, S2)
+    re.compile(rf"[ \t]*\(\s*(?:voir|cf\.?|see)?\s*{_ALIAS_LIST}\s*\)", re.IGNORECASE),
+    # bold label closing a quote: " - **Source S4**"
+    re.compile(rf"[ \t]*(?:[—–-][ \t]*)?\*\*\s*(?:sources?\s+)?{_ALIAS}\s*\*\*", re.IGNORECASE),
+    # reference lines: "- S3 : ...", "Source S1 : Titre"
+    re.compile(rf"\b(?:[Ss]ources?[ \t]+)?{_ALIAS}[ \t]*:[ \t]*"),
+    # noun followed by an alias: "la source S2", "le document S1" -> keep the noun
+    re.compile(rf"\b([Ss]ources?|[Dd]ocuments?)[ \t]+{_ALIAS}\b"),
+    # "page 1 de S1"
+    re.compile(rf"(?<=\d)[ \t]+de[ \t]+{_ALIAS}\b"),
 ]
 
 
@@ -34,7 +44,7 @@ def strip_source_aliases(answer: str) -> str:
     for index in range(0, len(parts), 2):
         text = parts[index]
         for pattern in _ALIAS_PATTERNS:
-            text = pattern.sub("", text)
+            text = pattern.sub(lambda m: m.group(1) if m.re.groups else "", text)
         parts[index] = text
     return "```".join(parts)
 

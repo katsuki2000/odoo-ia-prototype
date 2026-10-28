@@ -52,19 +52,6 @@ LAST_INGESTION_STATUS: dict[str, Any] = {
     },
 }
 
-def warm_up_code_intelligence_graph() -> None:
-    """Load (or build, then swap atomically) the graph and its semantic index before the first question."""
-    try:
-        from code_intelligence.agent.resolution.semantic_retrieval import warm_semantic_index
-        from code_intelligence.graph.loader import get_code_intelligence_graph
-
-        graph = get_code_intelligence_graph()
-        languages = list(graph.graph.get("translation_languages", ()))
-        logger.info("Code intelligence graph ready: %d nodes, languages %s", graph.number_of_nodes(), languages)
-        logger.info("Semantic index warm-up: %s", [status.value for status in warm_semantic_index(graph, languages)])
-    except Exception as exc:
-        logger.exception("Code intelligence graph warm-up failed: %s", exc)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -84,9 +71,6 @@ async def lifespan(app: FastAPI):
         t.start()
     except Exception as exc:
         logger.exception("Startup incremental scan failed: %s", exc)
-
-    import threading
-    threading.Thread(target=warm_up_code_intelligence_graph, daemon=True).start()
 
     if SCHEDULER_INSTANCE is None:
         SCHEDULER_INSTANCE = PeriodicScanScheduler(

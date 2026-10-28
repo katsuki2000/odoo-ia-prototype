@@ -5,15 +5,16 @@ Ranking and Fusion Module — Reciprocal Rank Fusion (RRF).
 from __future__ import annotations
 
 from typing import Any
+from config.settings import RAG_BM25_WEIGHT, RAG_RELEVANCE_THRESHOLD, RAG_VECTOR_WEIGHT
 
 
 def reciprocal_rank_fusion(
     vector_results: list[dict[str, Any]],
     bm25_results: list[dict[str, Any]],
-    vector_weight: float = 0.6,
-    bm25_weight: float = 0.4,
+    vector_weight: float = RAG_VECTOR_WEIGHT,
+    bm25_weight: float = RAG_BM25_WEIGHT,
     k: int = 60,
-    relevance_threshold: float = 0.3,
+    relevance_threshold: float = RAG_RELEVANCE_THRESHOLD,
 ) -> list[dict[str, Any]]:
     """
     Reciprocal Rank Fusion (RRF) combining vector and BM25 search results.

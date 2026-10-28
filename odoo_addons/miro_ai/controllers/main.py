@@ -14,9 +14,7 @@ from .backend_client import BackendError, candidate_urls_for, get_with_failover,
 _logger = logging.getLogger(__name__)
 
 BACKEND_REPLY_TIMEOUT_SECONDS = 10
-METADATA_FIELDS = (
-    'route', 'confidence', 'evidence_status', 'resolved_concept', 'omitted_for_authorization', 'investigation_plan',
-)
+METADATA_FIELDS = ('route', 'confidence', 'omitted_for_authorization')
 
 
 def _settings_and_secret():
@@ -55,10 +53,7 @@ def _answer_payload(data, session_id):
         'route': data.get('route'),
         'confidence': data.get('confidence', 1.0),
         'ocr_warning': data.get('ocr_warning', False),
-        'evidence_status': data.get('evidence_status'),
-        'resolved_concept': data.get('resolved_concept'),
         'omitted_for_authorization': data.get('omitted_for_authorization', []),
-        'investigation_plan': data.get('investigation_plan'),
     }
 
 

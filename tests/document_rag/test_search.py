@@ -14,7 +14,7 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -392,6 +392,13 @@ class TestRetrievePipeline(unittest.TestCase):
         # Should have few or no results for totally irrelevant query
         # (threshold is high)
         self.assertLessEqual(len(results), 3)
+
+
+def test_vector_search_lets_a_backend_failure_reach_the_caller():
+    manager = Mock()
+    manager.query.side_effect = ConnectionError("embedding server unreachable")
+    with pytest.raises(ConnectionError):
+        vector_search(manager, "question")
 
 
 if __name__ == "__main__":

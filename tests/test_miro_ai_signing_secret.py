@@ -57,7 +57,6 @@ def test_no_hardcoded_default_secret_remains_in_signing_paths():
     for relative in (
         "api/auth.py",
         "odoo_addons/miro_ai/controllers/main.py",
-        "odoo_addons/miro_ai_discuss/models/miro_ai_bot.py",
     ):
         assert "default_insecure_secret_for_dev" not in (root / relative).read_text(encoding="utf-8"), relative
 
@@ -68,12 +67,9 @@ def test_signed_tokens_expire_after_five_minutes():
     ask_flow = (root / "odoo_addons/miro_ai/controllers/ask_flow.py").read_text(encoding="utf-8")
     assert "JWT_LIFETIME_SECONDS = 300" in ask_flow
     assert '"exp": int(time.time()) + JWT_LIFETIME_SECONDS' in ask_flow
-    bot = (root / "odoo_addons/miro_ai_discuss/models/miro_ai_bot.py").read_text(encoding="utf-8")
-    assert '"exp": int(time.time()) + 300' in bot
     for relative in (
         "odoo_addons/miro_ai/controllers/main.py",
         "odoo_addons/miro_ai/controllers/ask_flow.py",
-        "odoo_addons/miro_ai_discuss/models/miro_ai_bot.py",
     ):
         assert "+ 3600" not in (root / relative).read_text(encoding="utf-8"), relative
 

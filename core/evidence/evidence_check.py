@@ -1,8 +1,5 @@
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from code_intelligence.agent.resolution.matching import ResolvedConcept
+from typing import Any
 
 
-def check_evidence(concept: "ResolvedConcept") -> str:
+def check_evidence(concept: Any) -> str:
     return "RESOLU" if concept.is_resolved else "NON_RESOLU"

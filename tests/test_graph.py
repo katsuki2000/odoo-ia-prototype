@@ -1,8 +1,10 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.schemas import AssistantResponse
-from core.graph.graph_nodes import format_output
+from core.graph.graph_nodes import format_output, retrieve
 from document_rag.generate_node import generate, _parse_raw_json_answer
 from document_rag.generate_helpers import verify_used_sources
 
@@ -13,6 +15,13 @@ def test_generate_without_context_returns_no_source_answer():
     assert result['response'].answer == "Je n'ai pas de source fiable pour répondre à cette question."
     assert result['response'].confidence == 0.0
     assert not result['response'].sources
+
+
+def test_retrieve_node_lets_a_backend_failure_reach_the_pipeline():
+    with patch('core.graph.graph_nodes.get_retriever', return_value=(MagicMock(), MagicMock())), \
+         patch('core.graph.graph_nodes.search_retrieve', side_effect=ConnectionError('embedding server unreachable')):
+        with pytest.raises(ConnectionError):
+            retrieve({'question': 'Comment déployer un module ?'})
 
 
 def test_generate_refuses_out_of_scope_before_calling_llm():

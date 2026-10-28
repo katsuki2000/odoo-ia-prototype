@@ -38,8 +38,8 @@ class WikiLoader:
         Initialize wiki loader.
 
         Args:
-            chunk_size: Number of characters per chunk
-            chunk_overlap: Number of overlapping characters between chunks
+            chunk_size: Number of tiktoken tokens per chunk
+            chunk_overlap: Number of overlapping tiktoken tokens between chunks
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap

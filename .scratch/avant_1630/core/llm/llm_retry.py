@@ -1,0 +1,143 @@
+"""Rate limiting headers, error recovery, and context reduction helpers for LLM client."""
+
+import logging
+import re
+from typing import List, Optional
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+
+logger = logging.getLogger(__name__)
+
+_TOOL_MSG_HARD_CAP = 400
+_TOOL_USE_FAILED_RE = re.compile(
+    r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}",
+    re.DOTALL,
+)
+_FAILED_GEN_CALL_RE = re.compile(r"<function=(\w+)>(\{.*\})")
+
+
+class ToolCallFallback:
+    """Minimal stand-in for AIMessage when recovering tool_calls."""
+    def __init__(self, tool_calls: List[dict]):
+        self.tool_calls = tool_calls
+        self.content = ""
+
+
+def parse_reset_seconds(header_value: str, default: float = 20.0) -> float:
+    """Parse rate-limit reset duration from header strings."""
+    if not header_value:
+        return default
+    match = re.match(r"(?:(\d+)m)?([\d.]+)s", header_value.strip())
+    if not match:
+        return default
+    minutes = float(match.group(1)) if match.group(1) else 0.0
+    seconds = float(match.group(2))
+    return minutes * 60 + seconds
+
+
+def extract_rate_limit_headers(exc: Exception) -> dict:
+    """Extract HTTP response headers from rate limit exceptions."""
+    for attr_path in ("response", "http_response", "resp"):
+        resp = getattr(exc, attr_path, None)
+        if resp is not None and hasattr(resp, "headers"):
+            return dict(resp.headers)
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None:
+        resp = getattr(cause, "response", None)
+        if resp is not None and hasattr(resp, "headers"):
+            return dict(resp.headers)
+    return {}
+
+
+def try_recover_tool_use_failed(exc: Exception) -> Optional[ToolCallFallback]:
+    """Recover malformed tool call from tool_use_failed exception."""
+    msg = str(exc)
+    if "tool_use_failed" not in msg:
+        return None
+    match = _TOOL_USE_FAILED_RE.search(msg)
+    if not match:
+        return None
+    call_match = _FAILED_GEN_CALL_RE.search(match.group(1))
+    if not call_match:
+        return None
+    fn_name, args_raw = call_match.group(1), call_match.group(2)
+    import json
+    try:
+        args = json.loads(args_raw)
+    except json.JSONDecodeError as err:
+        logger.debug("failed_generation arguments for %s are not valid JSON: %s", fn_name, err)
+        return None
+    logger.warning("Recovered malformed tool call via failed_generation: %s(%s)", fn_name, args)
+    return ToolCallFallback([{
+        "name": fn_name, "args": args, "id": f"fallback_{fn_name}", "type": "tool_call",
+    }])
+
+
+def reduce_message_context(messages: list) -> list:
+    """Truncate excessively long messages to stay within payload limits.
+
+    Emergency fallback only, triggered by an actual 413 from the LLM
+    provider -- much blunter than the application-layer per-tool/per-turn
+    caps in code_intelligence/agent/context.py (_truncate_observation,
+    _truncate_observation_for_budget), which should normally keep the
+    request under this limit already. Logged (unlike before) because a
+    real 413 on account.move-heavy questions showed this path silently
+    destroying most of an already-fetched observation, feeding the
+    synthesis LLM a near-empty context and producing an uncited
+    hallucination."""
+    reduced = []
+    truncated_count = 0
+    for msg in messages:
+        if (
+            isinstance(msg, ToolMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > _TOOL_MSG_HARD_CAP
+        ):
+            truncated_count += 1
+            reduced.append(
+                ToolMessage(
+                    content=(
+                        msg.content[:_TOOL_MSG_HARD_CAP]
+                        + "\n[... tronqué pour respecter la limite de taille de requête ...]"
+                    ),
+                    tool_call_id=msg.tool_call_id,
+                )
+            )
+        elif (
+            isinstance(msg, SystemMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > 1000
+        ):
+            truncated_count += 1
+            reduced.append(
+                SystemMessage(
+                    content=(
+                        msg.content[:1000]
+                        + "\n[... tronqué pour respecter la limite de taille ...]"
+                    )
+                )
+            )
+        elif (
+            isinstance(msg, HumanMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > 1500
+        ):
+            truncated_count += 1
+            reduced.append(
+                HumanMessage(
+                    content=(
+                        msg.content[:1500]
+                        + "\n[... tronqué pour respecter la limite de taille de requête ...]"
+                    )
+                )
+            )
+        else:
+            reduced.append(msg)
+    if truncated_count:
+        logger.warning(
+            "Node [code_intelligence_agent]: emergency context reduction after "
+            "a provider payload-size error rewrote %d message(s), some to as "
+            "little as %d chars -- evidence may be missing from the answer "
+            "this produces.",
+            truncated_count, _TOOL_MSG_HARD_CAP,
+        )
+    return reduced

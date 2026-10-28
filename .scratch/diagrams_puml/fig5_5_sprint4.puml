@@ -1,0 +1,97 @@
+@startuml
+!pragma layout smetana
+hide circle
+skinparam classAttributeIconSize 0
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName sans-serif
+skinparam defaultFontSize 11
+skinparam roundCorner 4
+skinparam ArrowColor #4B5563
+skinparam ArrowFontColor #374151
+skinparam ArrowFontSize 10
+
+skinparam class {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    HeaderBackgroundColor #FEE2E2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam usecase {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+    FontSize 11
+}
+
+skinparam actor {
+    BorderColor #EF4444
+    BackgroundColor #FEE2E2
+    FontColor #1F2937
+}
+
+skinparam package {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+    FontSize 12
+}
+
+skinparam node {
+    BorderColor #F87171
+    BackgroundColor #FFF5F5
+    FontColor #1F2937
+}
+
+skinparam component {
+    BorderColor #F87171
+    BackgroundColor #FEF2F2
+    FontColor #1F2937
+}
+
+class RequeteRecherche {
+    + query: str
+    + top_k: int = 5
+    + source_mode: str
+    + where: dict
+}
+
+class ChromaManager {
+    + query(query_text: str, top_k: int): dict
+}
+
+class BM25Index {
+    + corpus: list[str]
+    + bm25: BM25Okapi
+    --
+    + build_from_chroma(manager: ChromaManager): void
+    + tokenize(text: str): list[str]
+    + search(query: str, top_k: int): list[dict]
+}
+
+class SearchHybrid {
+    + RAG_VECTOR_WEIGHT: float = 0.6
+    + RAG_BM25_WEIGHT: float = 0.4
+    + RAG_RELEVANCE_THRESHOLD: float = 0.35
+    --
+    + vector_search(manager, query, top_k): list
+    + bm25_search(index, query, top_k): list
+    + reciprocal_rank_fusion(vec_res, bm25_res): list
+    + retrieve(query: str, top_k: int): list[dict]
+}
+
+class ResultatFiltre {
+    + id: str
+    + document: str
+    + metadata: dict
+    + score_rrf: float
+}
+
+SearchHybrid ..> RequeteRecherche : traite >
+SearchHybrid --> ChromaManager : recherche vectorielle dense >
+SearchHybrid --> BM25Index : recherche lexicale exacte >
+SearchHybrid ..> ResultatFiltre : produit top-k passages >
+
+@enduml

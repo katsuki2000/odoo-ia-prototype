@@ -64,21 +64,13 @@
                             <div class="message-content small" t-out="msg.formattedContent or msg.content"/>
 
                             <!-- Foldable Verification Details in Drawer -->
-                            <t t-if="msg.sender === 'bot' and (msg.investigation_plan or (msg.sources and msg.sources.length > 0))">
+                            <t t-if="msg.sender === 'bot' and msg.sources and msg.sources.length > 0">
                                 <details class="miro-verification-disclosure mt-2 small">
                                     <summary class="verification-summary small">
                                         <i class="fa fa-chevron-right mr-1 verification-chevron"/>
                                         <i class="fa fa-search mr-1 text-primary"/> <t t-esc="getEvidenceLabel(msg.sources ? msg.sources.length : 0)"/>
                                     </summary>
                                     <div class="verification-content p-2 mt-1 bg-white rounded border">
-                                        <t t-if="msg.investigation_plan and msg.investigation_plan.steps and msg.investigation_plan.steps.length">
-                                            <div class="text-primary font-weight-bold mb-1">Investigation plan:</div>
-                                            <ul class="pl-3 mb-2 small text-muted">
-                                                <t t-foreach="msg.investigation_plan.steps" t-as="st" t-key="st_index">
-                                                    <li><strong t-esc="st.action"/>: <span t-esc="st.justification"/></li>
-                                                </t>
-                                            </ul>
-                                        </t>
                                         <t t-if="msg.sources and msg.sources.length > 0">
                                             <div class="text-success font-weight-bold mb-1">Sources:</div>
                                             <ul class="pl-3 mb-0 small text-muted">

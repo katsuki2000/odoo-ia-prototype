@@ -59,6 +59,22 @@ def test_score_of_an_unanswerable_question_has_no_recall(bench):
     assert scored == {"fact_recall": None, "source_recall": None, "abstained": True}
 
 
+def test_a_numeric_fact_is_not_found_inside_a_longer_number(bench):
+    item = _item(facts=["4 heures", "2%"], reference_sources=[])
+    assert bench.score(item, "P4 : moins de 24 heures, écart de 12 %.", [])["fact_recall"] == 0.0
+    assert bench.score(item, "P3 : moins de **4 heures**, écart de 2 %.", [])["fact_recall"] == 1.0
+
+
+def test_load_scored_runs_recomputes_scores_and_skips_errors(monkeypatch, bench):
+    monkeypatch.setattr(bench, "load_questions", lambda ids: [_item()])
+    stored = {"answer": "Validation en 48 heures ouvrées.", "cited_sources": ["guide.docx"], "fact_recall": 0.0, "source_recall": 0.0}
+    bench.runStore.append_run(bench.RESULTS_PATH, _record(**stored))
+    bench.runStore.append_run(bench.RESULTS_PATH, _record(passNumber=2, error="x", **stored))
+    runs = bench.load_scored_runs()
+    assert (runs[("m1", "Q1", 1)]["fact_recall"], runs[("m1", "Q1", 1)]["source_recall"]) == (1.0, 1.0)
+    assert runs[("m1", "Q1", 2)]["fact_recall"] == 0.0
+
+
 def test_every_fact_of_the_question_set_is_found_in_its_own_reference(bench):
     for item in QUESTIONS:
         if item["answerable"]:

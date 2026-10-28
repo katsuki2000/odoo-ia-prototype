@@ -187,8 +187,6 @@ class MiroAiLog(models.Model):
                 'create_date': log.create_date.isoformat() if log.create_date else None,
                 'route': metadata.get('route'),
                 'confidence': metadata.get('confidence'),
-                'evidence_status': metadata.get('evidence_status'),
-                'investigation_plan': metadata.get('investigation_plan'),
                 'omitted_for_authorization': metadata.get('omitted_for_authorization'),
             })
         return history

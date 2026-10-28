@@ -6,7 +6,6 @@ Session utilities: reasoning_trace_logger.py and session_store.py.
 
 from .reasoning_trace_logger import (
     _logger,
-    MAX_HOPS_PER_QUESTION,
     ReasoningHop,
     ReasoningSummary,
     ReasoningTraceLogger,
@@ -22,7 +21,6 @@ from .session_store import (
 
 __all__ = [
     "_logger",
-    "MAX_HOPS_PER_QUESTION",
     "ReasoningHop",
     "ReasoningSummary",
     "ReasoningTraceLogger",

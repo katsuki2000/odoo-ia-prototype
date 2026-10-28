@@ -1,1 +1,0 @@
-Glue module to ensure compatibility between the `sale_product_configurator` and `web_widget_product_label_section_and_note` modules.

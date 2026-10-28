@@ -1,7 +1,7 @@
 """
 core/evidence/__init__.py
 
-Regroupement : evidence.py, evidence_check.py, evidence_collector.py, evidence_sufficiency.py.
+Regroupement : evidence.py, evidence_check.py, evidence_collector.py.
 """
 
 from .evidence import (
@@ -19,11 +19,6 @@ from .evidence_collector import (
     peek_turn_evidence,
     collect_and_clear_evidence,
 )
-from .evidence_sufficiency import (
-    EvidenceSufficiencyStatus,
-    EvidenceSufficiencyResult,
-    assess_evidence_sufficiency,
-)
 
 __all__ = [
     "EvidenceSourceType",
@@ -35,7 +30,4 @@ __all__ = [
     "record_evidence",
     "peek_turn_evidence",
     "collect_and_clear_evidence",
-    "EvidenceSufficiencyStatus",
-    "EvidenceSufficiencyResult",
-    "assess_evidence_sufficiency",
 ]

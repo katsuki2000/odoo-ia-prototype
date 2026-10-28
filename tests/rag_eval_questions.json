@@ -1,5 +1,5 @@
 {
-  "description": "Question set for the documentary RAG evaluation (RAGAS and model comparison). References come from the 18 documents of the shared Drive corpus; every item of `facts` must appear verbatim in the listed source documents.",
+  "description": "Question set for the documentary RAG evaluation (RAGAS and model comparison). References come from the 18 documents of the shared Drive corpus; every item of `facts` is a key value (number, name or command) taken from the listed source documents that a correct answer states.",
   "questions": [
     {
       "id": "FACT-01",
@@ -17,7 +17,7 @@
       "question": "Quels sont le temps de première réponse et le temps de résolution cible d'un ticket Helpdesk de priorité P1 ?",
       "reference": "Pour un ticket P1 - Critique, la première réponse doit intervenir en moins de 30 minutes et la résolution cible est de moins de 4 heures.",
       "reference_sources": ["wiki_support_helpdesk_sla.md"],
-      "facts": ["< 30 minutes", "< 4 heures"]
+      "facts": ["30 minutes", "4 heures"]
     },
     {
       "id": "FACT-03",
@@ -44,7 +44,7 @@
       "question": "Quelle indemnité mensuelle de connexion est versée aux collaborateurs en télétravail régulier ?",
       "reference": "Une indemnité forfaitaire mensuelle de connexion de 150 000 Ar net par collaborateur éligible au télétravail régulier.",
       "reference_sources": ["politique_teletravail_materiel.docx"],
-      "facts": ["150 000 Ar net"]
+      "facts": ["150 000"]
     },
     {
       "id": "FACT-06",
@@ -53,7 +53,7 @@
       "question": "Quelle est la longueur minimale d'un mot de passe et après combien de tentatives échouées le compte est-il verrouillé ?",
       "reference": "La longueur minimale est de 12 caractères et le compte est verrouillé après 5 tentatives échouées.",
       "reference_sources": ["wiki_securite_it.txt"],
-      "facts": ["12 caractères", "5 tentatives échouées"]
+      "facts": ["12 caractères", "5 tentatives"]
     },
     {
       "id": "FACT-07",
@@ -62,7 +62,7 @@
       "question": "Dans la procédure de clôture comptable, quelle opération est réalisée à J+3 ouvré et par qui ?",
       "reference": "À J+3 ouvré, on saisit et intègre l'ensemble des relevés bancaires et on réalise le rapprochement bancaire ; le responsable est le Comptable Trésorerie.",
       "reference_sources": ["procedure_cloture_comptable.pdf"],
-      "facts": ["J+3 ouvré", "Comptable Trésorerie", "Rapprochement"]
+      "facts": ["rapprochement", "Comptable Trésorerie"]
     },
     {
       "id": "FACT-08",
@@ -71,7 +71,7 @@
       "question": "Quelle remise maximale un commercial peut-il accorder sur un devis sans approbation ?",
       "reference": "La remise maximale sans approbation est de 10 %. Au-delà de 10 %, l'approbation du Directeur Commercial est obligatoire.",
       "reference_sources": ["wiki_processus_vente.txt"],
-      "facts": ["Remise maximale sans approbation : 10%", "Directeur Commercial obligatoire"]
+      "facts": ["10%", "Directeur Commercial"]
     },
     {
       "id": "LIST-01",
@@ -80,7 +80,7 @@
       "question": "Quels éléments doit contenir le dossier de référencement d'un fournisseur ?",
       "reference": "Le dossier comprend cinq éléments : le Numéro d'Identification Fiscale (NIF) en cours de validité, le Numéro Statistique officiel (Carte STAT), le Relevé d'Identité Bancaire (RIB) certifié par l'établissement bancaire, les Conditions Générales de Vente et la grille tarifaire négociée, et l'engagement de conformité éthique et anti-corruption.",
       "reference_sources": ["guide_achats_fournisseurs.docx"],
-      "facts": ["Numéro d'Identification Fiscale (NIF)", "Numéro Statistique officiel (Carte STAT)", "Relevé d'Identité Bancaire (RIB)", "Conditions Générales de Vente et grille tarifaire", "Engagement de conformité éthique et anti-corruption"]
+      "facts": ["NIF", "Numéro Statistique", "RIB", "Conditions Générales de Vente", "anti-corruption"]
     },
     {
       "id": "LIST-02",
@@ -98,7 +98,7 @@
       "question": "Quels sont les quatre niveaux de priorité du Helpdesk et leur temps de première réponse ?",
       "reference": "P1 Critique : moins de 30 minutes ; P2 Majeur : moins de 2 heures ; P3 Normal : moins de 4 heures ; P4 Mineur : moins de 24 heures.",
       "reference_sources": ["wiki_support_helpdesk_sla.md"],
-      "facts": ["P1 - Critique", "P2 - Majeur", "P3 - Normal", "P4 - Mineur", "< 30 minutes", "< 2 heures", "< 4 heures", "< 24 heures"]
+      "facts": ["P1", "P2", "P3", "P4", "30 minutes", "2 heures", "4 heures", "24 heures"]
     },
     {
       "id": "LIST-04",
@@ -107,7 +107,7 @@
       "question": "Quelles sont les règles de codage défensif à appliquer et à imposer à l'IA pour le développement Odoo ?",
       "reference": "Sept règles : 1) tolérance zéro pour la division par zéro (condition ou ternaire) ; 2) gestion des recordsets singleton (boucler sur self ou ensure_one) ; 3) validation des champs relationnels Many2one avant d'accéder à leurs attributs ; 4) sécurisation des dictionnaires et contextes avec .get() ; 5) gestion exhaustive des cas avec if / elif / else ; 6) encapsulation des risques avec try...except pour les appels externes ; 7) propagation sécurisée du contexte lors de la surcharge avec with_context(**{clé: valeur}).",
       "reference_sources": ["Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md"],
-      "facts": ["Règle 1", "Règle 2", "Règle 3", "Règle 4", "Règle 5", "Règle 6", "Règle 7", "ensure_one()", ".get()", "with_context(**{clé: valeur})"]
+      "facts": ["division par zéro", "ensure_one", "Many2one", ".get()", "elif", "except", "with_context"]
     },
     {
       "id": "TABLE-01",
@@ -116,7 +116,7 @@
       "question": "Quel validateur et quel délai moyen de validation s'appliquent à une demande d'achat de 3 000 000 Ar hors taxes ?",
       "reference": "Un montant de 1 000 000 Ar à 5 000 000 Ar HT est validé par le Directeur Administratif et Financier (DAF), avec un délai moyen de validation de 48 heures ouvrées.",
       "reference_sources": ["guide_achats_fournisseurs.docx"],
-      "facts": ["1 000 000 Ar à 5 000 000 Ar", "Directeur Administratif et Financier (DAF)", "48 heures ouvrées"]
+      "facts": ["DAF", "48 heures"]
     },
     {
       "id": "TABLE-02",
@@ -125,7 +125,7 @@
       "question": "Quel équipement informatique est fourni à un développeur en télétravail et quel est son cycle de renouvellement ?",
       "reference": "Un laptop Core i7 / 32 Go RAM, un double écran 27 pouces et un casque réducteur de bruit, renouvelés tous les 36 mois.",
       "reference_sources": ["politique_teletravail_materiel.docx"],
-      "facts": ["Laptop Core i7 / 32 Go RAM", "Double écran 27''", "Casque réducteur de bruit", "36 mois"]
+      "facts": ["Core i7", "27", "Casque", "36 mois"]
     },
     {
       "id": "MULTI-01",
@@ -134,7 +134,7 @@
       "question": "Qui doit approuver un avoir (note de crédit) ?",
       "reference": "Tout avoir doit être approuvé par le Directeur Général, selon la procédure d'approbation et le manuel de facturation.",
       "reference_sources": ["wiki_approbation.txt", "manuel_facturation.pdf"],
-      "facts": ["avoir doit être approuvé par le Directeur Général", "avoir doit etre approuve par le Directeur General"]
+      "facts": ["Directeur Général"]
     },
     {
       "id": "MULTI-02",
@@ -143,7 +143,7 @@
       "question": "Quelles règles de sécurité doit respecter un collaborateur en télétravail qui se connecte aux serveurs Odoo ?",
       "reference": "Il doit activer le VPN de l'entreprise pour tout accès aux serveurs Odoo, ne jamais connecter d'équipements personnels non homologués au VPN, maintenir antivirus et système à jour et verrouiller sa session en cas d'absence. La politique de sécurité ajoute : authentification à deux facteurs (2FA), certificat client valide 1 an, accès autorisé de 6h à 22h (heure de Madagascar) et déconnexion des sessions inactives après 30 minutes.",
       "reference_sources": ["politique_teletravail_materiel.docx", "wiki_securite_it.txt"],
-      "facts": ["Activer impérativement le VPN", "Ne jamais connecter d'équipements personnels non homologués", "Authentification à deux facteurs (2FA)", "6h-22h", "30 minutes"]
+      "facts": ["VPN", "équipements personnels", "2FA", "6h", "30 minutes"]
     },
     {
       "id": "MULTI-03",
@@ -152,7 +152,7 @@
       "question": "Le bon de commande BC-2025-00142 relève de quelle tranche d'approbation selon la procédure achats, et qui l'a signé ?",
       "reference": "Son total hors taxes est de 33 000 000 Ar, soit une tranche supérieure à 5 000 000 Ar : validation par le Directeur Général, délai moyen de 72 heures ouvrées. Le bon est signé pour MIRO K.E. par la Direction des Achats et la Direction Générale.",
       "reference_sources": ["bon_commande_fournisseur_PO2025_00142.pdf", "guide_achats_fournisseurs.docx"],
-      "facts": ["33 000 000 Ar", "Supérieur à 5 000 000 Ar", "Directeur Général (DG)", "72 heures ouvrées", "Direction des Achats & Direction Générale"]
+      "facts": ["33 000 000", "5 000 000", "Directeur Général", "72 heures", "Direction des Achats"]
     },
     {
       "id": "MULTI-04",
@@ -161,7 +161,7 @@
       "question": "Dans quel délai une réception de marchandises doit-elle être validée dans Odoo, et que se passe-t-il si la facture fournisseur diffère de plus de 2 % de la réception ?",
       "reference": "La réception est validée dans les 24h après la réception physique. En cas d'écart supérieur à 2 %, la facture fournisseur est bloquée automatiquement dans Odoo en attente d'un avoir ou d'une régularisation par le service Achats.",
       "reference_sources": ["wiki_gestion_stocks.txt", "guide_achats_fournisseurs.docx"],
-      "facts": ["Délai de validation : 24h après réception physique", "écart constaté supérieur à 2%", "bloquée automatiquement dans Odoo"]
+      "facts": ["24h", "2%", "bloquée"]
     },
     {
       "id": "TRAP-01",

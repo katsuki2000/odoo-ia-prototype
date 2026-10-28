@@ -16,7 +16,7 @@ from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
 from core.routing.routing import route, route_decision
 from document_rag.generate_node import generate
-from erp_data.orm_agent_node import hybrid_node, orm_agent_loop
+from erp_data.orm_agent_node import orm_agent_loop
 from core.graph.graph_nodes import out_of_scope_gate, out_of_scope_decision, retrieve, format_output
 from core.graph.verify_node import verify_answer
 from core.evidence.disclosure import filter_disclosed_evidence
@@ -40,7 +40,6 @@ def build_graph() -> StateGraph:
     workflow.add_node('route', route)
     workflow.add_node('generate', generate)
     workflow.add_node('orm_agent_loop', orm_agent_loop)
-    workflow.add_node('hybrid_node', hybrid_node)
     workflow.add_node('verify_answer', verify_answer)
     workflow.add_node('format_output', format_output)
     workflow.add_edge(START, 'out_of_scope_gate')
@@ -51,13 +50,10 @@ def build_graph() -> StateGraph:
         'source_clarification': 'format_output',
         QueryRoute.DOCUMENTARY.value: 'retrieve',
         QueryRoute.ERP_DATA.value: 'orm_agent_loop',
-        QueryRoute.HYBRID.value: 'hybrid_node',
-        QueryRoute.CODE_INTELLIGENCE.value: 'orm_agent_loop',
     })
     workflow.add_edge('retrieve', 'generate')
     workflow.add_edge('generate', 'verify_answer')
     workflow.add_edge('orm_agent_loop', 'verify_answer')
-    workflow.add_edge('hybrid_node', 'verify_answer')
     workflow.add_edge('verify_answer', 'format_output')
     workflow.add_edge('format_output', END)
     return workflow.compile()
@@ -101,7 +97,7 @@ def query_graph(
             'question': question, 'chat_history': chat_history, 'uid': uid, 'skills': skills,
             'timing': {}, 'retrieved_chunks': [], 'raw_answer': '', 'route': None, 'response': None,
             'user_groups': user_groups, 'user_groups_complete': user_groups_complete,
-            'last_route': last_route, 'investigation_plan': None,
+            'last_route': last_route,
             'source_mode': source_mode, 'language': language,
         }
         logger.info("Invoking graph for question: '%s'", question)

@@ -1,0 +1,5 @@
+scripts/check_graph_integrity.py
+scripts/check_j34_35_e2e.py
+scripts/replay_q1_2_vip.py
+scripts/run_adversarial_benchmark.py
+# Importent un nom code_intelligence_agent qui n'existe plus dans core.graph.graph, ou chargent des fichiers de code_intelligence/ par chemin : inutilisables sans Code Intelligence, mais absents de la classification de la 1620 (31 scripts).
