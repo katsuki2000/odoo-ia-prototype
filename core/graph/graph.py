@@ -5,10 +5,7 @@ import logging
 import os
 import sys
 import time
-from typing import List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from code_intelligence.agent.resolution.matching import ResolvedConcept
+from typing import List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -19,9 +16,10 @@ from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
 from core.routing.routing import route, route_decision
 from document_rag.generate_node import generate
-from code_intelligence.agent.loop import code_intelligence_agent
+from erp_data.orm_agent_node import hybrid_node, orm_agent_loop
 from core.graph.graph_nodes import out_of_scope_gate, out_of_scope_decision, retrieve, format_output
 from core.graph.verify_node import verify_answer
+from core.evidence.disclosure import filter_disclosed_evidence
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 import core.graph.graph_compat as _graph_compat
 from core.graph.graph_compat import *
@@ -41,7 +39,8 @@ def build_graph() -> StateGraph:
     workflow.add_node('retrieve', retrieve)
     workflow.add_node('route', route)
     workflow.add_node('generate', generate)
-    workflow.add_node('code_intelligence_agent', code_intelligence_agent)
+    workflow.add_node('orm_agent_loop', orm_agent_loop)
+    workflow.add_node('hybrid_node', hybrid_node)
     workflow.add_node('verify_answer', verify_answer)
     workflow.add_node('format_output', format_output)
     workflow.add_edge(START, 'out_of_scope_gate')
@@ -51,13 +50,14 @@ def build_graph() -> StateGraph:
     workflow.add_conditional_edges('route', route_decision, {
         'source_clarification': 'format_output',
         QueryRoute.DOCUMENTARY.value: 'retrieve',
-        QueryRoute.ERP_DATA.value: 'code_intelligence_agent',
-        QueryRoute.HYBRID.value: 'code_intelligence_agent',
-        QueryRoute.CODE_INTELLIGENCE.value: 'code_intelligence_agent',
+        QueryRoute.ERP_DATA.value: 'orm_agent_loop',
+        QueryRoute.HYBRID.value: 'hybrid_node',
+        QueryRoute.CODE_INTELLIGENCE.value: 'orm_agent_loop',
     })
     workflow.add_edge('retrieve', 'generate')
     workflow.add_edge('generate', 'verify_answer')
-    workflow.add_edge('code_intelligence_agent', 'verify_answer')
+    workflow.add_edge('orm_agent_loop', 'verify_answer')
+    workflow.add_edge('hybrid_node', 'verify_answer')
     workflow.add_edge('verify_answer', 'format_output')
     workflow.add_edge('format_output', END)
     return workflow.compile()
@@ -110,7 +110,6 @@ def query_graph(
         timing['total_time'] = time.time() - start_time
         logger.info(json.dumps({'event': 'request_latency', 'metrics': timing}))
         response = final_state['response']
-        from code_intelligence.rules.security_locks import filter_disclosed_evidence
         response.evidence_dossier = filter_disclosed_evidence(
             collect_and_clear_evidence(), final_state.get('sensitive_evidence_allowed', False))
         return response

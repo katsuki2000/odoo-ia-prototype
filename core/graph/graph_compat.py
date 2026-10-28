@@ -83,22 +83,4 @@ from erp_data.orm_agent_node import (
     hybrid_node,
 )
 
-from code_intelligence.graph.loader import (
-    _CACHED_CODE_INTEL_GRAPH,
-    _CACHED_GRAPH_MTIME,
-    GRAPH_JSON_PATH,
-    _load_module,
-    get_code_intelligence_graph,
-)
-
-from code_intelligence.agent.context import CI_MAX_HOPS
-from code_intelligence.agent.context import (
-    _GROUP_XMLID_CACHE,
-    _ADMIN_RPC_CLIENT,
-    _ADMIN_RPC_UID,
-    _get_admin_rpc_client,
-    _resolve_user_group_xmlids,
-)
-from code_intelligence.agent.loop import code_intelligence_agent
-
 __all__ = [k for k in globals().keys() if not k.startswith("__")]

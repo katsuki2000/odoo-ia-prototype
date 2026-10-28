@@ -3,11 +3,11 @@ import re
 from collections import Counter
 from typing import Dict, List, Tuple
 
-from code_intelligence.rules.common import expand_to_sentence_bounds
 from core.verification.checkers import CHECKERS
 from core.verification.claims import ClaimType, UnsupportedClaim, VerificationReport, VerifierMode
 from core.verification.context import VerificationContext
 from core.verification.extractors import SOURCE_FOOTER_RE, SYSTEM_BLOCK_RE, Claim, extract_claims
+from core.verification.sentence_bounds import expand_to_sentence_bounds
 
 logger = logging.getLogger(__name__)
 
