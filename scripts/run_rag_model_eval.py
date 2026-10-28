@@ -23,12 +23,8 @@ Ollama context length; raw answers are retained for qualitative review.
 
 import argparse
 import json
-import math
-import re
-import statistics
 import sys
 import time
-import unicodedata
 from pathlib import Path
 
 import requests
@@ -37,26 +33,17 @@ projectRoot = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(projectRoot))
 
 from core.evaluation import run_store as runStore
-from core.evaluation.ollama_server import model_override, prepare_server, set_keep_alive
-from core.evaluation.preflight import BackendUnavailable, require_backends
+from core.evaluation.bench_common import (
+    contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, run_on_model, seconds_text,
+)
+from core.evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
 from document_rag.generate_node import generate
 
 QUESTIONS_PATH = projectRoot / 'tests' / 'rag_eval_questions.json'
 CONTEXTS_PATH = projectRoot / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = projectRoot / 'captures' / 'rag_model_eval.jsonl'
-MAX_CONSECUTIVE_ERRORS = 3
 GENERATION_ERROR_PREFIX = 'Désolé, une erreur'
-
-
-def _fold_accents(text):
-    """Strip diacritics (NFD, combining marks removed)."""
-    return "".join(ch for ch in unicodedata.normalize("NFD", text) if unicodedata.category(ch) != "Mn")
-
-
-def normalize(text):
-    """Case, accent, whitespace and markdown-emphasis insensitive form used to find a fact in an answer."""
-    return re.sub(r'[\s*`]+', '', _fold_accents(text.casefold()).replace('’', "'"))
 
 
 ABSTENTION_MARKERS = tuple(normalize(marker) for marker in (
@@ -86,14 +73,6 @@ def load_contexts(questions, refresh):
     return {item['id']: cached[item['id']]['chunks'] for item in questions}
 
 
-def contains_fact(foldedAnswer, fact):
-    """A normalized fact occurs in the answer; a number is never matched inside a longer one (4 heures vs 24 heures)."""
-    needle = re.escape(normalize(fact))
-    before = r'(?<!\d)' if needle[0].isdigit() else ''
-    after = r'(?!\d)' if needle[-1].isdigit() else ''
-    return re.search(before + needle + after, foldedAnswer) is not None
-
-
 def score(item, answer, citedSources):
     folded = normalize(answer)
     facts, references = item['facts'], item['reference_sources']
@@ -106,22 +85,8 @@ def score(item, answer, citedSources):
 
 def load_scored_runs():
     """Recorded runs, scores recomputed from the stored answers with the current question set."""
-    runs = runStore.load_runs(RESULTS_PATH)
-    questionsById = {item['id']: item for item in load_questions(None)}
-    for record in runs.values():
-        item = questionsById.get(record['question_id'])
-        if item and not record['error']:
-            record.update(score(item, record['answer'], record['cited_sources']))
-    return runs
-
-
-def require_context_length(serverInfo, expected):
-    actual = serverInfo.get('context_length')
-    if actual != expected:
-        raise BackendUnavailable(
-            f'Expected Ollama context length {expected}, got {actual!r}; '
-            'set OLLAMA_CONTEXT_LENGTH consistently before comparing models.'
-        )
+    return rescore_runs(runStore.load_runs(RESULTS_PATH), load_questions(None),
+                        lambda item, record: score(item, record['answer'], record['cited_sources']))
 
 
 def run_once(item, chunks):
@@ -160,33 +125,21 @@ def describe(record):
 
 def execute(todo, runs, model, serverInfo, chunksById):
     """Run the pending questions, appending each result. Returns False when the backend looks down."""
-    consecutiveErrors = 0
-    for number, (item, passNumber) in enumerate(todo, 1):
-        record = {
+    def build_record(item, passNumber):
+        return {
             'model': model, 'question_id': item['id'], 'pass_number': passNumber,
             'category': item['category'], 'answerable': item['answerable'],
             **serverInfo, **run_once(item, chunksById[item['id']]),
         }
-        runStore.append_run(RESULTS_PATH, record)
-        runs[runStore.run_key(record)] = record
-        print(f'[{number}/{len(todo)}] {item["id"]} pass {passNumber}: {describe(record)} ({record["seconds"]}s)', flush=True)
-        consecutiveErrors = consecutiveErrors + 1 if record['error'] else 0
-        if consecutiveErrors >= MAX_CONSECUTIVE_ERRORS:
-            print(f'{consecutiveErrors} consecutive generation errors: the backend looks down. '
-                  'Restore it, then rerun with --retry-errors.')
-            return False
-    return True
 
-
-def mean(values):
-    return statistics.mean(values) if values else None
+    return execute_runs(todo, runs, RESULTS_PATH, build_record, describe)
 
 
 def model_stats(records):
     valid = [record for record in records if not record['error']]
     answerable = [record for record in valid if record['answerable']]
     unanswerable = [record for record in valid if not record['answerable']]
-    seconds = sorted(record['seconds'] for record in valid)
+    p50, p90 = latency_percentiles([record['seconds'] for record in valid])
     return {
         'runs': len(records),
         'errors': len(records) - len(valid),
@@ -198,18 +151,10 @@ def model_stats(records):
         'structured_failed': mean([record['structured_failed'] for record in valid]),
         'confidence': mean([record['confidence'] for record in valid if record.get('confidence') is not None]),
         'answer_chars': mean([record.get('answer_chars', len(record.get('answer', ''))) for record in valid]),
-        'p50': statistics.median(seconds) if seconds else None,
-        'p90': seconds[math.ceil(0.9 * len(seconds)) - 1] if seconds else None,
+        'p50': p50,
+        'p90': p90,
         'vram': min((record['vram_fraction'] for record in records if record.get('vram_fraction') is not None), default=None),
     }
-
-
-def pct(value):
-    return 'n/a' if value is None else f'{value:.0%}'
-
-
-def seconds_text(value):
-    return 'n/a' if value is None else f'{value:.0f}'
 
 
 def question_cell(rows):
@@ -286,24 +231,13 @@ def main():
 
     try:
         chunksById = load_contexts(questions, args.refresh_contexts)
-        serverInfo = prepare_server(args.model)
     except (BackendUnavailable, requests.RequestException) as error:
         print(f'[SKIP] {error}')
         return 2
-    print(f'{args.model} loaded: {serverInfo}')
-    finished = False
-    try:
-        require_context_length(serverInfo, args.context_length)
-        with model_override(args.model):
-            require_backends()
-            finished = execute(todo, runs, args.model, serverInfo, chunksById)
-    except BackendUnavailable as error:
-        print(f'[SKIP] Backend unavailable, no run started: {error}')
-    finally:
-        if not args.keep_loaded:
-            set_keep_alive(args.model, 0)
+    exitCode = run_on_model(args.model, args.context_length, args.keep_loaded,
+                            lambda serverInfo: execute(todo, runs, args.model, serverInfo, chunksById))
     print_report(runs)
-    return 0 if finished else 3
+    return exitCode
 
 
 if __name__ == '__main__':

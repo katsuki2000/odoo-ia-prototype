@@ -5220,3 +5220,120 @@ Date : 28/10/2026. Dernier numéro lu avant écriture : 1637 (suite). **Mandat (
 
 Date : 28/10/2026. Dernier numéro lu avant écriture : 1637 (suite 2). **Sortie collée par pmm (EC2)** : `/` 48 Go, 6,8 Go utilisés (15 %) ; `/mnt/nvme` (`/dev/nvme1n1`) 412 Go, 59 Go utilisés, 332 Go libres, bien monté ; `OLLAMA_MODELS=/mnt/nvme/ollama` ; `ollama list` : `qwen3:30b-a3b` 18 Go, `qwen3:8b` 5,2 Go, `mistral-small3.2:24b` 15 Go, `gpt-oss:20b` 13 Go, `bge-m3` 1,2 Go, `qwen3:14b` 9,3 Go. Le NVMe n'a pas été vidé (modèles de la veille et de 6 jours présents) ; les tailles de poids confirment les estimations de la 1637.
 **Suite** : pmm lance le script de mesure VRAM (1637 suite) ; résultats à coller en section 1638. Aucun fichier de code modifié ; aucun commit.
+
+
+## Section 1637 (suite 4) : banc ERP : plan de `scripts/run_erp_model_eval.py` et factorisation des deux bancs (plan, journal avant code, 28/10/2026)
+
+Date : 28/10/2026, branche `memoire-final`. Dernier numéro lu avant écriture : 1637 (suite 3). Sauvegardes : `.scratch/avant_1637s4/` (`contexte.txt`, `run_rag_model_eval.py`, `test_rag_model_eval.py`). **Mandat (pmm)** : « oui vas y » (point 2 du plan 1637 : banc de tool calling de la branche ERP).
+**Constats (code lu)** : (1) `erp_data/orm_agent_node.py` importe par nom `execute_tool_call` et `_invoke_with_rate_limit` : les remplacer pendant le run enregistre les appels d'outils et les exceptions LLM sans toucher au code de production. Observations d'échec d'un appel : « ORM operation '...' failed or was refused » (arguments invalides ou exception de l'outil), « ORM read refused: » (`OrmRuntimeError`), « Tool '...' is not available. » (nom inconnu). (2) `orm_agent_loop(state)` est appelable seule ; `query_graph` ajouterait routage et vérification de réponse (autres appels LLM) : le banc appelle la boucle, comme le banc RAG appelle `generate`. L'identité Odoo passe par les ContextVars `odoo_uid_ctx` et `odoo_api_key_ctx` (comme `query_graph`) ; login et mot de passe comme `erp_data/tests/test_erp_accuracy.py` (`manager@miro.com`, `ODOO_MANAGER_PASSWORD`). (3) La boucle est plafonnée à `REACT_RECURSION_LIMIT` (6) et avale les exceptions LLM (réponse de repli « Je n'ai pas de données disponibles ») : seul un enregistrement de l'appel LLM les montre. (4) 15 questions `erp_chiffre` dans `tests/benchmark_questions.json` avec `expected_answer_contains` ; `contains_fact` du banc RAG (frontière de chiffre) convient. (5) Un second banc dupliquerait `normalize`, `contains_fact`, `mean`, `pct`, les centiles, `require_context_length`, la boucle d'exécution (arrêt après trois erreurs) et le cycle chargement / décharge du modèle.
+**Plan** : (1) `core/evaluation/bench_common.py` (nouveau) : ces éléments déplacés tels quels depuis `run_rag_model_eval.py`, qui les importe (`execute` garde sa signature) ; `test_rag_model_eval.py` : une seule référence change (`MAX_CONSECUTIVE_ERRORS`). (2) `scripts/run_erp_model_eval.py` (nouveau, même options que le banc RAG : `--model`, `--ids`, `--passes` 3, `--context-length`, `--retry-errors`, `--fresh`, `--keep-loaded`, `--report`) : les questions `erp_chiffre` passées à `orm_agent_loop` sous `model_override`, résultats dans `captures/erp_model_eval.jsonl`. Mesures par question, sans juge LLM : `fact_recall` et `complete` (valeurs de `expected_answer_contains`), appels d'outils (`ok`, `invalid` = échec ou refus, `unknown` = outil inexistant), `no_tool` (réponse sans aucun appel d'outil : chiffre non lu dans Odoo), sauts, appels LLM, durée ; un dépassement du délai de 90 s est `timed_out` (modèle trop lent, compté comme en production, pas une erreur) ; une autre erreur de connexion est `error` (serveur absent, arrêt après trois de suite). Les réponses sont conservées pour lecture. (3) `tests/test_erp_model_eval.py` hermétique (classement des appels, enregistrement, score, reprise, statistiques).
+**Hors périmètre** : agent et outils (non modifiés), test de concurrence, RAGAS, tout commit. **À lancer par pmm** (instance Odoo et Ollama requis, pas pendant la mesure VRAM : `prepare_server` décharge les autres modèles). Le changement non commité de `erp_data/runtime/read_tools.py` n'est pas de moi et n'est pas touché.
+
+
+## Section 1637 (suite 5) : état trouvé à la reprise et choix de conception du banc ERP (journal avant code, 28/10/2026)
+
+Date : 28/10/2026, branche `memoire-final`. Dernier numéro lu avant écriture : 1637 (suite 4). Sauvegardes : `.scratch/contexte.avant_1637s5.txt`, `.scratch/avant_1637s4/`. **Mandat (pmm)** : « lis contexte [...] il me reste la comparaison mesurée des modèles qui me permettra de justifier le choix de qwen, sinon un autre modèle s'il fait déjà l'affaire, après ça on lance RAGAS » (suite du plan 1637 suite 4, déjà accepté : « oui vas y »).
+**État vérifié** : `core/evaluation/bench_common.py` existe, non suivi, écrit à 15:56 après la dernière écriture du journal (15:55) : étape (1) de la 1637 (suite 4) commencée par la session interrompue et jamais journalisée ; relu, conforme au plan (helpers, `execute_runs`, `run_on_model`). `scripts/run_rag_model_eval.py` pas encore modifié ; `scripts/run_erp_model_eval.py` et `tests/test_erp_model_eval.py` absents. Aucune autre session active (aucun processus de test, dernière écriture 7 minutes avant). Changements non commités qui ne sont pas de moi, non touchés : `erp_data/runtime/read_tools.py`, suppression de `scripts/clean_demo_data.py` et `scripts/full_setup.py`. Mesure VRAM de pmm (section 1638) : aucun résultat collé à ce jour.
+**Choix de conception ajoutés au plan** : (a) les tests du code partagé (normalisation, frontière de chiffre, longueur de contexte, arrêt après trois erreurs, centiles) vont dans `tests/test_bench_common.py`, `test_rag_model_eval.py` ne garde que ce qui est propre au banc RAG ; (b) le banc ERP remplace `ReasoningTraceLogger` du module de l'agent par un double : 15 questions x 3 passes x 5 modèles ne polluent pas `captures/reasoning_trace.jsonl`, source du rapport de budget ; (c) sonde de démarrage limitée au LLM (le banc ERP n'embarque rien) ; authentification Odoo avant le chargement du modèle (login `--login`, défaut `manager@miro.com`, mot de passe `ODOO_MANAGER_PASSWORD`, comme `erp_data/tests/test_erp_accuracy.py`) ; (d) limite de la mesure : `expected_answer_contains` mêle valeurs et mots de la question (« en cours », « résolu », « Société Dupont ») ; `complete` (tous les faits) exige le chiffre, `fact_recall` est gonflé par les mots repris de la question ; la lecture des réponses conservées et RAGAS tranchent.
+**Hors périmètre** : agent et outils, test de concurrence, RAGAS, tout commit.
+
+
+
+
+
+
+à traiter :
+
+**1. Le point le plus important : un verrou sérialise tous les appels LLM**
+- `core/llm/llm_client.py::invoke_with_rate_limit` tient `_llm_call_lock` pendant `llm.invoke`, et pendant les `sleep` de retry. Deux requêtes simultanées passent donc l'une après l'autre.
+- `OLLAMA_NUM_PARALLEL=3` ne servirait à rien, et le test de concurrence prévu en 1637 mesurerait un artefact.
+- L'espacement entre appels est mort : `MIN_LLM_CALL_INTERVAL = 0.0`.
+- Le paramètre `rebuild_llm`, passé par `orm_agent_node`, n'est jamais lu.
+- La logique restante vient d'un autre fournisseur : en-têtes `x-ratelimit-reset-*`, `tool_use_failed`, `<function=...>`, rotation de clé. Elle se retrouve dans `llm_retry.py` (133 lignes) et dans `recover_malformed_tool_call` (`orm_agent_helpers.py`).
+- Proposition : retirer le verrou, garder au plus un retry sur erreur de connexion, supprimer le reste. Je ne sais pas si l'un de ces chemins s'est déjà déclenché sur Ollama. Le banc ERP le montrera.
+
+**2. Code mort laissé par le retrait de Code Intelligence** (environ 700 lignes)
+- `core/output.py` (186 lignes) : aucun consommateur en production. Sa docstring cite des analyseurs qui n'existent plus.
+- `core/evaluation/` : `protocol_report`, `resolution_score` et `synthesis_metrics` n'ont aucun importeur. `case_worker` n'est utilisé que par son test. `expected_models` ne sert qu'à `scripts/score_audit_exactness.py`.
+- Les banques de questions `native_n1`, `custom_b9` et `oca_p3_1` ne servent qu'à ces tests (`oca_p3_1` n'est référencée nulle part).
+- `scripts/check_graph_integrity.py` pointe vers `code_intelligence/`, qui n'existe plus.
+- `scripts/sql/rename_modules_1558.sql` est une migration ponctuelle.
+- `.env.example` cite `BENCH_ODOO_*` et `scripts/run_agent_variants_bench.py`, inexistants.
+- Les commentaires de `.gitignore` et la docstring de `document_rag/__init__.py` mentionnent encore `code_intelligence`.
+- `semgrep` est dans `requirements.txt` mais aucun code ne l'utilise.
+- Fonctions jamais appelées : `chroma_helpers.query_collection`, `search.quick_retrieve`, le wrapper `_is_supported_source` du watcher. `set_connector_for_tests` est dans le module de production `read_tools.py`.
+
+**3. Plomberie sans effet dans le pipeline**
+- `skills`, `user_groups` et `user_groups_complete` traversent l'API, `query_graph` et l'état, mais aucun nœud ne les lit. `resolve_orm_tools(_skills)` ignore son argument.
+- `sensitive_evidence_allowed` n'est écrit nulle part : le drapeau vaut toujours `False`.
+- `config/odoo_credentials.py` accepte deux noms par variable (`ODOO_ADMIN_PASSWORD` ou `ODOO_PASSWORD`, `ODOO_ADMIN_LOGIN` ou `ODOO_USERNAME`). Un seul suffit.
+- Les `6` heures de l'intervalle du scheduler sont écrites deux fois dans `api/main.py` au lieu d'une constante de `settings.py`.
+
+**4. Shim de compatibilité et chemins**
+- `core/graph/graph_compat.py` réexporte des dizaines de noms privés pour deux ou trois tests. `graph.py` et `__init__.py` ajoutent un `__getattr__` pour le même usage. Les tests peuvent importer les vrais modules, puis le shim disparaît.
+- `sys.path.insert` dans `api/main.py` et `core/graph/graph.py`, alors que `pytest.ini` et un lancement depuis la racine suffisent. C'est aussi un « marche sur ma machine » au sens de `rules.md`.
+- Imports inutiles dans `api/main.py` (4), `ingest_all.py`, `chroma_manager.py` et `llm_client.py`. Certains d'`api/main.py` servent peut-être au patch des tests, à vérifier avant de les retirer.
+
+**5. Duplication et lisibilité**
+- `orm_agent_node.py` (une fonction d'environ 140 lignes) :
+  - `is_out_of_scope` est déjà testé par le nœud `out_of_scope_gate`, puis à nouveau dans la boucle ;
+  - le bloc `log_hop` est écrit deux fois ;
+  - `_tool_llm_box` n'a plus d'utilité sans `rebuild_llm` ;
+  - la confiance `0.9 / 0.5` est codée en dur.
+  - Je l'éclaterais en trois petites fonctions, après avoir fusionné les trois refus (hors périmètre, injection, extraction massive) dans un seul nœud de garde.
+- Google Drive : `synchronize_google_drive` enveloppe `ingest_google_drive`, et seul le CLI les utilise. `google_drive*.py`, `config/google_drive.py` et `run_rag_model_eval.py` sont en camelCase, le reste du projet en snake_case. `rules.md` demande une seule convention.
+
+**6. Hygiène du dépôt**
+- 486 fichiers de `.scratch/` (134 Mo, sauvegardes `avant_XXXX` comprises) sont suivis par git.
+- 8 sauvegardes `MASTER_ENI*.docx` sont suivies dans `todo/`.
+- Proposition : `.gitignore` plus `git rm --cached`. Les fichiers restent sur le disque.
+
+
+
+
+
+**7. Routes API héritées, dont une cassée (ajout du 28/10/2026, lecture seule, rien modifié)**
+- `POST /reindex` (`api/routes_ingestion.py`) importe `load_all` depuis `document_rag/ingestion/pdf_loader.py`, qui n'existe plus : `ImportError` à chaque appel. Elle viserait aussi la collection `miro_knowledge_base` (défaut de `chroma_helpers.py`) et non la collection active. `POST /api/v1/reindex` fait déjà le travail. Proposition : supprimer la route et `ReindexResponse`.
+- `GET /stats` (`api/routes_system.py`) lit `get_or_create_collection(client)` avec ce même nom par défaut : à vérifier, probablement pas la collection active. Remplacer par `ChromaManager().get_stats()` (déjà utilisé par `reindex_v1`) et la versionner en `/api/v1/stats`, ou la retirer.
+- Les fonctions de module de `chroma_manager.py` / `chroma_helpers.py` (`get_chroma_client`, `get_or_create_collection`, `reset_collection`, `get_collection_stats`, `add_documents`) doublent la classe `ChromaManager`. Après les deux retraits ci-dessus, seul `/api/v1/health` utilise encore `get_chroma_client` : le migrer, puis supprimer la seconde API.
+- `GET /api/v1/modules` : listes `supported` et `code_indexed` écrites en dur (`sale`, `account`, `helpdesk`, `project`, `stock`, `base`), reliquat de Code Intelligence ; faux sur toute autre instance Odoo 17 (règle de `rules.md`) et aucun consommateur dans `odoo_addons`. Proposition : retirer la route et `ModuleCoverageResponse`.
+
+**8. Doublons dans l'ingestion du RAG (`document_rag/ingestion/`)**
+- Formats pris en charge écrits deux fois : `file_formats.py` (`SUPPORTED_EXTENSIONS`, `is_supported_document`) et `google_drive.py` (`SUPPORTED_SUFFIXES`, préfixe `~$`). Le client Drive doit utiliser `file_formats.py`. `incremental._is_supported_file` n'est lui aussi qu'un wrapper (comme celui du watcher déjà noté).
+- Deux boucles périodiques indépendantes : `google_drive_sync.run_periodic_sync` (thread + `Event`) et `scheduler.PeriodicScanScheduler` (asyncio). Les blocs `status_dict["scheduler_status"]` sont répétés dans `start` et `stop`. Un seul mécanisme de planification suffirait.
+- Quatre points d'entrée de réindexation (`IngestionOrchestrator`, `reindex_if_changed`, watcher, synchronisation Drive) sans interface commune : à cartographier avant de toucher, c'est le plus gros chantier de ce point.
+- `watcher.py` (275 lignes) et `wiki_loader.py` (322 lignes, au-dessus de la limite de 300 lignes) ; `erp_data/runtime/read_tools.py` (380 lignes) aussi, mais il a un changement non commité qui n'est pas de moi : à ne pas toucher avant son commit.
+
+**9. Plomberie et code mort supplémentaires**
+- `core/evidence/evidence_check.py` (`check_evidence`, 5 lignes) : aucun appelant, seulement ré-exporté par `core/evidence/__init__.py`, dont la docstring (« Regroupement : ... ») est périmée. Supprimer les deux.
+- `omitted_for_authorization` traverse `core/schemas.py`, `api/routes_ask.py`, `api/schemas.py`, le contrôleur Odoo, `miro_ai_log.py` et `miro_ai.js`, mais aucun code de production ne construit `OmittedForAuthorization` (le nom n'apparaît qu'à sa définition) : la liste est toujours vide. Même famille que le point 3. Avant retrait, vérifier la colonne côté `miro.ai.log` (migration du module).
+- Convention de nommage : en plus de `google_drive*.py`, des paramètres et variables en camelCase (`folderIds`, `chunkIds`, `intervalSeconds`, `stopEvent`, `turnEvidence`) dans `google_drive_sync.py`, `google_drive.py`, `config/google_drive.py`, `drive_guard.py`, `google_drive_cli.py`, `chroma_manager.py`, `routes_system.py` et `core/graph/verify_node.py` ; à passer en snake_case en même temps que les noms de fichiers.
+- Lectures de l'environnement hors `config/settings.py` : `api/auth.py` (`JWT_SECRET`), `config/google_drive.py`, `config/odoo_credentials.py`, `erp_data/odoo_connector.py` (`ODOO_URL`, `ODOO_DB`, et `ODOO_ALLOWED_MODELS` qui est un comportement, pas un réglage de poste : constante de `settings.py` selon la règle). `GOOGLE_DRIVE_APPROVED_FOR_RAG` est dans le même cas à trancher (drapeau d'autorisation volontairement explicite ?). Regrouper les lectures dans `settings.py`.
+- `api/routes_ingestion.py` : constante `batch_size = 50` et nom de collection écrits dans la fonction ; `ingest_handlers_doc.py`, `incremental.py`, `chroma_manager.py` : 4 `except Exception` chacun, à resserrer.
+
+**Ordre proposé (à valider)** : 7 d'abord (une route cassée et du code mort sans risque), puis 9 (suppressions), puis 8 (plus gros, demande une cartographie), le tout après les points 1 à 6 ci-dessus. Aucun commit.
+
+
+## Section 1638 : script de mesure VRAM ecrit, transfert sur EC2 echoue (28/10/2026)
+
+Date : 28/10/2026, branche `memoire-final`. Dernier numero lu avant ecriture : 1637 (suite 5).
+**Mandat (pmm)** : « on a qu'a relancer le banc » (mesure VRAM de la 1637, resultats du premier run non exploitables).
+**Constat** : le premier run (ce matin, 00:00 a 12:28 UTC) a produit `/tmp/journal_vram.txt` (10 Mo) mais sans sortie structuree ; les lignes de `head -60` montraient un crash-loop d'Ollama (redemarrage toutes les 3 s) correspondant a l'historique d'hier soir (disque racine plein) ; le `tail -60` et `journalctl -n 50` confirment que le script a tourne normalement entre 11:50 et 12:28 UTC et qu'Ollama est sain depuis (PID 8480, GPU CUDA compute 8.9, 21.8 GiB disponibles, `override.conf` seul, `OLLAMA_NUM_PARALLEL:1`, `OLLAMA_CONTEXT_LENGTH:32768`). Les donnees du premier run (couches dechargees par modele et configuration) etaient lisibles dans le journal mais sans `/api/ps` ni `nvidia-smi` enregistres.
+**Fait** : `scripts/measure_vram.sh` (nouveau, 218 lignes) : script bash complet avec sortie CSV (`/tmp/vram_results.csv`), verdict automatique PASS/FAIL (3 regles : `size_vram < size`, GPU > 22 Go, `bge-m3` expulse du GPU), `trap` de restauration du baseline systemd en cas d'interruption. Copie dans `todo/measure_vram_ec2.md` et `todo/paste_etape1.txt` (heredoc brut sans markdown) + `todo/paste_etape2.txt` (commande de lancement).
+**Echec du transfert** : le heredoc colle sur le terminal EC2 produit un fichier vide (`wc -l` = 0) ; cause probable : caracteres invisibles ou troncature du presse-papier lors du collage d'un bloc de 218 lignes. Le script n'a donc pas tourne.
+**Non fait** : mesure VRAM effective ; `scripts/run_erp_model_eval.py` ; RAGAS ; aucun commit.
+**A faire par pmm** : transferer `scripts/measure_vram.sh` sur l'EC2 par `scp` (depuis la machine Debian locale, en renseignant l'IP publique de l'instance) puis `sudo bash /tmp/measure_vram.sh 2>&1 | tee /tmp/vram_results.txt` ; coller `cat /tmp/vram_results.csv` dans la prochaine session.
+**Fichiers crees** : `scripts/measure_vram.sh`, `todo/measure_vram_ec2.md`, `todo/paste_etape1.txt`, `todo/paste_etape2.txt`, `todo/contexte.txt` (cette section).
+
+
+
+Pour la prochaine fois, le plus fiable sera de
+  transferer depuis ta machine Debian :                
+  
+    scp scripts/measure_vram.sh
+    ubuntu@<IP_PUBLIQUE_EC2>:/tmp/measure_vram.sh
+                                                       
+  Puis sur l'EC2 : sudo bash /tmp/measure_vram.sh 2>&1
+  | tee /tmp/vram_results.txt
+
+──────────────────────────────

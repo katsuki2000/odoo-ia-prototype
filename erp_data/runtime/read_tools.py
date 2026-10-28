@@ -1,8 +1,6 @@
-"""Typed read-only ORM tools (P9 first lot).
-
+"""Typed read-only ORM tools 
 Each call validates inputs, executes under the requester identity via
 XML-RPC, and returns an OrmToolResult (Observation + Evidence + text).
-No generic execute_kw is exposed to the LLM.
 """
 
 from __future__ import annotations
