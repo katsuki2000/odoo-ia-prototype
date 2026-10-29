@@ -89,7 +89,7 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
             return
 
         path = Path(raw_path).resolve()
-        if not is_directory and not _is_supported_source(path):
+        if not is_directory and not is_supported_document(path):
             logger.info("Ignoring unsupported watcher event: %s", path)
             return
 
@@ -233,10 +233,6 @@ class IngestionWatcher:
             last_result=self.handler.last_result,
             errors=self.handler.errors,
         ).to_dict()
-
-
-def _is_supported_source(path: Path) -> bool:
-    return is_supported_document(path)
 
 
 def main() -> int:

@@ -6,51 +6,30 @@ Exposes the pipeline and ingestion endpoints as an HTTP API.
 """
 
 import os
-import sys
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
-
-# Ensure parent directory is in path for module imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.auth import get_jwt_secret
-from config.settings import API_HOST, API_PORT, CORS_ALLOWED_ORIGINS
+from config.settings import API_HOST, API_PORT, CORS_ALLOWED_ORIGINS, SCHEDULER_INTERVAL_HOURS
 from document_rag.ingestion.ingest_all import DOCS_DIR
 from document_rag.ingestion.scheduler import (
     PeriodicScanScheduler,
-    run_scheduled_scan,
     run_startup_scan,
 )
-from document_rag.ingestion.incremental import reindex_if_changed
-from document_rag.ingestion.logging_utils import write_ingestion_event
-from document_rag.vectorstore.chroma_manager import ChromaManager
 
 from api import routes_system
 from api import routes_ask
 from api import routes_ingestion
+from api.routes_ingestion import LAST_INGESTION_STATUS
 
 logger = logging.getLogger(__name__)
 
 # Background task handles and state dictionaries
 SCHEDULER_INSTANCE: PeriodicScanScheduler | None = None
-WATCHER_INSTANCE = None
-
-LAST_INGESTION_STATUS: dict[str, Any] = {
-    "last_ingestion_time": None,
-    "last_result": None,
-    "last_scan_type": None,
-    "scheduler_status": {
-        "interval_hours": 6,
-        "running": False,
-        "last_startup_scan_time": None,
-        "last_scheduled_scan_time": None,
-    },
-}
 
 
 @asynccontextmanager
@@ -74,7 +53,7 @@ async def lifespan(app: FastAPI):
 
     if SCHEDULER_INSTANCE is None:
         SCHEDULER_INSTANCE = PeriodicScanScheduler(
-            interval_hours=6,
+            interval_hours=SCHEDULER_INTERVAL_HOURS,
             roots=[DOCS_DIR],
             docs_manager=None,
             status_dict=LAST_INGESTION_STATUS,

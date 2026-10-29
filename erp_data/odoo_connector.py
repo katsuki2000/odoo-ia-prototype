@@ -10,7 +10,8 @@ import time
 import xmlrpc.client
 
 from config.odoo_credentials import service_login, service_password
-from config.settings import ODOO_DB_DEFAULT, ODOO_URL_DEFAULT
+from config.settings import ODOO_URL_DEFAULT
+from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_db_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class OdooConnector:
         API key, so the uid and the password always belong to the same identity.
         """
         self.url = url or os.getenv("ODOO_URL") or ODOO_URL_DEFAULT
-        self.db = db or os.getenv("ODOO_DB") or ODOO_DB_DEFAULT
+        self._db = db
         self.username = service_login()
         self._password = password
         self.technical = technical
@@ -72,6 +73,14 @@ class OdooConnector:
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")
         self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
         self._allowed_models, self._wildcard_models = resolve_allowed_models()
+
+    @property
+    def db(self) -> str:
+        """Explicit database, else the one signed into the request JWT; never a configured fallback."""
+        db = self._db or odoo_db_ctx.get()
+        if not db:
+            raise OdooConnectorError("No Odoo database: the request JWT carries none and none was given to the connector.")
+        return db
 
     @property
     def password(self) -> str:
@@ -94,7 +103,6 @@ class OdooConnector:
         """
         if self.technical:
             return self.password
-        from erp_data.odoo_context import odoo_api_key_ctx
         ctx_key = odoo_api_key_ctx.get()
         if ctx_key is not None:
             return ctx_key
@@ -126,8 +134,6 @@ class OdooConnector:
             raise OdooConnectorError(f"Model {model} is not allowed by ODOO_ALLOWED_MODELS.")
 
     def _session_orm_context(self) -> dict:
-        from erp_data.odoo_context import odoo_company_id_ctx, odoo_company_ids_ctx
-
         company_id = odoo_company_id_ctx.get()
         company_ids = odoo_company_ids_ctx.get()
         ctx: dict = {}

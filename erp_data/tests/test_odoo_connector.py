@@ -7,8 +7,9 @@ Validates authentication, read-only enforcement, and model whitelisting.
 
 import pytest
 import os
+from config.settings import ODOO_DB
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
-from erp_data.odoo_context import odoo_api_key_ctx
+from erp_data.odoo_context import odoo_api_key_ctx, odoo_db_ctx
 
 
 class _AccessDeniedModels:
@@ -23,9 +24,8 @@ class _AccessDeniedModels:
 def odoo_connector():
     """Provides a configured OdooConnector instance."""
     url = os.getenv("ODOO_URL", "http://localhost:8069")
-    db = os.getenv("ODOO_DB", "odoo-dev")
-    password = os.getenv("ODOO_PASSWORD", "admin")
-    return OdooConnector(url=url, db=db, password=password)
+    password = os.getenv("ODOO_ADMIN_PASSWORD", "admin")
+    return OdooConnector(url=url, db=ODOO_DB, password=password)
 
 @pytest.fixture(scope="module")
 def uid(odoo_connector):
@@ -53,7 +53,7 @@ def test_authentication_failure(odoo_connector):
 
 
 def test_username_comes_from_environment(monkeypatch):
-    monkeypatch.setenv("ODOO_USERNAME", "service_user")
+    monkeypatch.setenv("ODOO_ADMIN_LOGIN", "service_user")
 
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
 
@@ -169,6 +169,47 @@ class _RecordingModels:
     def execute_kw(self, *args, **kwargs):
         self.calls.append((args, kwargs))
         return self.result
+
+
+def _called_database(connector):
+    connector.models = _RecordingModels([])
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        connector.search(7, "res.partner")
+    finally:
+        odoo_api_key_ctx.reset(token)
+    return connector.models.calls[0][0][0]
+
+
+def test_request_database_is_used_for_the_call():
+    connector = OdooConnector(url="http://odoo.invalid", password="secret")
+    token = odoo_db_ctx.set("from_jwt")
+    try:
+        assert _called_database(connector) == "from_jwt"
+    finally:
+        odoo_db_ctx.reset(token)
+
+
+def test_call_without_any_database_is_refused(monkeypatch):
+    monkeypatch.setenv("ODOO_DB", "configured")
+    connector = OdooConnector(url="http://odoo.invalid", password="secret")
+    connector.models = _RecordingModels([])
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        with pytest.raises(OdooConnectorError, match="No Odoo database"):
+            connector.search(7, "res.partner")
+    finally:
+        odoo_api_key_ctx.reset(token)
+    assert connector.models.calls == []
+
+
+def test_explicit_database_wins_over_the_request_database():
+    connector = OdooConnector(url="http://odoo.invalid", db="explicit", password="secret")
+    token = odoo_db_ctx.set("from_jwt")
+    try:
+        assert _called_database(connector) == "explicit"
+    finally:
+        odoo_db_ctx.reset(token)
 
 
 def test_allowed_models_env_wildcard(monkeypatch):

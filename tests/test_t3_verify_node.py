@@ -186,14 +186,13 @@ def test_orm_loop_returns_the_tool_observations(monkeypatch):
     def fake_invoke(*_args, **_kwargs):
         turns["n"] += 1
         if turns["n"] == 1:
-            return AIMessage(content="", tool_calls=tool_calls), 0.0
-        return AIMessage(content="Stock a=7, b=3."), 0.0
+            return AIMessage(content="", tool_calls=tool_calls)
+        return AIMessage(content="Stock a=7, b=3.")
 
     monkeypatch.setattr(orm_agent_node, "ReasoningTraceLogger", SilentTraceLogger)
-    monkeypatch.setattr(orm_agent_node, "is_out_of_scope", lambda _question: False)
-    monkeypatch.setattr(orm_agent_node, "resolve_orm_tools", lambda _skills: [])
+    monkeypatch.setattr(orm_agent_node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(orm_agent_node, "_build_llm", lambda **_kwargs: FakeLlm())
-    monkeypatch.setattr(orm_agent_node, "_invoke_with_rate_limit", fake_invoke)
+    monkeypatch.setattr(orm_agent_node, "invoke_llm", fake_invoke)
     monkeypatch.setattr(
         orm_agent_node, "execute_tool_call",
         lambda tool_call, _tools: (tool_call["name"], tool_call["args"], next(observations)),
@@ -211,5 +210,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "route", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"guard_gate", "route", "verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"generate", "orm_agent_loop"}

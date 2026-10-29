@@ -7,7 +7,7 @@ import unicodedata
 
 import requests
 
-from core.evaluation import run_store as runStore
+from core.evaluation import run_store
 from core.evaluation.ollama_server import model_override, prepare_server, set_keep_alive
 from core.evaluation.preflight import BackendUnavailable, require_backends
 
@@ -24,12 +24,12 @@ def normalize(text):
     return re.sub(r'[\s*`]+', '', _fold_accents(text.casefold()).replace('’', "'"))
 
 
-def contains_fact(foldedAnswer, fact):
+def contains_fact(folded_answer, fact):
     """A normalized fact occurs in the answer; a number is never matched inside a longer one (4 heures vs 24 heures)."""
     needle = re.escape(normalize(fact))
     before = r'(?<!\d)' if needle[0].isdigit() else ''
     after = r'(?!\d)' if needle[-1].isdigit() else ''
-    return re.search(before + needle + after, foldedAnswer) is not None
+    return re.search(before + needle + after, folded_answer) is not None
 
 
 def mean(values):
@@ -52,8 +52,8 @@ def seconds_text(value):
     return 'n/a' if value is None else f'{value:.0f}'
 
 
-def require_context_length(serverInfo, expected):
-    actual = serverInfo.get('context_length')
+def require_context_length(server_info, expected):
+    actual = server_info.get('context_length')
     if actual != expected:
         raise BackendUnavailable(
             f'Expected Ollama context length {expected}, got {actual!r}; '
@@ -61,52 +61,52 @@ def require_context_length(serverInfo, expected):
         )
 
 
-def rescore_runs(runs, questions, scoreRecord):
+def rescore_runs(runs, questions, score_record):
     """Recompute the scores of the recorded runs without error with the current question set."""
-    questionsById = {item['id']: item for item in questions}
+    questions_by_id = {item['id']: item for item in questions}
     for record in runs.values():
-        item = questionsById.get(record['question_id'])
+        item = questions_by_id.get(record['question_id'])
         if item and not record['error']:
-            record.update(scoreRecord(item, record))
+            record.update(score_record(item, record))
     return runs
 
 
-def execute_runs(todo, runs, resultsPath, buildRecord, describe):
+def execute_runs(todo, runs, results_path, build_record, describe):
     """Run the pending (question, pass) pairs, appending each record. Returns False when the backend looks down."""
-    consecutiveErrors = 0
-    for number, (item, passNumber) in enumerate(todo, 1):
-        record = buildRecord(item, passNumber)
-        runStore.append_run(resultsPath, record)
-        runs[runStore.run_key(record)] = record
-        print(f'[{number}/{len(todo)}] {item["id"]} pass {passNumber}: {describe(record)} ({record["seconds"]}s)', flush=True)
-        consecutiveErrors = consecutiveErrors + 1 if record['error'] else 0
-        if consecutiveErrors >= MAX_CONSECUTIVE_ERRORS:
-            print(f'{consecutiveErrors} consecutive errors: the backend looks down. '
+    consecutive_errors = 0
+    for number, (item, pass_number) in enumerate(todo, 1):
+        record = build_record(item, pass_number)
+        run_store.append_run(results_path, record)
+        runs[run_store.run_key(record)] = record
+        print(f'[{number}/{len(todo)}] {item["id"]} pass {pass_number}: {describe(record)} ({record["seconds"]}s)', flush=True)
+        consecutive_errors = consecutive_errors + 1 if record['error'] else 0
+        if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+            print(f'{consecutive_errors} consecutive errors: the backend looks down. '
                   'Restore it, then rerun with --retry-errors.')
             return False
     return True
 
 
-def run_on_model(model, contextLength, keepLoaded, execute, probes=None):
+def run_on_model(model, context_length, keep_loaded, execute, probes=None):
     """Load the model, check its context length, run `execute(serverInfo)` with it as the chat model, unload it.
 
     Returns the exit code: 0 finished, 2 model not loadable, 3 backend down or run interrupted.
     """
     try:
-        serverInfo = prepare_server(model)
+        server_info = prepare_server(model)
     except (BackendUnavailable, requests.RequestException) as error:
         print(f'[SKIP] {error}')
         return 2
-    print(f'{model} loaded: {serverInfo}')
+    print(f'{model} loaded: {server_info}')
     finished = False
     try:
-        require_context_length(serverInfo, contextLength)
+        require_context_length(server_info, context_length)
         with model_override(model):
             require_backends(probes)
-            finished = execute(serverInfo)
+            finished = execute(server_info)
     except BackendUnavailable as error:
         print(f'[SKIP] Backend unavailable, no run started: {error}')
     finally:
-        if not keepLoaded:
+        if not keep_loaded:
             set_keep_alive(model, 0)
     return 0 if finished else 3

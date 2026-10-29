@@ -1,6 +1,5 @@
 """Offline Google Drive connector and ingestion regression tests."""
 
-import importlib.util
 import io
 import json
 from pathlib import Path
@@ -9,10 +8,9 @@ from types import SimpleNamespace
 import unittest
 from urllib.parse import parse_qs, urlsplit
 
-modulePath = Path(__file__).resolve().parents[1] / 'document_rag/ingestion/google_drive.py'
-spec = importlib.util.spec_from_file_location('drive_connector', modulePath)
-drive = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(drive)
+from document_rag.ingestion import google_drive as drive
+from document_rag.ingestion.google_drive_sync import refresh_documents, synchronize_google_drive
+
 
 
 class FakeCollection:
@@ -28,10 +26,10 @@ class FakeCollection:
 class FakeManager:
     def __init__(self):
         self.collection = FakeCollection()
-        self.failWrites = False
+        self.fail_writes = False
 
     def add_chunks(self, texts, metadatas, ids):
-        if self.failWrites:
+        if self.fail_writes:
             raise RuntimeError('write failed')
         self.collection.rows.update({key: (text, dict(metadata)) for key, text, metadata in zip(ids, texts, metadatas)})
         return ids
@@ -48,7 +46,7 @@ class FakeClient:
         self.downloads = 0
         self.content = 'Guide'
 
-    def list_documents(self, folderIds, maxFiles):
+    def list_documents(self, folder_ids, max_files):
         return [self.record]
 
     def download(self, record, destination):
@@ -56,7 +54,7 @@ class FakeClient:
         Path(destination).write_text(self.content)
 
 
-def loader(path, chunkSize, chunkOverlap, scanRoot):
+def loader(path, chunk_size, chunk_overlap, scan_root):
     return [path.read_text()], [{'source': str(path), 'type': 'doc_wiki', 'chunk_index': 0}]
 
 
@@ -66,7 +64,7 @@ class GoogleDriveTests(unittest.TestCase):
         self.manager = FakeManager()
 
     def ingest(self):
-        return drive.ingest_google_drive(self.client, ['folder_a'], self.manager, loader=loader)
+        return refresh_documents(self.client, [self.client.record], self.manager, loader=loader)
 
     def test_source_is_drive_url_not_temporary_file(self):
         result = self.ingest()
@@ -95,7 +93,7 @@ class GoogleDriveTests(unittest.TestCase):
         self.ingest()
         original = dict(self.manager.collection.rows)
         self.client.record['version'] = '2'
-        self.manager.failWrites = True
+        self.manager.fail_writes = True
         result = self.ingest()
         self.assertEqual(self.manager.collection.rows, original)
         self.assertEqual(len(result['failed']), 1)
@@ -104,14 +102,14 @@ class GoogleDriveTests(unittest.TestCase):
         self.ingest()
         original = dict(self.manager.collection.rows)
         self.client.record['version'] = '2'
-        result = drive.ingest_google_drive(self.client, ['folder_a'], self.manager, loader=lambda *args: ([], []))
+        result = refresh_documents(self.client, [self.client.record], self.manager, loader=lambda *args: ([], []))
         self.assertEqual(self.manager.collection.rows, original)
         self.assertTrue(result['failed'])
 
     def test_new_chunk_settings_refresh_metadata(self):
         self.ingest()
-        drive.ingest_google_drive(self.client, ['folder_a'], self.manager, loader=loader, chunkSize=256)
-        result = drive.ingest_google_drive(self.client, ['folder_a'], self.manager, loader=loader, chunkSize=256)
+        refresh_documents(self.client, [self.client.record], self.manager, loader=loader, chunk_size=256)
+        result = refresh_documents(self.client, [self.client.record], self.manager, loader=loader, chunk_size=256)
         self.assertEqual(self.client.downloads, 2)
         self.assertEqual(len(result['skipped']), 1)
 
@@ -125,14 +123,14 @@ class GoogleDriveTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 drive.validate_drive_id(value)
         with self.assertRaises(ValueError):
-            drive.ingest_google_drive(self.client, [], self.manager, loader=loader)
+            synchronize_google_drive(self.client, [], self.manager, loader=loader)
 
     def test_download_is_bounded_and_uses_media_endpoint(self):
         requests = []
         def opener(request, timeout):
             requests.append(request)
             return io.BytesIO(b'large file')
-        client = drive.GoogleDriveClient(credentials=SimpleNamespace(valid=True, token='fixture'), opener=opener, maxBytes=4)
+        client = drive.GoogleDriveClient(credentials=SimpleNamespace(valid=True, token='fixture'), opener=opener, max_bytes=4)
         with TemporaryDirectory() as directory, self.assertRaises(ValueError):
             client.download(self.client.record, Path(directory) / 'document.txt')
         self.assertEqual(parse_qs(urlsplit(requests[0].full_url).query)['alt'], ['media'])

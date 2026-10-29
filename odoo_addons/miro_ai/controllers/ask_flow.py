@@ -51,6 +51,7 @@ def backend_headers(secret_key, user, company_id, groups, api_key=None):
         "uid": user.id,
         "login": user.login,
         "company_id": company_id,
+        "db": user.env.cr.dbname,
         "groups": groups,
         "api_key": api_key,
         "is_admin": user.has_group('base.group_system'),

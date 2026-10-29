@@ -102,12 +102,10 @@ class AssistantResponse(BaseModel):
         default_factory=list,
         description=(
             "Structured, tool-provenance Evidence gathered this turn "
-            "via core/evidence_collector.py. "
+            "via core/evidence/evidence_collector.py. "
             "Distinct from 'sources' (SourceReference, UI-facing citation "
-            "derived from RAG chunks) -- this is the raw fact + provenance a "
-            "CI/ORM tool actually produced while it worked. Populated "
-            "incrementally as each tool wrapper is wired (rollout in progress, "
-            "not yet all 24+2 tools) -- an empty list does not mean no "
-            "Evidence was gathered, only that no wired tool ran this turn."
+            "derived from RAG chunks) -- this is the raw fact + provenance an "
+            "ORM tool actually produced while it worked. An empty list means "
+            "no ORM tool recorded Evidence this turn."
         ),
     )

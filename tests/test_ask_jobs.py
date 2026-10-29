@@ -1,6 +1,5 @@
 import threading
 import time
-from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -10,9 +9,14 @@ from api import routes_ask
 from api.ask_jobs import AskJobStore, DuplicateJobError, JobCapacityError
 from api.auth import get_current_user
 from api.schemas import AskResponseV1
+from core.schemas import AssistantResponse
 
 JOB_ID = "a" * 32
 OTHER_JOB_ID = "b" * 32
+
+
+def _graph_answer(text):
+    return AssistantResponse(answer=text, confidence=1.0)
 
 
 def _answer(text="done"):
@@ -98,21 +102,21 @@ def test_expired_job_is_dropped():
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setattr(routes_ask, "ask_jobs", AskJobStore(workers=1, max_pending=1, ttl_seconds=60))
-    monkeypatch.setattr(routes_ask, "query_graph", lambda **kwargs: SimpleNamespace(answer="hello", sources=[]))
+    monkeypatch.setattr(routes_ask, "query_graph", lambda **kwargs: _graph_answer("hello"))
     app = FastAPI()
     app.include_router(routes_ask.router)
     app.dependency_overrides[get_current_user] = lambda: {"uid": 7, "api_key": "key", "groups": [], "company_id": 1}
     return TestClient(app)
 
 
-def _payload(jobId=JOB_ID):
-    return {"job_id": jobId, "question": "how?", "session_id": "s1", "user_uid": 7, "company_id": 1}
+def _payload(job_id=JOB_ID):
+    return {"job_id": job_id, "question": "how?", "session_id": "s1", "user_uid": 7, "company_id": 1}
 
 
-def _poll_until_finished(client, jobId=JOB_ID):
+def _poll_until_finished(client, job_id=JOB_ID):
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        body = client.get(f"/api/v1/ask/jobs/{jobId}").json()
+        body = client.get(f"/api/v1/ask/jobs/{job_id}").json()
         if body["status"] != "pending":
             return body
         time.sleep(0.01)
@@ -144,7 +148,7 @@ def test_job_id_must_be_a_32_character_hex_string(client):
 
 def test_full_queue_answers_429(client, monkeypatch):
     release = threading.Event()
-    monkeypatch.setattr(routes_ask, "query_graph", lambda **kwargs: release.wait(5) and SimpleNamespace(answer="x", sources=[]))
+    monkeypatch.setattr(routes_ask, "query_graph", lambda **kwargs: release.wait(5) and _graph_answer("x"))
     assert client.post("/api/v1/ask/jobs", json=_payload()).status_code == 202
     assert client.post("/api/v1/ask/jobs", json=_payload(OTHER_JOB_ID)).status_code == 429
     release.set()

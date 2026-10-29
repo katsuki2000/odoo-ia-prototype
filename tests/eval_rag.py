@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.settings import ODOO_DB
 from core.graph.graph import query_graph
 
 logging.basicConfig(level=logging.ERROR) # keep it clean for progress bar
@@ -30,7 +31,7 @@ def run_evaluation():
     print(f"Starting RAG evaluation on {total} questions...\n")
     
     from erp_data.odoo_connector import OdooConnector
-    _conn = OdooConnector()
+    _conn = OdooConnector(db=ODOO_DB)
     _charlie_password = "password123"
     charlie_uid = _conn.common.authenticate(_conn.db, "charlie@alpha.com", _charlie_password, {})
     if not charlie_uid:
@@ -41,7 +42,7 @@ def run_evaluation():
     results_log = []
     
     for q in tqdm(questions, desc="Evaluating RAG Pipeline"):
-        response = query_graph(q["question"], uid=charlie_uid, api_key=_charlie_password)
+        response = query_graph(q["question"], uid=charlie_uid, api_key=_charlie_password, db=ODOO_DB)
         
         answer_lower = response.answer.lower()
         

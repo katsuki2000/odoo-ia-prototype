@@ -1,8 +1,8 @@
 """
-core/evidence.py
+core/evidence/evidence.py
 
-Evidence is the internal reasoning/provenance object produced directly by Code Intelligence (static
-graph analysis) and ORM (live Odoo reads) tools. It lives alongside
+Evidence is the internal reasoning/provenance object produced directly by the ORM tools (live Odoo
+reads). It lives alongside
 SourceReference (core/schemas.py), not instead of it -- SourceReference
 stays the UI-facing citation derived later for display, Evidence is the
 structured fact a tool produced while it worked.
@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class EvidenceSourceType(str, Enum):
-    CODE = "code"
     ORM = "orm"
 
 
@@ -62,8 +61,8 @@ def stable_content_hash(
 
 class Evidence(BaseModel):
     """
-    Internal reasoning/provenance contract shared by Code Intelligence and
-    ORM tools. Distinct from SourceReference: Evidence is what a tool
+    Internal reasoning/provenance contract of the ORM tools. Distinct from
+    SourceReference: Evidence is what a tool
     actually produced (fact + provenance), SourceReference is how a fact
     gets displayed in the UI.
     """
@@ -80,15 +79,6 @@ class Evidence(BaseModel):
         description=(
             "Which tool/rule/file produced this evidence "
             "(e.g. a rule xml_id, a model.method, an ORM model+domain)"
-        ),
-    )
-    confidence: Optional[str] = Field(
-        default=None,
-        description=(
-            "Epistemic uncertainty on a CI static/heuristic reading (e.g. "
-            "HIGH/MEDIUM/LOW). Never set for a deterministic ORM read -- "
-            "use scope instead, ORM correctness-in-context is a different "
-            "axis than certainty."
         ),
     )
     scope: dict[str, Any] = Field(
@@ -108,7 +98,6 @@ def make_evidence(
     claim: str,
     source: str,
     value: Any = None,
-    confidence: Optional[str] = None,
     scope: Optional[dict[str, Any]] = None,
 ) -> Evidence:
     """Convenience constructor: computes evidence_id from the canonical
@@ -121,6 +110,5 @@ def make_evidence(
         claim=claim,
         value=value,
         source=source,
-        confidence=confidence,
         scope=scope,
     )

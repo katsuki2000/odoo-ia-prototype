@@ -20,10 +20,9 @@ VERIFIER_MODE = VerifierMode.parse(ANSWER_VERIFIER_MODE)
 def _evidence(state: RAGState) -> Tuple[Tuple[str, ...], Tuple[float, ...]]:
     if answered_by_documents(state):
         return tuple(chunk.get('document', '') for chunk in state.get('retrieved_chunks') or []), ()
-    turnEvidence = filter_disclosed_evidence(
-        peek_turn_evidence(), state.get('sensitive_evidence_allowed', False))
-    texts = (state.get('raw_tool_output') or '', *(item.claim for item in turnEvidence))
-    numbers = tuple(number for item in turnEvidence for number in flatten_numeric_values(item.value))
+    turn_evidence = filter_disclosed_evidence(peek_turn_evidence())
+    texts = (state.get('raw_tool_output') or '', *(item.claim for item in turn_evidence))
+    numbers = tuple(number for item in turn_evidence for number in flatten_numeric_values(item.value))
     return texts, numbers
 
 

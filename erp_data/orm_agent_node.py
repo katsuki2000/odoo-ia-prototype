@@ -1,157 +1,104 @@
-"""
-orm_agent_node.py
-
-ORM ReAct agent loop (ERP data queries).
-"""
+"""ORM ReAct agent loop (ERP data queries)."""
 
 import logging
 import time
+from typing import Any, List, NamedTuple, Optional
 
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 
+from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA
+from core.guardrails import REACT_RECURSION_LIMIT
+from core.llm.llm_client import invoke_llm
 from core.schemas import AssistantResponse, SourceReference
-from config.settings import MASSIVE_EXTRACTION_REFUSAL_MSG, PROMPT_INJECTION_REFUSAL_MSG
-from core.guardrails import (
-    OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_massive_extraction_request, is_out_of_scope, is_prompt_injection,
-)
-from core.state import RAGState
-from core.llm.llm_client import invoke_with_rate_limit as _invoke_with_rate_limit
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
-
+from core.state import RAGState
 from erp_data.orm_agent_helpers import (
     _build_llm,
-    resolve_orm_tools,
-    recover_malformed_tool_call,
     execute_tool_call,
     force_final_synthesis,
+    resolve_orm_tools,
 )
+from erp_data.prompts import build_orm_agent_messages
 
 logger = logging.getLogger(__name__)
 
+NO_DATA_ANSWER = "Je n'ai pas de données disponibles pour répondre à cette question."
 
-def orm_agent_loop(state: RAGState) -> dict:
-    """ReAct agent loop: Reason -> call ORM tool -> observe -> repeat or answer."""
-    start_time = time.time()
-    question = state["question"]
-    chat_history = state.get("chat_history", [])
-    logger.info("Node [orm_agent_loop]: Starting ReAct loop for: %s", question)
 
-    _trace_id = new_trace_id()
-    _trace_logger = ReasoningTraceLogger()
-    _llm_call_count = 0
-    _hop_index = 0
+class ReactResult(NamedTuple):
+    answer: Optional[str]
+    observations: List[Any]
+    llm_calls: int
+    hops: int
 
-    refusal = (OUT_OF_SCOPE_ANSWER if is_out_of_scope(question) else
-               PROMPT_INJECTION_REFUSAL_MSG if is_prompt_injection(question) else
-               MASSIVE_EXTRACTION_REFUSAL_MSG if is_massive_extraction_request(question) else None)
-    if refusal:
-        logger.info("Node [orm_agent_loop]: Early refusal (out of scope, prompt injection or massive extraction).")
-        response = AssistantResponse(answer=refusal, sources=[], confidence=0.0)
-        timing = state.get("timing", {}).copy()
-        timing["generation_time"] = time.time() - start_time
-        _trace_logger.log_summary(
-            trace_id=_trace_id, branch="donnees_erp", question=question,
-            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
-        )
-        return {"response": response, "raw_answer": response.answer, "timing": timing}
 
-    skills = state.get("skills", {})
-    all_tools = resolve_orm_tools(skills)
-
-    llm = _build_llm(temperature=0.0, max_retries=0)
-    _tool_llm_box = [llm.bind_tools(all_tools)]
-
-    def _rebuild_tool_llm():
-        fresh = _build_llm(temperature=0.0, max_retries=0)
-        _tool_llm_box[0] = fresh.bind_tools(all_tools)
-        return _tool_llm_box[0]
-
-    from erp_data.prompts import build_orm_agent_messages
+def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLogger, trace_id: str) -> ReactResult:
+    """Reason, call an ORM tool, observe, repeat until an answer or the iteration budget is spent."""
+    tools = resolve_orm_tools()
+    tool_llm = _build_llm(temperature=0.0).bind_tools(tools)
     messages = build_orm_agent_messages(question, chat_history)
-
-    tool_observations = []
-    final_answer = None
+    observations: List[Any] = []
+    llm_calls = hops = 0
 
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
-
+        llm_calls += 1
         try:
-            ai_msg, _wait = _invoke_with_rate_limit(
-                _tool_llm_box[0], messages, rebuild_llm=_rebuild_tool_llm,
-            )
-            _llm_call_count += 1
-        except Exception as e:
-            _llm_call_count += 1
-            logger.warning("LLM invoke failed at iteration %d: %s", iteration + 1, e)
-
-            recovered = recover_malformed_tool_call(str(e), all_tools)
-            if recovered:
-                fn_name, fn_args, observation = recovered
-                _t_hop = time.time()
-                tool_observations.append(str(observation))
-                _trace_logger.log_hop(
-                    trace_id=_trace_id, hop_index=_hop_index, tool_name=fn_name,
-                    tool_args=fn_args, observation=str(observation),
-                    elapsed_ms=(time.time() - _t_hop) * 1000,
-                )
-                _hop_index += 1
-                messages.append(HumanMessage(content=f"Résultat de l'outil {fn_name} : {observation}"))
-                continue
-
-            logger.error("Unrecoverable LLM error at iteration %d", iteration + 1)
-            break
-
+            ai_msg = invoke_llm(tool_llm, messages)
+        except Exception as error:
+            logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, error)
+            return ReactResult(None, observations, llm_calls, hops)
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
-            final_answer = ai_msg.content
-            logger.info("Node [orm_agent_loop]: Final answer at iteration %d", iteration + 1)
-            break
+            return ReactResult(ai_msg.content, observations, llm_calls, hops)
 
         for tool_call in ai_msg.tool_calls:
-            _t_hop = time.time()
-            tool_name, tool_args, observation = execute_tool_call(tool_call, all_tools)
-            tool_observations.append(observation)
-            _trace_logger.log_hop(
-                trace_id=_trace_id, hop_index=_hop_index, tool_name=tool_name,
-                tool_args=tool_args, observation=str(observation),
-                elapsed_ms=(time.time() - _t_hop) * 1000,
+            started = time.time()
+            tool_name, tool_args, observation = execute_tool_call(tool_call, tools)
+            observations.append(observation)
+            trace_logger.log_hop(
+                trace_id=trace_id, hop_index=hops, tool_name=tool_name, tool_args=tool_args,
+                observation=str(observation), elapsed_ms=(time.time() - started) * 1000,
             )
-            _hop_index += 1
+            hops += 1
             messages.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"]))
-    else:
-        final_answer, extra_calls = force_final_synthesis(question, tool_observations)
-        _llm_call_count += extra_calls
 
-    if not final_answer:
-        final_answer = "Je n'ai pas de données disponibles pour répondre à cette question."
+    answer, extra_calls = force_final_synthesis(question, observations)
+    return ReactResult(answer, observations, llm_calls + extra_calls, hops)
 
+
+def _build_response(result: ReactResult) -> AssistantResponse:
     sources = [
-        SourceReference(
-            source="odoo://xmlrpc", doc_type="erp_data",
-            title="Données ERP Odoo", snippet=str(obs)[:150],
-        )
-        for obs in tool_observations if obs and str(obs).strip()
+        SourceReference(source="odoo://xmlrpc", doc_type="erp_data", title="Données ERP Odoo", snippet=str(obs)[:150])
+        for obs in result.observations if obs and str(obs).strip()
     ]
+    confidence = ORM_CONFIDENCE_WITH_DATA if result.observations else ORM_CONFIDENCE_WITHOUT_DATA
+    return AssistantResponse(answer=result.answer or NO_DATA_ANSWER, sources=sources, confidence=confidence)
 
-    response = AssistantResponse(
-        answer=final_answer, sources=sources,
-        confidence=0.9 if tool_observations else 0.5,
-    )
+
+def orm_agent_loop(state: RAGState) -> dict:
+    """ERP data branch: answer a question by reading Odoo through the typed ORM tools."""
+    start_time = time.time()
+    question = state["question"]
+    logger.info("Node [orm_agent_loop]: Starting ReAct loop for: %s", question)
+
+    trace_logger = ReasoningTraceLogger()
+    trace_id = new_trace_id()
+    result = _run_react(question, state.get("chat_history", []), trace_logger, trace_id)
+    response = _build_response(result)
 
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
-    timing["llm_call_count"] = _llm_call_count
-    timing["hop_count"] = _hop_index
-    _trace_logger.log_summary(
-        trace_id=_trace_id, branch="donnees_erp", question=question,
-        hop_count=_hop_index, llm_call_count=_llm_call_count,
-        total_time_ms=timing["generation_time"] * 1000,
-        hop_cap=REACT_RECURSION_LIMIT,
+    timing["llm_call_count"] = result.llm_calls
+    timing["hop_count"] = result.hops
+    trace_logger.log_summary(
+        trace_id=trace_id, branch="donnees_erp", question=question,
+        hop_count=result.hops, llm_call_count=result.llm_calls,
+        total_time_ms=timing["generation_time"] * 1000, hop_cap=REACT_RECURSION_LIMIT,
     )
     return {
         "response": response,
-        "raw_answer": response.answer,
         "timing": timing,
-        "raw_tool_output": "\n\n".join(str(obs) for obs in tool_observations),
+        "raw_tool_output": "\n\n".join(str(obs) for obs in result.observations),
     }

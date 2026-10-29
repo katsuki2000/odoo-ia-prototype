@@ -249,8 +249,8 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
 | `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
-| `ODOO_DB` | No | `odoo-dev` | Odoo database name |
-| `ODOO_USERNAME` | No | `admin` | XML-RPC service username |
+| `ODOO_DB` | For the health check and scripts | none | Odoo database for calls made outside a user request; a request only uses the database signed into its JWT by the Odoo addon, never this value |
+| `ODOO_ADMIN_LOGIN` | No | `admin` | XML-RPC service username |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
 
 ---
@@ -262,4 +262,4 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the Ollama server or check `OLLAMA_HOST` |
 | `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
 | MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |
-| `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_PASSWORD` in `.env` |
+| `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_ADMIN_PASSWORD` in `.env` |

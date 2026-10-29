@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.evaluation import bench_common
+
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "run_rag_model_eval.py"
 QUESTIONS = json.loads((Path(__file__).resolve().parent / "rag_eval_questions.json").read_text(encoding="utf-8"))["questions"]
 
@@ -30,9 +32,9 @@ def _trap():
     return _item(id="TRAP", category="unanswerable", answerable=False, facts=[], reference_sources=[])
 
 
-def _record(model="m1", questionId="Q1", passNumber=1, **fields):
+def _record(model="m1", question_id="Q1", pass_number=1, **fields):
     base = {
-        "model": model, "question_id": questionId, "pass_number": passNumber, "answerable": True, "error": None,
+        "model": model, "question_id": question_id, "pass_number": pass_number, "answerable": True, "error": None,
         "fact_recall": 1.0, "source_recall": 1.0, "abstained": False, "structured_failed": False,
         "seconds": 10.0, "vram_fraction": 1.0, "confidence": 0.9, "answer_chars": 40,
     }
@@ -68,8 +70,8 @@ def test_a_numeric_fact_is_not_found_inside_a_longer_number(bench):
 def test_load_scored_runs_recomputes_scores_and_skips_errors(monkeypatch, bench):
     monkeypatch.setattr(bench, "load_questions", lambda ids: [_item()])
     stored = {"answer": "Validation en 48 heures ouvrées.", "cited_sources": ["guide.docx"], "fact_recall": 0.0, "source_recall": 0.0}
-    bench.runStore.append_run(bench.RESULTS_PATH, _record(**stored))
-    bench.runStore.append_run(bench.RESULTS_PATH, _record(passNumber=2, error="x", **stored))
+    bench.run_store.append_run(bench.RESULTS_PATH, _record(**stored))
+    bench.run_store.append_run(bench.RESULTS_PATH, _record(pass_number=2, error="x", **stored))
     runs = bench.load_scored_runs()
     assert (runs[("m1", "Q1", 1)]["fact_recall"], runs[("m1", "Q1", 1)]["source_recall"]) == (1.0, 1.0)
     assert runs[("m1", "Q1", 2)]["fact_recall"] == 0.0
@@ -115,14 +117,6 @@ def test_load_contexts_refuses_an_empty_retrieval_and_caches_nothing(monkeypatch
     assert not bench.CONTEXTS_PATH.exists()
 
 
-def test_context_length_must_match_the_comparison_configuration(bench):
-    bench.require_context_length({"context_length": 32768}, 32768)
-    with pytest.raises(bench.BackendUnavailable, match="Expected Ollama context length 32768"):
-        bench.require_context_length({"context_length": 4096}, 32768)
-    with pytest.raises(bench.BackendUnavailable, match="got None"):
-        bench.require_context_length({}, 32768)
-
-
 def test_run_once_records_the_answer_sources_and_structured_failure(monkeypatch, bench):
     result = {"response": _response("Validation en 48 heures ouvrées.", ["guide.docx"]), "timing": {"llm_call_count": 2},
               "sources_fallback_eligible": True}
@@ -160,7 +154,7 @@ def _run_execute(monkeypatch, bench, failures, count=5):
 def test_execute_stops_after_three_consecutive_errors(monkeypatch, bench):
     finished, runs = _run_execute(monkeypatch, bench, [True] * 5)
     assert finished is False
-    assert len(runs) == bench.MAX_CONSECUTIVE_ERRORS
+    assert len(runs) == bench_common.MAX_CONSECUTIVE_ERRORS
 
 
 def test_execute_resets_the_error_counter_after_a_success(monkeypatch, bench):
@@ -170,19 +164,19 @@ def test_execute_resets_the_error_counter_after_a_success(monkeypatch, bench):
 
 
 def test_resume_skips_done_runs_and_retries_errors_on_request(bench):
-    runs = {("m1", "Q1", 1): _record(questionId="Q1"), ("m1", "Q2", 1): _record(questionId="Q2", error="x")}
+    runs = {("m1", "Q1", 1): _record(question_id="Q1"), ("m1", "Q2", 1): _record(question_id="Q2", error="x")}
     questions = [_item(id="Q1"), _item(id="Q2"), _item(id="Q3")]
-    pending = lambda retry: [item["id"] for item, _ in bench.runStore.pending_runs("m1", questions, 1, runs, lambda previous: retry and bool(previous["error"]))]
+    pending = lambda retry: [item["id"] for item, _ in bench.run_store.pending_runs("m1", questions, 1, runs, lambda previous: retry and bool(previous["error"]))]
     assert pending(False) == ["Q3"]
     assert pending(True) == ["Q2", "Q3"]
 
 
 def test_model_stats_exclude_errors_and_split_answerable_from_unanswerable(bench):
     records = [
-        _record(fact_recall=1.0), _record(questionId="Q2", fact_recall=0.5, source_recall=0.5),
-        _record(questionId="Q3", error="x", fact_recall=0.0),
-        _record(questionId="T1", answerable=False, fact_recall=None, source_recall=None, abstained=True),
-        _record(questionId="T2", answerable=False, fact_recall=None, source_recall=None, abstained=False),
+        _record(fact_recall=1.0), _record(question_id="Q2", fact_recall=0.5, source_recall=0.5),
+        _record(question_id="Q3", error="x", fact_recall=0.0),
+        _record(question_id="T1", answerable=False, fact_recall=None, source_recall=None, abstained=True),
+        _record(question_id="T2", answerable=False, fact_recall=None, source_recall=None, abstained=False),
     ]
     stats = bench.model_stats(records)
     assert (stats["runs"], stats["errors"]) == (5, 1)
@@ -195,7 +189,7 @@ def test_model_stats_without_a_valid_run_has_no_division_by_zero(bench):
 
 
 def test_model_stats_percentiles_and_minimum_vram(bench):
-    records = [_record(questionId=f"Q{number}", seconds=float(number), vram_fraction=1.0 if number else 0.8) for number in range(1, 11)]
+    records = [_record(question_id=f"Q{number}", seconds=float(number), vram_fraction=1.0 if number else 0.8) for number in range(1, 11)]
     stats = bench.model_stats(records)
     assert (stats["p50"], stats["p90"], stats["vram"], stats["confidence"], stats["answer_chars"]) == (5.5, 9.0, 1.0, 0.9, 40)
 

@@ -17,16 +17,16 @@ PROBE = (
 TARGET_VARIABLES = ('LLM_TARGET', 'OLLAMA_HOST', 'LLM_BASE_URL', 'LLM_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_API_KEY')
 
 
-def run_probe(extraEnv):
+def run_probe(extra_env):
     environment = {key: value for key, value in os.environ.items()
                    if key not in TARGET_VARIABLES and not key.startswith('KAGGLE_')}
-    environment.update(extraEnv)
+    environment.update(extra_env)
     return subprocess.run([sys.executable, '-c', PROBE], cwd=ROOT, env=environment,
                           capture_output=True, text=True, timeout=60)
 
 
-def load_settings(extraEnv):
-    result = run_probe(extraEnv)
+def load_settings(extra_env):
+    result = run_probe(extra_env)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
 

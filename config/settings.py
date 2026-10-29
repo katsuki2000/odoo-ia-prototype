@@ -26,13 +26,16 @@ def _target_setting(name, default=''):
 
 
 OLLAMA_HOST = _target_setting('OLLAMA_HOST')
-_ollamaUrl = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
-LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollamaUrl)
+_ollama_url = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
+LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollama_url)
 LLM_MODEL = 'qwen3:14b'
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
 LLM_NO_THINK_MARKER = '/no_think' if LLM_MODEL.lower().startswith('qwen3') else ''
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
-EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollamaUrl)
+LLM_MAX_RETRIES = 1
+SCHEDULER_INTERVAL_HOURS = 6
+ERP_MODEL_EVAL_TIMEOUT_SECONDS = 90
+EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollama_url)
 EMBEDDING_MODEL = 'bge-m3:latest'
 EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
 
@@ -55,7 +58,7 @@ if not 0.0 <= SOURCE_SELECTION_MIN_CONFIDENCE <= 1.0:
 CORE_ADDONS_PATH = os.getenv('CORE_ADDONS_PATH') or str(_ROOT.parent / 'odoo-17.0' / 'addons')
 CUSTOM_ADDONS_PATH = os.getenv('CUSTOM_ADDONS_PATH') or str(_ROOT / 'odoo_addons')
 ODOO_URL_DEFAULT = 'http://localhost:8069'
-ODOO_DB_DEFAULT = 'odoo-dev'
+ODOO_DB = os.getenv('ODOO_DB', '')
 RAG_DOCS_PATH = str(_ROOT / 'document_rag' / 'documents')
 RAG_CHUNK_SIZE = 512
 RAG_CHUNK_OVERLAP = 50
@@ -81,5 +84,5 @@ ASK_JOB_TTL_SECONDS = 1800
 ORM_RUNTIME_MAX_ROWS = 100
 ORM_NAME_SEARCH_LIMIT = 20
 EMBEDDING_TIMEOUT = 30.0
-MASSIVE_EXTRACTION_REFUSAL_MSG = 'La demande dépasse le périmètre d\'analyse autorisé.'
-PROMPT_INJECTION_REFUSAL_MSG = 'Demande non autorisée : les consignes système et politiques de sécurité ne peuvent pas être altérées ou divulguées.'
+ORM_CONFIDENCE_WITH_DATA = 0.9
+ORM_CONFIDENCE_WITHOUT_DATA = 0.5

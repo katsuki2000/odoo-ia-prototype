@@ -15,6 +15,5 @@ def test_missing_score_falls_back_on_the_chunk_count():
     assert compute_rag_confidence([{}, {}, {}]) == 0.90
 
 
-def test_no_chunk_or_out_of_scope_gives_zero_confidence():
+def test_no_chunk_gives_zero_confidence():
     assert compute_rag_confidence([]) == 0.0
-    assert compute_rag_confidence([{"score": 0.9}], is_out_of_scope=True) == 0.0

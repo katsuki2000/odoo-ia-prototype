@@ -1,7 +1,13 @@
 """Input guardrails and loop bounds shared by every engine."""
 
 import re
+from typing import Optional
 
+MASSIVE_EXTRACTION_REFUSAL_MSG = 'La demande dépasse le périmètre d\'analyse autorisé.'
+PROMPT_INJECTION_REFUSAL_MSG = (
+    'Demande non autorisée : les consignes système et politiques de sécurité '
+    'ne peuvent pas être altérées ou divulguées.'
+)
 OUT_OF_SCOPE_ANSWER = (
     "Cette question ne fait pas partie de mon périmètre. "
     "Je suis spécialisé dans l'assistance et les procédures internes"
@@ -94,3 +100,14 @@ def is_prompt_injection(question: str) -> bool:
     if not q:
         return False
     return any(re.search(pat, q) for pat in _PROMPT_INJECTION_PATTERNS)
+
+
+def refusal_message(question: str) -> Optional[str]:
+    """Return the refusal answer for a question no branch may handle, or None to let it through."""
+    if is_out_of_scope(question):
+        return OUT_OF_SCOPE_ANSWER
+    if is_prompt_injection(question):
+        return PROMPT_INJECTION_REFUSAL_MSG
+    if is_massive_extraction_request(question):
+        return MASSIVE_EXTRACTION_REFUSAL_MSG
+    return None

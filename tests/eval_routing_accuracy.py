@@ -1,7 +1,7 @@
 """Benchmark routing accuracy."""
 import json
 import logging
-from core.graph.graph import route
+from core.routing.routing import route
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 
 # Setup basic logging to suppress noisy output
@@ -27,7 +27,6 @@ def test_routing_accuracy():
             "question": question,
             "chat_history": [],
             "retrieved_chunks": [],
-            "raw_answer": "",
             "route": None,
             "response": None,
             "uid": 1

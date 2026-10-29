@@ -74,6 +74,12 @@ def test_signed_tokens_expire_after_five_minutes():
         assert "+ 3600" not in (root / relative).read_text(encoding="utf-8"), relative
 
 
+def test_signed_token_carries_the_requester_database():
+    root = Path(__file__).resolve().parents[1]
+    ask_flow = (root / "odoo_addons/miro_ai/controllers/ask_flow.py").read_text(encoding="utf-8")
+    assert '"db": user.env.cr.dbname' in ask_flow
+
+
 def test_settings_model_not_readable_by_internal_user():
     """Signing config must not be granted to base.group_user (RPC would leak api_token)."""
     root = Path(__file__).resolve().parents[1]

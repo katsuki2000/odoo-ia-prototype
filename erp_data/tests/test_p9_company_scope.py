@@ -13,15 +13,16 @@ from erp_data.odoo_context import (
 from erp_data.odoo_connector import OdooConnector
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.identity import resolve_company_scope
-from erp_data.runtime.read_tools import orm_search_count, set_connector_for_tests
+from erp_data.runtime import read_tools
+from erp_data.runtime.read_tools import orm_search_count
 from erp_data.runtime.validation import assert_domain_within_companies
 
 
 @pytest.fixture(autouse=True)
 def _reset_connector():
-    set_connector_for_tests(None)
+    read_tools._connector = None
     yield
-    set_connector_for_tests(None)
+    read_tools._connector = None
 
 
 def test_resolve_company_scope_defaults_ids_to_active():
@@ -54,7 +55,7 @@ def test_assert_domain_rejects_foreign_company():
 def test_search_count_scope_and_connector_context():
     connector = MagicMock()
     connector.search_count.return_value = 1
-    set_connector_for_tests(connector)
+    read_tools._connector = connector
     # Use real connector path for context injection separately
     uid_t = odoo_uid_ctx.set(7)
     cid_t = odoo_company_id_ctx.set(2)
@@ -73,7 +74,7 @@ def test_search_count_scope_and_connector_context():
 
 
 def test_search_count_refuses_domain_outside_scope():
-    set_connector_for_tests(MagicMock())
+    read_tools._connector = MagicMock()
     uid_t = odoo_uid_ctx.set(7)
     cid_t = odoo_company_id_ctx.set(2)
     cids_t = odoo_company_ids_ctx.set([2])

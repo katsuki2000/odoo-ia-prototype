@@ -43,7 +43,7 @@ def _execute(tmp_path, failures):
     outcomes = iter(failures)
     todo = [({"id": f"Q{number}"}, 1) for number in range(len(failures))]
     runs = {}
-    build = lambda item, passNumber: {"model": "m", "question_id": item["id"], "pass_number": passNumber,
+    build = lambda item, pass_number: {"model": "m", "question_id": item["id"], "pass_number": pass_number,
                                       "error": "x" if next(outcomes) else None, "seconds": 1.0}
     return common.execute_runs(todo, runs, tmp_path / "runs.jsonl", build, lambda record: "done"), runs
 
@@ -65,7 +65,7 @@ def test_execute_runs_resets_the_error_counter_after_a_success(tmp_path):
 def server(monkeypatch):
     calls = {"unloaded": []}
     monkeypatch.setattr(common, "prepare_server", lambda model: {"vram_fraction": 1.0, "context_length": 32768})
-    monkeypatch.setattr(common, "set_keep_alive", lambda model, keepAlive: calls["unloaded"].append((model, keepAlive)))
+    monkeypatch.setattr(common, "set_keep_alive", lambda model, keep_alive: calls["unloaded"].append((model, keep_alive)))
     monkeypatch.setattr(common, "model_override", lambda model: contextlib.nullcontext())
     monkeypatch.setattr(common, "require_backends", lambda probes=None: calls.setdefault("probes", probes))
     return calls

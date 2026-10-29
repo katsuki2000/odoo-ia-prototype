@@ -1,46 +1,22 @@
 """Helper utilities for the ORM agent node."""
 
-import json
 import logging
-import re
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 from langchain_core.messages import HumanMessage
 
-from core.llm.llm_client import invoke_with_rate_limit, get_chat_llm
+from core.llm.llm_client import get_chat_llm, invoke_llm
 
 logger = logging.getLogger(__name__)
 
 _build_llm = get_chat_llm
 
 
-def resolve_orm_tools(_skills: Optional[dict[str, Any]] = None) -> List[Any]:
+def resolve_orm_tools() -> List[Any]:
     """Expose only model-agnostic, read-only ORM primitives."""
     from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
 
     return list(TYPED_ORM_LANGCHAIN_TOOLS)
-
-
-def recover_malformed_tool_call(
-    err_str: str, all_tools: List[Any]
-) -> Optional[Tuple[str, dict, Any]]:
-    """Recover a tool call from a provider error when its payload is recognizable."""
-    if "failed_generation" not in err_str:
-        return None
-    match = re.search(r"<function=(\w+)>\s*(\{.*?\})", err_str)
-    if not match:
-        return None
-    fn_name = match.group(1)
-    try:
-        fn_args = json.loads(match.group(2))
-        tool_map = {t.name: t for t in all_tools}
-        if fn_name in tool_map:
-            logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
-            observation = tool_map[fn_name].invoke(fn_args)
-            return fn_name, fn_args, observation
-    except Exception as parse_err:
-        logger.error("Recovery parse failed: %s", parse_err)
-    return None
 
 
 def execute_tool_call(
@@ -70,23 +46,12 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
     from erp_data.prompts import build_orm_synthesis_prompt
 
     synthesis_prompt = build_orm_synthesis_prompt(question, tool_observations)
-    llm_calls = 0
+    llm_calls = 1
     try:
-        synth_box = [_build_llm(temperature=0.0, max_retries=0, max_tokens=512)]
-
-        def _rebuild():
-            synth_box[0] = _build_llm(temperature=0.0, max_retries=0, max_tokens=512)
-            return synth_box[0]
-
-        final_resp, _ = invoke_with_rate_limit(
-            synth_box[0],
-            [HumanMessage(content=synthesis_prompt)],
-            rebuild_llm=_rebuild,
-        )
-        llm_calls += 1
+        final_resp = invoke_llm(
+            _build_llm(temperature=0.0, max_tokens=512), [HumanMessage(content=synthesis_prompt)])
         return final_resp.content, llm_calls
     except Exception as exc:
-        llm_calls += 1
         logger.error("Forced synthesis failed: %s", exc)
         return (
             "Je n'ai pas pu obtenir une réponse complète à partir des observations disponibles.",

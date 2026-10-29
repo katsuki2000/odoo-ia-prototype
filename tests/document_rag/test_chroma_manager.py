@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from document_rag.vectorstore.chroma_helpers import clean_metadata
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
@@ -303,7 +304,7 @@ class TestChromaManager(unittest.TestCase):
             "complex": object(),
         }
 
-        cleaned = ChromaManager._clean_metadata(metadata)
+        cleaned = clean_metadata(metadata)
 
         self.assertEqual(cleaned["string"], "value")
         self.assertEqual(cleaned["integer"], 42)

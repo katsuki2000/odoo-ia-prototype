@@ -16,7 +16,7 @@ Features:
     'author': 'MIRO Team',
     'website': 'https://github.com/katsuki2000/odoo-ia-prototype',
     'license': 'LGPL-3',
-    'depends': ['base'],
+    'depends': ['base', 'web'],
     'data': [
         'security/miro_ai_security.xml',
         'security/ir.model.access.csv',

@@ -1,15 +1,7 @@
-"""Helper utilities and legacy functional wrappers for ChromaDB."""
+"""Helper utilities for formatting and cleaning ChromaDB query results and metadata."""
 
 import json
-import logging
-import os
-from typing import Any, Dict, List, Optional
-import chromadb
-from chromadb.errors import NotFoundError
-
-from config.settings import CHROMA_PATH
-
-logger = logging.getLogger(__name__)
+from typing import Any, Dict
 
 
 def clean_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -51,48 +43,3 @@ def format_query_results(raw_results: Dict[str, Any]) -> Dict[str, Any]:
 
     formatted["count"] = len(ids)
     return formatted
-
-
-def get_chroma_client(db_path: Optional[str] = None):
-    """Get a persistent ChromaDB client using configured CHROMA_PATH."""
-    target_path = db_path or CHROMA_PATH
-    os.makedirs(target_path, exist_ok=True)
-    return chromadb.PersistentClient(path=target_path)
-
-
-def get_or_create_collection(client, name: str = "miro_knowledge_base", embedding_function=None):
-    """Get or create a ChromaDB collection using cosine similarity."""
-    kwargs = {"name": name, "metadata": {"hnsw:space": "cosine"}}
-    if embedding_function is not None:
-        kwargs["embedding_function"] = embedding_function
-    return client.get_or_create_collection(**kwargs)
-
-
-def add_documents(collection, documents: List[str], metadatas: List[dict], ids: List[str]):
-    """Add documents to a ChromaDB collection."""
-    collection.add(documents=documents, metadatas=metadatas, ids=ids)
-    logger.info("Added %d documents to collection '%s'", len(documents), collection.name)
-
-
-def query_collection(collection, query_text: str, n_results: int = 5, where_filter: Optional[dict] = None):
-    """Query the collection for relevant documents."""
-    kwargs = {"query_texts": [query_text], "n_results": n_results}
-    if where_filter:
-        kwargs["where"] = where_filter
-    return collection.query(**kwargs)
-
-
-def reset_collection(client, name: str = "miro_knowledge_base"):
-    """Delete and recreate a collection for clean re-ingestion."""
-    try:
-        client.delete_collection(name)
-        logger.info("Deleted collection '%s'", name)
-    except NotFoundError:
-        logger.info("Collection '%s' does not exist yet, nothing to delete", name)
-    return get_or_create_collection(client, name)
-
-
-def get_collection_stats(collection) -> dict:
-    """Retrieve basic statistics about a collection."""
-    count = collection.count()
-    return {"name": collection.name, "document_count": count}

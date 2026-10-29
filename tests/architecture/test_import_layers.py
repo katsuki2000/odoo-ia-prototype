@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 ENGINES = ("document_rag", "erp_data")
-KERNEL = ("core.llm", "core.session", "core.schemas", "core.output", "core.evidence")
+KERNEL = ("core.llm", "core.session", "core.schemas", "core.evidence")
 ORCHESTRATION = ("core.graph", "core.routing", "core.verification", "core.evaluation")
 
 KNOWN_VIOLATIONS = frozenset({

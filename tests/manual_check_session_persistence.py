@@ -20,24 +20,30 @@ entierement session_store.py et /api/v1/ask), ce script :
    AIMessage(...)] et non chat_history=[] -- c'est la seule preuve valable
    pour cloturer H1b-i, pas une inspection du texte de la reponse.
 
-Pre-requis : serveur deja lance (voir manual_check_api_v1.py), meme
-mecanisme de token JWT.
+Prerequisites: the API is already started and JWT_SECRET and ODOO_DB are set in .env.
+Run from the project root: python -m tests.manual_check_session_persistence
 """
 
 import os
+import sys
 import time
-import requests
-import jwt
 
-secret = os.getenv("JWT_SECRET", "default_insecure_secret_for_dev")
+import jwt
+import requests
+
+from config.settings import API_HOST, API_PORT, ODOO_DB
+
+secret = os.getenv("JWT_SECRET")
+if not secret or not ODOO_DB:
+    sys.exit("JWT_SECRET and ODOO_DB must be set in .env.")
 token = jwt.encode(
-    {"uid": 2, "groups": ["base.group_user"], "company_id": 1},
+    {"uid": 2, "groups": ["base.group_user"], "company_id": 1, "db": ODOO_DB},
     secret,
     algorithm="HS256",
 )
 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = f"http://{API_HOST}:{API_PORT}"
 SESSION_ID = "h1b_i_context_check"
 
 turns = [
@@ -64,7 +70,6 @@ for i, question in enumerate(turns, 1):
         "session_id": SESSION_ID,
         "user_uid": 2,
         "company_id": 1,
-        "skills": {},
     }
     t0 = time.time()
     resp = requests.post(f"{BASE_URL}/api/v1/ask", json=payload, headers=headers)

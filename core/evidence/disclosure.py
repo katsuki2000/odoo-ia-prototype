@@ -1,6 +1,6 @@
 """Disclosure filter of the structured evidence dossier."""
 
 
-def filter_disclosed_evidence(evidence, allowed: bool):
-    """Apply the same disclosure decision to the structured dossier."""
-    return [item for item in evidence if allowed or not item.scope.get('sensitive', False)]
+def filter_disclosed_evidence(evidence):
+    """Drop the items flagged sensitive: they never reach the answer or the dossier."""
+    return [item for item in evidence if not item.scope.get('sensitive', False)]

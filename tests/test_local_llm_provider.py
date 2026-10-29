@@ -45,17 +45,12 @@ def test_erp_data_orm_helpers_uses_configured_llm():
 def test_health_check_v1_never_exposes_the_llm_endpoint():
     from api.routes_system import health_check_v1
     with patch("config.settings.LLM_BASE_URL", "http://localhost:11434/v1"), \
-         patch("document_rag.vectorstore.chroma_manager.get_chroma_client") as mock_chroma, \
+         patch("document_rag.vectorstore.chroma_manager.ChromaManager") as mock_chroma, \
          patch("erp_data.odoo_connector.OdooConnector") as mock_odoo:
-        mock_chroma.return_value.heartbeat.return_value = 1
+        mock_chroma.return_value.client.heartbeat.return_value = 1
         mock_odoo.return_value.authenticate.return_value = 2
 
         status = health_check_v1()
         assert status["status"] == "ok"
         assert status["services"]["llm"] == "not checked"
         assert "localhost:11434" not in str(status)
-
-
-def test_rate_limit_spacing_is_disabled():
-    from core.llm.llm_client import _get_min_interval
-    assert _get_min_interval() == 0.0

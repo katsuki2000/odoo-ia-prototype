@@ -1,19 +1,19 @@
 import pytest
 
 import config.settings as settings
-import core.llm.llm_client as llmClient
+from core.llm import llm_client
 from core.evaluation import ollama_server
 from core.evaluation.preflight import BackendUnavailable
 
 
 @pytest.mark.parametrize("model, marker", [("qwen3:8b", "/no_think"), ("QWEN3:30b-a3b", "/no_think"), ("gpt-oss:20b", "")])
 def test_model_override_replaces_then_restores_settings(model, marker):
-    before = (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llmClient.LLM_MODEL, llmClient.LLM_NO_THINK_MARKER)
+    before = (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llm_client.LLM_MODEL, llm_client.LLM_NO_THINK_MARKER)
     with ollama_server.model_override(model):
-        assert (settings.LLM_MODEL, llmClient.LLM_MODEL) == (model, model)
-        assert (settings.LLM_NO_THINK_MARKER, llmClient.LLM_NO_THINK_MARKER) == (marker, marker)
-        assert llmClient.with_no_think("prompt").endswith(marker or "prompt")
-    assert (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llmClient.LLM_MODEL, llmClient.LLM_NO_THINK_MARKER) == before
+        assert (settings.LLM_MODEL, llm_client.LLM_MODEL) == (model, model)
+        assert (settings.LLM_NO_THINK_MARKER, llm_client.LLM_NO_THINK_MARKER) == (marker, marker)
+        assert llm_client.with_no_think("prompt").endswith(marker or "prompt")
+    assert (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llm_client.LLM_MODEL, llm_client.LLM_NO_THINK_MARKER) == before
 
 
 def _fake_server(monkeypatch, capabilities, loaded):
@@ -39,8 +39,8 @@ def test_prepare_server_unloads_other_chat_models_and_reports_vram(monkeypatch):
     ]
     calls = _fake_server(monkeypatch, ["completion", "tools"], loaded)
     info = ollama_server.prepare_server("new:14b")
-    keepAlives = {payload["model"]: payload["keep_alive"] for _, path, payload in calls if path == "/api/generate"}
-    assert keepAlives == {"old:7b": 0, "new:14b": -1}
+    keep_alives = {payload["model"]: payload["keep_alive"] for _, path, payload in calls if path == "/api/generate"}
+    assert keep_alives == {"old:7b": 0, "new:14b": -1}
     assert info == {"vram_fraction": 0.75, "context_length": 4096}
 
 

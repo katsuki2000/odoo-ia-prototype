@@ -6,7 +6,7 @@ from unittest import mock
 import requests
 
 import config.settings as settings
-import core.llm.llm_client as llmClient
+from core.llm import llm_client
 from core.evaluation.preflight import BackendUnavailable
 
 SERVER_TIMEOUT_SECONDS = 900
@@ -23,8 +23,8 @@ def loaded_models():
     return {entry['name']: entry for entry in server_call('GET', '/api/ps').get('models', [])}
 
 
-def set_keep_alive(model, keepAlive):
-    server_call('POST', '/api/generate', {'model': model, 'keep_alive': keepAlive, 'stream': False})
+def set_keep_alive(model, keep_alive):
+    server_call('POST', '/api/generate', {'model': model, 'keep_alive': keep_alive, 'stream': False})
 
 
 def require_tool_support(model):
@@ -54,7 +54,7 @@ def prepare_server(model):
 def model_override(model):
     marker = '/no_think' if model.lower().startswith('qwen3') else ''
     with contextlib.ExitStack() as stack:
-        for module in (settings, llmClient):
+        for module in (settings, llm_client):
             stack.enter_context(mock.patch.object(module, 'LLM_MODEL', model))
             stack.enter_context(mock.patch.object(module, 'LLM_NO_THINK_MARKER', marker))
         yield

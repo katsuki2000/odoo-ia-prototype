@@ -29,10 +29,10 @@ from pathlib import Path
 
 import requests
 
-projectRoot = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(projectRoot))
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
-from core.evaluation import run_store as runStore
+from core.evaluation import run_store
 from core.evaluation.bench_common import (
     contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, run_on_model, seconds_text,
 )
@@ -40,9 +40,9 @@ from core.evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
 from document_rag.generate_node import generate
 
-QUESTIONS_PATH = projectRoot / 'tests' / 'rag_eval_questions.json'
-CONTEXTS_PATH = projectRoot / 'captures' / 'rag_eval_contexts.json'
-RESULTS_PATH = projectRoot / 'captures' / 'rag_model_eval.jsonl'
+QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
+CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
+RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
 GENERATION_ERROR_PREFIX = 'Désolé, une erreur'
 
 
@@ -73,45 +73,45 @@ def load_contexts(questions, refresh):
     return {item['id']: cached[item['id']]['chunks'] for item in questions}
 
 
-def score(item, answer, citedSources):
+def score(item, answer, cited_sources):
     folded = normalize(answer)
     facts, references = item['facts'], item['reference_sources']
     return {
         'fact_recall': sum(contains_fact(folded, fact) for fact in facts) / len(facts) if facts else None,
-        'source_recall': len(set(references) & set(citedSources)) / len(references) if references else None,
+        'source_recall': len(set(references) & set(cited_sources)) / len(references) if references else None,
         'abstained': any(marker in folded for marker in ABSTENTION_MARKERS),
     }
 
 
 def load_scored_runs():
     """Recorded runs, scores recomputed from the stored answers with the current question set."""
-    return rescore_runs(runStore.load_runs(RESULTS_PATH), load_questions(None),
+    return rescore_runs(run_store.load_runs(RESULTS_PATH), load_questions(None),
                         lambda item, record: score(item, record['answer'], record['cited_sources']))
 
 
 def run_once(item, chunks):
-    answer, citedSources, confidence, llmCalls, structuredFailed, error = '', [], None, 0, False, None
-    startedAt = time.time()
+    answer, cited_sources, confidence, llm_calls, structured_failed, error = '', [], None, 0, False, None
+    started_at = time.time()
     try:
         result = generate({'question': item['question'], 'retrieved_chunks': chunks, 'timing': {}})
         response = result['response']
         answer, confidence = response.answer, response.confidence
-        citedSources = [source.title for source in response.sources]
-        llmCalls = result['timing'].get('llm_call_count', 0)
-        structuredFailed = bool(result.get('sources_fallback_eligible'))
+        cited_sources = [source.title for source in response.sources]
+        llm_calls = result['timing'].get('llm_call_count', 0)
+        structured_failed = bool(result.get('sources_fallback_eligible'))
         error = answer if answer.startswith(GENERATION_ERROR_PREFIX) else None
     except Exception as exc:
         error = f'{type(exc).__name__}: {exc}'
     return {
         'answer': answer,
         'answer_chars': len(answer),
-        'cited_sources': citedSources,
+        'cited_sources': cited_sources,
         'confidence': confidence,
-        'llm_calls': llmCalls,
-        'structured_failed': structuredFailed,
-        'seconds': round(time.time() - startedAt, 1),
+        'llm_calls': llm_calls,
+        'structured_failed': structured_failed,
+        'seconds': round(time.time() - started_at, 1),
         'error': error[:300] if error else None,
-        **score(item, answer, citedSources),
+        **score(item, answer, cited_sources),
     }
 
 
@@ -123,13 +123,13 @@ def describe(record):
     return f'facts {record["fact_recall"]:.0%}, sources {record["source_recall"]:.0%}'
 
 
-def execute(todo, runs, model, serverInfo, chunksById):
+def execute(todo, runs, model, server_info, chunks_by_id):
     """Run the pending questions, appending each result. Returns False when the backend looks down."""
-    def build_record(item, passNumber):
+    def build_record(item, pass_number):
         return {
-            'model': model, 'question_id': item['id'], 'pass_number': passNumber,
+            'model': model, 'question_id': item['id'], 'pass_number': pass_number,
             'category': item['category'], 'answerable': item['answerable'],
-            **serverInfo, **run_once(item, chunksById[item['id']]),
+            **server_info, **run_once(item, chunks_by_id[item['id']]),
         }
 
     return execute_runs(todo, runs, RESULTS_PATH, build_record, describe)
@@ -186,10 +186,10 @@ def print_report(runs):
     print('rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);')
     print('chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).')
     print(f'\nper question (over the passes done)\n{"question":<12}' + ''.join(f'{model[:20]:>22}' for model in models))
-    for questionId in dict.fromkeys(record['question_id'] for record in records):
-        cells = [question_cell([record for record in records if record['model'] == model and record['question_id'] == questionId])
+    for question_id in dict.fromkeys(record['question_id'] for record in records):
+        cells = [question_cell([record for record in records if record['model'] == model and record['question_id'] == question_id])
                  for model in models]
-        print(f'{questionId:<12}' + ''.join(f'{cell:>22}' for cell in cells))
+        print(f'{question_id:<12}' + ''.join(f'{cell:>22}' for cell in cells))
 
 
 def main():
@@ -221,23 +221,23 @@ def main():
         print('[ERROR] No question matches the filters.')
         return 1
     if args.fresh:
-        runStore.discard_model(RESULTS_PATH, args.model)
+        run_store.discard_model(RESULTS_PATH, args.model)
     runs = load_scored_runs()
-    todo = list(runStore.pending_runs(args.model, questions, args.passes, runs,
+    todo = list(run_store.pending_runs(args.model, questions, args.passes, runs,
                                       lambda previous: args.retry_errors and bool(previous['error'])))
     if not todo:
         print_report(runs)
         return 0
 
     try:
-        chunksById = load_contexts(questions, args.refresh_contexts)
+        chunks_by_id = load_contexts(questions, args.refresh_contexts)
     except (BackendUnavailable, requests.RequestException) as error:
         print(f'[SKIP] {error}')
         return 2
-    exitCode = run_on_model(args.model, args.context_length, args.keep_loaded,
-                            lambda serverInfo: execute(todo, runs, args.model, serverInfo, chunksById))
+    exit_code = run_on_model(args.model, args.context_length, args.keep_loaded,
+                            lambda server_info: execute(todo, runs, args.model, server_info, chunks_by_id))
     print_report(runs)
-    return exitCode
+    return exit_code
 
 
 if __name__ == '__main__':

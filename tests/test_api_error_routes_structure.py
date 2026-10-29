@@ -4,15 +4,15 @@ import ast
 from pathlib import Path
 import unittest
 
-rootPath = Path(__file__).resolve().parents[1]
+root_path = Path(__file__).resolve().parents[1]
 
 
-def load_tree(relativePath):
-    return ast.parse((rootPath / relativePath).read_text(encoding='utf-8'))
+def load_tree(relative_path):
+    return ast.parse((root_path / relative_path).read_text(encoding='utf-8'))
 
 
-def find_function(tree, functionName):
-    return next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == functionName)
+def find_function(tree, function_name):
+    return next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == function_name)
 
 
 class ErrorRouteStructureTests(unittest.TestCase):
@@ -39,21 +39,21 @@ class ErrorRouteStructureTests(unittest.TestCase):
         self.assertIn('not checked', ast.unparse(function))
 
     def test_unexpected_failures_use_common_error_boundary(self):
-        functions = [('api/routes_ask.py', '_answer_question'), ('api/routes_system.py', 'get_modules'), ('api/routes_system.py', 'get_stats')]
-        for relativePath, functionName in functions:
-            with self.subTest(functionName=functionName):
-                function = find_function(load_tree(relativePath), functionName)
+        functions = [('api/routes_ask.py', '_answer_question')]
+        for relative_path, function_name in functions:
+            with self.subTest(function_name=function_name):
+                function = find_function(load_tree(relative_path), function_name)
                 handlers = [node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler) and isinstance(node.type, ast.Name) and node.type.id == 'Exception']
                 self.assertEqual(len(handlers), 1)
                 handler = handlers[0]
                 self.assertTrue(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'public_error_details' for node in ast.walk(handler)))
-                raiseNode = handler.body[-1]
-                self.assertIsInstance(raiseNode, ast.Raise)
-                self.assertIsInstance(raiseNode.cause, ast.Constant)
-                self.assertIsNone(raiseNode.cause.value)
-                detailNode = next(keyword.value for keyword in raiseNode.exc.keywords if keyword.arg == 'detail')
-                self.assertIsInstance(detailNode, ast.Name)
-                self.assertEqual(detailNode.id, 'detail')
+                raise_node = handler.body[-1]
+                self.assertIsInstance(raise_node, ast.Raise)
+                self.assertIsInstance(raise_node.cause, ast.Constant)
+                self.assertIsNone(raise_node.cause.value)
+                detail_node = next(keyword.value for keyword in raise_node.exc.keywords if keyword.arg == 'detail')
+                self.assertIsInstance(detail_node, ast.Name)
+                self.assertEqual(detail_node.id, 'detail')
                 self.assertFalse(any(isinstance(node, ast.JoinedStr) for node in ast.walk(handler)))
 
     def test_question_validation_http_exceptions_are_preserved(self):

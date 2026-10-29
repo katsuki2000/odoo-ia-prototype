@@ -1,11 +1,25 @@
-import os
-import time
-import requests
-import jwt
+"""Manual latency and success check of /api/v1/ask over ten independent questions.
 
-# Generate a valid JWT token
-secret = os.getenv("JWT_SECRET", "default_insecure_secret_for_dev")
-token = jwt.encode({"uid": 2, "groups": ["base.group_user"], "company_id": 1}, secret, algorithm="HS256")
+Run from the project root with the API already started:
+    python -m tests.manual_check_api_v1
+Needs JWT_SECRET (the API's value) and ODOO_DB in .env.
+"""
+import os
+import sys
+import time
+
+import jwt
+import requests
+
+from config.settings import API_HOST, API_PORT, ODOO_DB
+
+BASE_URL = f"http://{API_HOST}:{API_PORT}"
+
+secret = os.getenv("JWT_SECRET")
+if not secret or not ODOO_DB:
+    sys.exit("JWT_SECRET and ODOO_DB must be set in .env.")
+token = jwt.encode(
+    {"uid": 2, "groups": ["base.group_user"], "company_id": 1, "db": ODOO_DB}, secret, algorithm="HS256")
 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 questions = [
@@ -27,7 +41,7 @@ questions = [
 print("Waiting for server to boot...")
 for _ in range(30):
     try:
-        requests.get("http://127.0.0.1:8000/api/v1/health")
+        requests.get(f"{BASE_URL}/api/v1/health")
         break
     except:
         time.sleep(1)
@@ -44,11 +58,10 @@ for q in questions:
         "session_id": "test_session",
         "user_uid": 2,
         "company_id": 1,
-        "skills": {}
     }
     try:
         t0 = time.time()
-        resp = requests.post("http://127.0.0.1:8000/api/v1/ask", json=payload, headers=headers)
+        resp = requests.post(f"{BASE_URL}/api/v1/ask", json=payload, headers=headers)
         dt = time.time() - t0
         if resp.status_code == 200:
             print(f"[OK] {dt:.2f}s | {q[:30]}... -> {resp.json()['answer'][:30]}...")

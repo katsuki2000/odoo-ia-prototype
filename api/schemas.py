@@ -14,7 +14,6 @@ class AskRequestV1(BaseModel):
         default=None,
         description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
     )
-    skills: dict[str, bool] = Field(default_factory=dict)
     source_mode: Optional[Literal["documentation", "systeme"]] = Field(
         default=None,
         description=(
@@ -62,18 +61,6 @@ class AskJobStatusV1(BaseModel):
     error_detail: Optional[str] = None
 
 
-class StatsResponse(BaseModel):
-    """Response body for the /stats endpoint."""
-    collection_name: str
-    document_count: int
-
-
-class ReindexResponse(BaseModel):
-    """Response body for the /reindex endpoint."""
-    status: str
-    document_count: int
-
-
 class ReindexRequestV1(BaseModel):
     """Request body for /api/v1/reindex."""
     scope: Literal["full", "incremental"] = Field(
@@ -110,10 +97,3 @@ class ScheduledScanResponse(BaseModel):
     scan_type: str
     result: dict[str, Any]
     last_ingestion_time: Optional[str]
-
-
-class ModuleCoverageResponse(BaseModel):
-    """Response body for /api/v1/modules endpoint."""
-    supported: list[str]
-    code_indexed: list[str]
-    not_covered: list[str]

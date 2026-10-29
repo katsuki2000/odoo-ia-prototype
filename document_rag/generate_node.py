@@ -5,12 +5,8 @@ import time
 
 from core.schemas import AssistantResponse, LLMResponse
 from config.settings import DOCUMENT_MAX_TOKENS
-from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
 from core.state import RAGState
-from core.llm.llm_client import (
-    get_chat_llm,
-    invoke_with_rate_limit as _invoke_with_rate_limit,
-)
+from core.llm.llm_client import get_chat_llm, invoke_llm
 from document_rag.generate_helpers import (
     build_source_aliases as _build_source_aliases,
     format_context as _format_context,
@@ -25,7 +21,6 @@ logger = logging.getLogger(__name__)
 _build_llm = get_chat_llm
 
 
-
 def generate(state: RAGState) -> dict:
     """Generate structured answer using configured LLM (documentary branch)."""
     start_time = time.time()
@@ -36,21 +31,6 @@ def generate(state: RAGState) -> dict:
     from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
-
-    if is_out_of_scope(question):
-        logger.info("Node [generate]: Deterministic out-of-scope refusal.")
-        response = AssistantResponse(
-            answer=OUT_OF_SCOPE_ANSWER,
-            sources=[],
-            confidence=0.0,
-        )
-        timing = state.get("timing", {}).copy()
-        timing["generation_time"] = time.time() - start_time
-        _trace_logger.log_summary(
-            trace_id=_trace_id, branch="documentaire", question=question,
-            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
-        )
-        return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
@@ -65,7 +45,7 @@ def generate(state: RAGState) -> dict:
             trace_id=_trace_id, branch="documentaire", question=question,
             hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
         )
-        return {"response": response, "raw_answer": response.answer, "timing": timing}
+        return {"response": response, "timing": timing}
 
     from document_rag.prompts import build_rag_messages as build_messages
 
@@ -78,17 +58,8 @@ def generate(state: RAGState) -> dict:
     _llm_call_count = 0
     sources_fallback_eligible = False
     try:
-        llm = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
-        _structured_llm_box = [llm.with_structured_output(LLMResponse)]
-
-        def _rebuild_structured_llm():
-            fresh = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
-            _structured_llm_box[0] = fresh.with_structured_output(LLMResponse)
-            return _structured_llm_box[0]
-
-        llm_resp, _wait = _invoke_with_rate_limit(
-            _structured_llm_box[0], messages, rebuild_llm=_rebuild_structured_llm,
-        )
+        llm = _build_llm(temperature=0.3, max_tokens=DOCUMENT_MAX_TOKENS)
+        llm_resp = invoke_llm(llm.with_structured_output(LLMResponse), messages)
         _llm_call_count += 1
         response = AssistantResponse(
             answer=_strip_source_aliases(llm_resp.answer),
@@ -98,15 +69,7 @@ def generate(state: RAGState) -> dict:
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
-            _plain_llm_box = [_build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)]
-
-            def _rebuild_plain_llm():
-                _plain_llm_box[0] = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
-                return _plain_llm_box[0]
-
-            raw_resp, _wait2 = _invoke_with_rate_limit(
-                _plain_llm_box[0], messages, rebuild_llm=_rebuild_plain_llm,
-            )
+            raw_resp = invoke_llm(_build_llm(temperature=0.3, max_tokens=DOCUMENT_MAX_TOKENS), messages)
             _llm_call_count += 1
             parsed_answer = _parse_raw_json_answer(raw_resp.content)
             response = AssistantResponse(
@@ -133,7 +96,6 @@ def generate(state: RAGState) -> dict:
     )
     return {
         "response": response,
-        "raw_answer": response.answer if response else "",
         "timing": timing,
         "sources_fallback_eligible": sources_fallback_eligible,
     }

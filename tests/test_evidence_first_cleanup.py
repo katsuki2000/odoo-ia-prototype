@@ -86,11 +86,11 @@ class RoutingTests(unittest.TestCase):
 class SourceContractTests(unittest.TestCase):
     def setUp(self):
         from typing import Literal
-        self.invoke = Mock(return_value=({'source': 'systeme', 'confidence': .9}, 0))
+        self.invoke = Mock(return_value={'source': 'systeme', 'confidence': .9})
         self.ns = load('core/routing/source_selection.py', {'SourceSelection', 'select_source'}, {
             'BaseModel': BaseModel, 'ConfigDict': ConfigDict, 'Field': Field, 'Literal': Literal,
             'get_chat_llm': lambda **kwargs: NS(with_structured_output=lambda *a, **k: object()),
-            'invoke_with_rate_limit': self.invoke, 'with_no_think': lambda value: value,
+            'invoke_llm': self.invoke, 'with_no_think': lambda value: value,
             'HumanMessage': NS, 'SystemMessage': NS})
         self.ns['SourceSelection'].model_rebuild(_types_namespace={'Literal': Literal})
 
@@ -100,7 +100,7 @@ class SourceContractTests(unittest.TestCase):
     def test_malformed_selection_is_uncertain(self):
         for result in ({'source': 'other', 'confidence': .9}, {'source': 'systeme', 'confidence': 1.1}, {},
                        {'source': 'systeme', 'confidence': float('nan')}):
-            self.invoke.return_value = result, 0
+            self.invoke.return_value = result
             self.assertEqual(self.ns['select_source']('approval').source, 'uncertain')
 
     def test_unavailable_provider_is_uncertain(self):
@@ -114,14 +114,13 @@ class SourceContractTests(unittest.TestCase):
 
 class VerificationTests(unittest.TestCase):
     def setUp(self):
-        self.graph = object()
         self.ns = load('core/graph/verify_node.py', {'_build_context'}, {
             '_evidence': lambda state: (('actual evidence',), ()),
             'answered_by_documents': lambda state: state.get('route') == 'documentaire',
             'default_base_model_methods': lambda: set(), 'VerificationContext': NS})
 
     def test_user_question_is_not_treated_as_factual_evidence(self):
-        context = self.ns['_build_context']({'question': 'invented claim', 'knowledge_graph': self.graph})
+        context = self.ns['_build_context']({'question': 'invented claim'})
         self.assertEqual(context.texts, ('actual evidence',))
 
 
@@ -131,9 +130,9 @@ class OwnershipAndRetirementTests(unittest.TestCase):
         search = Mock(return_value=[{'document': 'actual'}])
         ns = load('core/graph/graph_nodes.py', {'retrieve'}, {
             'get_retriever': owned, 'search_retrieve': search, 'RAG_TOP_K': 10})
-        fakeGraph = ModuleType('core.graph.graph')
-        fakeGraph.get_retriever = Mock(side_effect=AssertionError('compatibility target used'))
-        with patch.dict('sys.modules', {fakeGraph.__name__: fakeGraph}):
+        fake_graph = ModuleType('core.graph.graph')
+        fake_graph.get_retriever = Mock(side_effect=AssertionError('compatibility target used'))
+        with patch.dict('sys.modules', {fake_graph.__name__: fake_graph}):
             self.assertTrue(ns['retrieve']({'question': 'policy'})['retrieved_chunks'])
         owned.assert_called_once()
-        fakeGraph.get_retriever.assert_not_called()
+        fake_graph.get_retriever.assert_not_called()

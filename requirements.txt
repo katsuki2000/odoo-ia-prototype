@@ -131,6 +131,5 @@ yarl
 zstandard==0.25.0
 pytest-cov==4.1.0
 rapidfuzz
-semgrep; sys_platform != "win32"
 pytest-xdist
 google-auth>=2.29,<3

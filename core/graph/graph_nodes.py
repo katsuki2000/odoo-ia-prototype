@@ -3,18 +3,19 @@
 from config.settings import RAG_TOP_K
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, SourceReference, source_display_title
-from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
+from core.guardrails import refusal_message
 from core.state import RAGState
 
 
-def out_of_scope_gate(state: RAGState) -> dict:
-    if not is_out_of_scope(state.get('question', '')):
+def guard_gate(state: RAGState) -> dict:
+    refusal = refusal_message(state.get('question', ''))
+    if refusal is None:
         return {}
-    return {'response': AssistantResponse(answer=OUT_OF_SCOPE_ANSWER, sources=[], confidence=0.0),
+    return {'response': AssistantResponse(answer=refusal, sources=[], confidence=0.0),
             'route': 'out_of_scope', 'retrieved_chunks': []}
 
 
-def out_of_scope_decision(state: RAGState) -> str:
+def guard_decision(state: RAGState) -> str:
     return 'format_output' if state.get('response') is not None else 'route'
 
 
@@ -23,9 +24,9 @@ def answered_by_documents(state: RAGState) -> bool:
 
 
 def retrieve(state: RAGState) -> dict:
-    chromaManager, bm25Index = get_retriever()
+    chroma_manager, bm25_index = get_retriever()
     chunks = search_retrieve(query=state['question'], top_k=RAG_TOP_K,
-        chroma_manager=chromaManager, bm25_index=bm25Index)
+        chroma_manager=chroma_manager, bm25_index=bm25_index)
     return {'retrieved_chunks': chunks}
 
 

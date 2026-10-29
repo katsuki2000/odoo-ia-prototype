@@ -26,9 +26,9 @@ def discard_model(path, model):
         file.writelines(json.dumps(record, ensure_ascii=False) + '\n' for record in kept)
 
 
-def pending_runs(model, questions, passes, runs, isRetryable):
-    for passNumber in range(1, passes + 1):
+def pending_runs(model, questions, passes, runs, is_retryable):
+    for pass_number in range(1, passes + 1):
         for item in questions:
-            previous = runs.get((model, item['id'], passNumber))
-            if previous is None or isRetryable(previous):
-                yield item, passNumber
+            previous = runs.get((model, item['id'], pass_number))
+            if previous is None or is_retryable(previous):
+                yield item, pass_number

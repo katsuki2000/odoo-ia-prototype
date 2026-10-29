@@ -6,6 +6,7 @@ import pytest
 
 from core.evidence.evidence import EvidenceSourceType
 from erp_data.odoo_context import odoo_uid_ctx
+from erp_data.runtime import read_tools
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.read_tools import (
     READ_ONLY_ORM_TOOLS,
@@ -16,7 +17,6 @@ from erp_data.runtime.read_tools import (
     orm_search,
     orm_search_count,
     orm_search_read,
-    set_connector_for_tests,
 )
 from erp_data.runtime.validation import (
     cap_name_search_limit,
@@ -32,9 +32,9 @@ from erp_data.runtime.validation import (
 
 @pytest.fixture(autouse=True)
 def _reset_connector():
-    set_connector_for_tests(None)
+    read_tools._connector = None
     yield
-    set_connector_for_tests(None)
+    read_tools._connector = None
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def requester_uid():
 @pytest.fixture
 def mock_connector():
     connector = MagicMock()
-    set_connector_for_tests(connector)
+    read_tools._connector = connector
     return connector
 
 

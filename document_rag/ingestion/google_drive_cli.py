@@ -2,7 +2,6 @@
 
 import argparse
 import json
-from pathlib import Path
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 
 
@@ -12,15 +11,13 @@ def main():
     parser.add_argument('--chunk-overlap', type=int, default=RAG_CHUNK_OVERLAP)
     parser.add_argument('--watch', action='store_true', help='Synchronize immediately, then periodically')
     args = parser.parse_args()
-    from dotenv import load_dotenv
-    load_dotenv(Path(__file__).resolve().parents[2] / '.env')
     from config.google_drive import GoogleDriveSettings
     try:
         settings = GoogleDriveSettings.from_environment()
-        if not settings.folderIds:
+        if not settings.folder_ids:
             print(json.dumps({'status': 'skipped', 'reason': 'GOOGLE_DRIVE_FOLDER_IDS is not configured'}))
             return 0
-        if not settings.approvedForRag:
+        if not settings.approved_for_rag:
             parser.exit(2, 'Approve the selected corpus for all RAG readers with GOOGLE_DRIVE_APPROVED_FOR_RAG=true.\n')
         if args.chunk_size <= 0 or not 0 <= args.chunk_overlap < args.chunk_size:
             raise ValueError('Invalid chunk size or overlap.')
@@ -28,16 +25,16 @@ def main():
         from document_rag.ingestion.google_drive import GoogleDriveClient
         from document_rag.ingestion.google_drive_sync import synchronize_google_drive, run_periodic_sync
         from document_rag.vectorstore.chroma_manager import ChromaManager
-        client = GoogleDriveClient(timeout=settings.timeout, maxBytes=settings.maxBytes)
+        client = GoogleDriveClient(timeout=settings.timeout, max_bytes=settings.max_bytes)
         manager = ChromaManager()
         def synchronize():
-            return synchronize_google_drive(client, settings.folderIds, manager,
-                                            chunkSize=args.chunk_size, chunkOverlap=args.chunk_overlap, maxFiles=settings.maxFiles)
+            return synchronize_google_drive(client, settings.folder_ids, manager,
+                                            chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap, max_files=settings.max_files)
         def emit(result):
             print(json.dumps(result, ensure_ascii=False), flush=True)
         with FileLock(str(manager.db_path / '.google_drive_sync.lock'), timeout=0):
             if args.watch:
-                run_periodic_sync(synchronize, settings.syncInterval, emit)
+                run_periodic_sync(synchronize, settings.sync_interval, emit)
                 return 0
             result = synchronize()
     except KeyboardInterrupt:

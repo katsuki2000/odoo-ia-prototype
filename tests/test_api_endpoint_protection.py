@@ -15,14 +15,13 @@ from api.main import app
 
 SECRET = "s" * 40
 ADMIN_ROUTES = [
-    ("post", "/reindex"),
     ("post", "/api/v1/reindex"),
     ("get", "/api/v1/ingestion/status"),
     ("post", "/api/v1/ingestion/scheduled-scan"),
 ]
 AUTHENTICATED_ROUTES = [
-    ("get", "/stats"),
-    ("get", "/api/v1/modules"),
+    ("post", "/api/v1/ask"),
+    ("get", "/api/v1/ask/jobs/nonexistent-id"),
 ]
 
 
@@ -51,6 +50,7 @@ def test_admin_routes_refuse_non_admin_tokens(client, method, path, claims):
 
 
 @pytest.mark.parametrize("method,path", AUTHENTICATED_ROUTES)
+@pytest.mark.filterwarnings("ignore::jwt.warnings.InsecureKeyLengthWarning")
 def test_authenticated_routes_refuse_a_forged_token(client, method, path):
     forged = jwt.encode({"uid": 1, "exp": int(time.time()) + 60}, "default_insecure_secret_for_dev", algorithm="HS256")
     response = getattr(client, method)(path, headers={"Authorization": f"Bearer {forged}"})

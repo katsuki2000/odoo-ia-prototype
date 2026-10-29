@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.settings import ODOO_DB
 from core.graph.graph import query_graph
 
 logging.basicConfig(level=logging.ERROR)
@@ -28,7 +29,7 @@ def run_erp_evaluation():
     print(f"Starting ERP Evaluation on {total} questions...\n")
     
     from erp_data.odoo_connector import OdooConnector
-    _conn = OdooConnector()
+    _conn = OdooConnector(db=ODOO_DB)
     _manager_password = os.environ.get("ODOO_MANAGER_PASSWORD")
     if not _manager_password:
         raise ValueError("ODOO_MANAGER_PASSWORD environment variable is required")
@@ -42,7 +43,7 @@ def run_erp_evaluation():
     results = []
     
     for q in tqdm(questions, desc="Evaluating ERP"):
-        response = query_graph(q["question"], uid=manager_uid, api_key=_manager_password)
+        response = query_graph(q["question"], uid=manager_uid, api_key=_manager_password, db=ODOO_DB)
         results.append({
             "id": q["id"],
             "question": q["question"],

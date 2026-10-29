@@ -22,6 +22,7 @@ load_dotenv()
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, "document_rag"))
+from config.settings import ODOO_DB
 from core.graph.graph import query_graph
 
 logging.basicConfig(level=logging.ERROR)
@@ -60,7 +61,7 @@ def run_doc_nonregression():
     print(f"Running {total} documentary questions...\n")
 
     from erp_data.odoo_connector import OdooConnector
-    _conn = OdooConnector()
+    _conn = OdooConnector(db=ODOO_DB)
     _password = "password123"
     uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _password, {})
     if not uid:

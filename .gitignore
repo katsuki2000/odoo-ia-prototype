@@ -24,23 +24,13 @@ document_rag/vectorstore/chroma_db/
 # Ingestion logs -- machine-specific
 document_rag/ingestion/logs/
 
-# Code Intelligence knowledge graph cache -- a serialized build artifact
-# that bakes in absolute filesystem paths resolved at build time (every
-# Model node's filepaths). Committing it lets one machine's absolute paths
-# silently overwrite another machine's on checkout -- see todo/contexte.txt
-# for the real incident this caused (analyze_security_locks and friends
-# returning nothing for every model, on any machine that doesn't match
-# whoever last built/committed this file). Always regenerate locally via
-# scripts/rebuild_graph.py instead of relying on a committed copy.
-# no leading directory -- matches the real file at repo root
-# (code_intelligence/graph/loader.py::GRAPH_JSON_PATH resolves to the repo
-# root, not code_intelligence/) as well as the orphan stale copy under
-# code_intelligence/ (section 2825) -- the old "code_intelligence/
-# active_graph.json" pattern never matched the actual tracked file despite
-# the comment above explaining exactly why it should be ignored (section
-# 869: git check-ignore confirmed 0 matches, 7 commits of an 8.6MB file
-# had gone through regardless)
+# Graph cache left by the removed Code Intelligence module (not read by any code)
+active_graph.json*
 
 # Generated measurement artefacts: evaluation runs, raw responses, dumps, traces (decision pmm)
 captures/
 
+
+# Scratch work and thesis backups -- local only
+.scratch/
+todo/MASTER_ENI.pre_*.docx

@@ -22,9 +22,9 @@ def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):
     manager.collection_name = "api_incremental"
 
     with (
-        patch("api.main.ChromaManager", return_value=manager),
-        patch("api.main.reindex_if_changed") as reindex,
-        patch("api.main.write_ingestion_event"),
+        patch("api.routes_ingestion.ChromaManager", return_value=manager),
+        patch("api.routes_ingestion.reindex_if_changed") as reindex,
+        patch("api.routes_ingestion.write_ingestion_event"),
         patch("api.routes_ingestion.confine_to_scan_roots", return_value=docs_dir.resolve()),
     ):
         reindex.return_value = {
@@ -52,9 +52,9 @@ def test_api_v1_reindex_rejects_path_outside_scan_roots(tmp_path):
     manager = MagicMock()
 
     with (
-        patch("api.main.ChromaManager", return_value=manager),
-        patch("api.main.reindex_if_changed") as reindex,
-        patch("api.main.write_ingestion_event"),
+        patch("api.routes_ingestion.ChromaManager", return_value=manager),
+        patch("api.routes_ingestion.reindex_if_changed") as reindex,
+        patch("api.routes_ingestion.write_ingestion_event"),
     ):
         from fastapi import HTTPException
 
@@ -70,7 +70,7 @@ def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):
     manager = MagicMock()
     manager.get_stats.return_value = {"total_chunks": 1}
 
-    with patch("api.main.ChromaManager", return_value=manager):
+    with patch("api.routes_ingestion.ChromaManager", return_value=manager):
         response = ingestion_status()
 
     payload = response.model_dump()

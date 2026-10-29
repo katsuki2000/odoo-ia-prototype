@@ -19,7 +19,7 @@ class Collection:
     def __init__(self):
         self.rows = {'old': {'origin': 'google_drive', 'drive_file_id': 'old_file', 'source': 'old_source'},
                      'local': {'source': 'local.txt'}}
-        self.failDeletes = False
+        self.fail_deletes = False
 
     def get(self, ids=None, where=None, include=None):
         keys = list(self.rows) if ids is None else [key for key in ids if key in self.rows]
@@ -40,7 +40,7 @@ class Manager:
         self.collection = Collection()
 
     def delete_by_ids(self, ids):
-        if self.collection.failDeletes and ids:
+        if self.collection.fail_deletes and ids:
             raise RuntimeError('cleanup failed')
         for key in ids:
             self.collection.rows.pop(key, None)
@@ -55,14 +55,14 @@ class Client:
     def __init__(self):
         self.records = []
         self.error = None
-        self.folderError = None
+        self.folder_error = None
 
     def _request(self, path, parameters):
-        if self.folderError:
-            raise self.folderError
+        if self.folder_error:
+            raise self.folder_error
         return io.BytesIO(json.dumps({'mimeType': 'application/vnd.google-apps.folder'}).encode())
 
-    def list_documents(self, folderIds, maxFiles):
+    def list_documents(self, folder_ids, max_files):
         if self.error:
             raise self.error
         return self.records
@@ -75,15 +75,15 @@ def loader(path, *args):
     return [path.read_text()], [{'chunk_index': 0}]
 
 
-def candidate(chunkId='old', origin='google_drive'):
-    return {'id': chunkId, 'document': 'Cached text', 'metadata': {'origin': origin}}
+def candidate(chunk_id='old', origin='google_drive'):
+    return {'id': chunk_id, 'document': 'Cached text', 'metadata': {'origin': origin}}
 
 
-def load_function(relativePath, name, namespace):
-    tree = ast.parse((ROOT / relativePath).read_text())
+def load_function(relative_path, name, namespace):
+    tree = ast.parse((ROOT / relative_path).read_text())
     function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
     module = ast.Module(body=[function], type_ignores=[])
-    exec(compile(module, relativePath, 'exec'), namespace)
+    exec(compile(module, relative_path, 'exec'), namespace)
     return namespace[name]
 
 
@@ -108,20 +108,20 @@ class SharedDriveSyncTests(unittest.TestCase):
         self.assertNotIn('drive_active', self.manager.collection.rows['old'])
 
     def test_network_failure_does_not_delete(self):
-        self.client.folderError = TimeoutError()
+        self.client.folder_error = TimeoutError()
         with self.assertRaises(TimeoutError):
             self.sync()
         self.assertIn('old', self.manager.collection.rows)
 
     def test_missing_folder_blocks_shared_corpus_only(self):
-        self.client.folderError = HTTPError('fixture', 404, 'missing', {}, None)
+        self.client.folder_error = HTTPError('fixture', 404, 'missing', {}, None)
         result = self.sync()
         self.assertEqual(result['status'], 'blocked')
         self.assertNotIn('old', self.manager.collection.rows)
         self.assertIn('local', self.manager.collection.rows)
 
     def test_generic_forbidden_is_not_confused_with_deletion(self):
-        self.client.folderError = HTTPError('fixture', 403, 'quota or access error', {}, None)
+        self.client.folder_error = HTTPError('fixture', 403, 'quota or access error', {}, None)
         with self.assertRaises(HTTPError):
             self.sync()
         self.assertIn('old', self.manager.collection.rows)
@@ -132,7 +132,7 @@ class SharedDriveSyncTests(unittest.TestCase):
         self.assertNotIn('old', self.manager.collection.rows)
 
     def test_cleanup_failure_leaves_tombstone_and_guard_excludes_cached_text(self):
-        self.manager.collection.failDeletes = True
+        self.manager.collection.fail_deletes = True
         with self.assertRaises(RuntimeError):
             self.sync()
         self.assertIs(self.manager.collection.rows['old']['drive_active'], False)

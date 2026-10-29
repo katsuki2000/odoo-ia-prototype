@@ -61,6 +61,7 @@ def test_expired_token_is_rejected(strong_secret):
     assert "expired" in excinfo.value.detail
 
 
+@pytest.mark.filterwarnings("ignore::jwt.warnings.InsecureKeyLengthWarning")
 def test_token_signed_with_the_legacy_default_secret_is_rejected(strong_secret):
     token = _token(LEGACY_SECRET, exp=int(time.time()) + 60)
     with pytest.raises(HTTPException) as excinfo:

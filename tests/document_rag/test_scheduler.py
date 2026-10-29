@@ -114,8 +114,8 @@ def test_api_trigger_scheduled_scan_endpoint(test_client):
     manager.get_stats.return_value = {"total_chunks": 10}
 
     with (
-        patch("api.main.ChromaManager", return_value=manager),
-        patch("api.main.run_scheduled_scan") as mock_run,
+        patch("api.routes_ingestion.ChromaManager", return_value=manager),
+        patch("api.routes_ingestion.run_scheduled_scan") as mock_run,
     ):
         mock_run.return_value = {
             "added_files": ["new.pdf"],
@@ -140,7 +140,7 @@ def test_api_ingestion_status_includes_scheduler_info(test_client):
     manager = MagicMock()
     manager.get_stats.return_value = {"total_chunks": 42}
 
-    with patch("api.main.ChromaManager", return_value=manager):
+    with patch("api.routes_ingestion.ChromaManager", return_value=manager):
         response = test_client.get("/api/v1/ingestion/status")
 
     assert response.status_code == 200

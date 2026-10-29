@@ -7,8 +7,8 @@ import sys
 import unittest
 from xmlrpc.client import Fault, ProtocolError
 
-modulePath = Path(__file__).resolve().parents[1] / 'api/public_errors.py'
-spec = importlib.util.spec_from_file_location('api_public_errors', modulePath)
+module_path = Path(__file__).resolve().parents[1] / 'api/public_errors.py'
+spec = importlib.util.spec_from_file_location('api_public_errors', module_path)
 errors = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = errors
 spec.loader.exec_module(errors)
@@ -16,8 +16,8 @@ spec.loader.exec_module(errors)
 
 class PublicErrorTests(unittest.TestCase):
     def test_private_exception_text_is_not_returned(self):
-        privateText = 'password=private-token https://private-host/secret /private/path'
-        self.assertEqual(errors.public_error_details(ValueError(privateText)), (500, 'Internal server error.'))
+        private_text = 'password=private-token https://private-host/secret /private/path'
+        self.assertEqual(errors.public_error_details(ValueError(private_text)), (500, 'Internal server error.'))
 
     def test_message_keywords_do_not_determine_status(self):
         for text in ('timeout', 'connection', 'xmlrpc', 'connection validation failed'):
@@ -31,18 +31,18 @@ class PublicErrorTests(unittest.TestCase):
         self.assertEqual(errors.public_error_details(ConnectionError('private-token'))[0], 503)
 
     def test_network_os_errors_are_service_unavailable(self):
-        for errorNumber in (errno.ECONNREFUSED, errno.ECONNRESET, errno.ETIMEDOUT, errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EPIPE):
-            with self.subTest(errorNumber=errorNumber):
-                self.assertEqual(errors.public_error_details(OSError(errorNumber, 'private-host'))[0], 503)
+        for error_number in (errno.ECONNREFUSED, errno.ECONNRESET, errno.ETIMEDOUT, errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EPIPE):
+            with self.subTest(error_number=error_number):
+                self.assertEqual(errors.public_error_details(OSError(error_number, 'private-host'))[0], 503)
 
     def test_local_filesystem_errors_are_internal_errors(self):
         self.assertEqual(errors.public_error_details(FileNotFoundError('/private/path'))[0], 500)
         self.assertEqual(errors.public_error_details(PermissionError('/private/path'))[0], 500)
 
     def test_xmlrpc_unavailable_is_sanitized(self):
-        for statusCode in (429, 500, 502, 503):
-            with self.subTest(statusCode=statusCode):
-                self.assertEqual(errors.public_error_details(ProtocolError('private-host', statusCode, 'private-token', {})), (503, 'Service temporarily unavailable.'))
+        for status_code in (429, 500, 502, 503):
+            with self.subTest(status_code=status_code):
+                self.assertEqual(errors.public_error_details(ProtocolError('private-host', status_code, 'private-token', {})), (503, 'Service temporarily unavailable.'))
 
     def test_xmlrpc_application_fault_is_not_assumed_to_be_an_outage(self):
         self.assertEqual(errors.public_error_details(Fault(1, 'AccessError: private-token'))[0], 500)

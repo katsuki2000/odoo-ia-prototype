@@ -57,14 +57,12 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         token_uid = user.get("uid")
         if token_uid is None:
             raise HTTPException(status_code=401, detail="Token missing uid")
-        request.user_uid = token_uid
 
         session = get_session(request.session_id, owner_uid=token_uid)
         chat_history = session["chat_history"]
         last_route = session["last_route"]
 
         token_api_key = user.get("api_key")
-        token_groups = user.get("groups") or []
         token_company_id = user.get("company_id")
         if token_company_id is not None:
             company_id = int(token_company_id)
@@ -80,19 +78,15 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         response = query_graph(
             question=request.question,
             chat_history=chat_history,
-            uid=request.user_uid,
+            uid=token_uid,
             api_key=token_api_key,
-            user_groups=token_groups,
-            skills=request.skills,
             last_route=last_route,
             source_mode=request.source_mode,
             language=request_language,
             company_id=company_id,
             company_ids=[company_id],
+            db=user.get("db"),
         )
-
-        if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":
-            raise HTTPException(status_code=503, detail="Service Unavailable: Upstream provider down.")
 
         updated_history = chat_history + [
             HumanMessage(content=request.question),
@@ -100,41 +94,27 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         ]
         update_session(
             request.session_id, updated_history,
-            getattr(response, "route", None) or last_route,
+            response.route or last_route,
             owner_uid=token_uid,
         )
-
-        omitted_list = []
-        if hasattr(response, "omitted_for_authorization") and response.omitted_for_authorization:
-            omitted_list = [
-                o.model_dump() if hasattr(o, "model_dump") else o
-                for o in response.omitted_for_authorization
-            ]
-
-        evidence_dossier_list = []
-        if hasattr(response, "evidence_dossier") and response.evidence_dossier:
-            evidence_dossier_list = [
-                e.model_dump() if hasattr(e, "model_dump") else e
-                for e in response.evidence_dossier
-            ]
 
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
             session_id=request.session_id,
-            sources=[s.model_dump() for s in response.sources] if hasattr(response, 'sources') else [],
-            confidence=response.confidence if hasattr(response, 'confidence') else 1.0,
-            ocr_warning=response.ocr_warning if hasattr(response, 'ocr_warning') else False,
-            route=getattr(response, "route", None),
-            omitted_for_authorization=omitted_list,
-            evidence_dossier=evidence_dossier_list,
+            sources=[s.model_dump() for s in response.sources],
+            confidence=response.confidence,
+            ocr_warning=response.ocr_warning,
+            route=response.route,
+            omitted_for_authorization=[o.model_dump() for o in response.omitted_for_authorization],
+            evidence_dossier=[e.model_dump() for e in response.evidence_dossier],
         )
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("MIRO question processing failed.")
-        statusCode, detail = public_error_details(exc)
-        raise HTTPException(status_code=statusCode, detail=detail) from None
+        status_code, detail = public_error_details(exc)
+        raise HTTPException(status_code=status_code, detail=detail) from None
 
 
 @router.post("/api/v1/ask", response_model=AskResponseV1)

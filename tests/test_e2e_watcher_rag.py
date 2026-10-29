@@ -13,8 +13,8 @@ import pytest
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search import retrieve
-from core.graph.graph import query_graph, AssistantResponse
-from core.schemas import LLMResponse
+from core.graph.graph import query_graph
+from core.schemas import AssistantResponse, LLMResponse
 
 
 @pytest.mark.integration

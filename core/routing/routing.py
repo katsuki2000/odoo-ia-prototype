@@ -15,11 +15,11 @@ SOURCE_CLARIFICATION = 'source_clarification'
 
 def route(state: RAGState) -> dict:
     started = time.perf_counter()
-    sourceMode = state.get('source_mode')
+    source_mode = state.get('source_mode')
     confidence = 1.0
-    if sourceMode in {'documentation', 'systeme'}:
-        selected = sourceMode
-    elif sourceMode:
+    if source_mode in {'documentation', 'systeme'}:
+        selected = source_mode
+    elif source_mode:
         selected, confidence = 'uncertain', 0.0
     else:
         selection = select_source(state.get('question', ''))
@@ -27,7 +27,7 @@ def route(state: RAGState) -> dict:
     decision = (QueryRoute.DOCUMENTARY.value if selected == 'documentation'
                 else QueryRoute.ERP_DATA.value if selected == 'systeme'
                 else SOURCE_CLARIFICATION)
-    if sourceMode not in {'documentation', 'systeme'} and confidence < SOURCE_SELECTION_MIN_CONFIDENCE:
+    if source_mode not in {'documentation', 'systeme'} and confidence < SOURCE_SELECTION_MIN_CONFIDENCE:
         decision = SOURCE_CLARIFICATION
     timing = dict(state.get('timing') or {})
     timing['routing_time'] = time.perf_counter() - started

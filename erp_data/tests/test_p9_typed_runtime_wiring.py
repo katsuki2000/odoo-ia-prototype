@@ -11,18 +11,18 @@ from core.evidence.evidence_collector import (
 from erp_data.odoo_context import odoo_uid_ctx
 from erp_data.orm_agent_helpers import resolve_orm_tools
 from erp_data.prompts import ORM_AGENT_SYSTEM_PROMPT, build_orm_agent_messages
-from erp_data.runtime.read_tools import set_connector_for_tests
+from erp_data.runtime import read_tools
 
 
 @pytest.fixture(autouse=True)
 def _reset_connector():
-    set_connector_for_tests(None)
+    read_tools._connector = None
     yield
-    set_connector_for_tests(None)
+    read_tools._connector = None
 
 
 def test_resolve_orm_tools_exposes_only_generic_read_primitives():
-    tools = resolve_orm_tools({"ventes": True, "stocks": True, "comptabilite": True, "tickets": True})
+    tools = resolve_orm_tools()
     names = {tool.name for tool in tools}
     assert names == {
         "fields_get",
@@ -48,7 +48,7 @@ def test_search_count_wrapper_records_evidence_and_returns_json():
 
     connector = MagicMock()
     connector.search_count.return_value = 42
-    set_connector_for_tests(connector)
+    read_tools._connector = connector
     token = odoo_uid_ctx.set(11)
     start_evidence_collection()
     try:
@@ -87,7 +87,7 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_invoke(_llm, _messages, rebuild_llm=None):
+    def fake_invoke(_llm, _messages):
         calls["n"] += 1
         if calls["n"] == 1:
             return AIMessage(
@@ -97,13 +97,12 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
                     "args": {"model": "res.partner", "domain": []},
                     "id": "tc1",
                 }],
-            ), 0
-        return AIMessage(content="Il y a 2 partenaires."), 0
+            )
+        return AIMessage(content="Il y a 2 partenaires.")
 
-    monkeypatch.setattr(node, "is_out_of_scope", lambda _q: False)
-    monkeypatch.setattr(node, "resolve_orm_tools", lambda _s: [])
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
-    monkeypatch.setattr(node, "_invoke_with_rate_limit", fake_invoke)
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
     monkeypatch.setattr(
         node,
         "execute_tool_call",
@@ -115,4 +114,4 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
 
     result = node.orm_agent_loop({"question": "Combien de partenaires ?"})
     assert calls["n"] == 2
-    assert result["raw_answer"] == "Il y a 2 partenaires."
+    assert result["response"].answer == "Il y a 2 partenaires."

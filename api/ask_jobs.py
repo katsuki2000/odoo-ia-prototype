@@ -85,8 +85,8 @@ class AskJobStore:
 
     def _drop_expired(self) -> None:
         limit = time.monotonic() - self._ttl_seconds
-        for jobId in [key for key, job in self._jobs.items() if job.started_at < limit]:
-            del self._jobs[jobId]
+        for job_id in [key for key, job in self._jobs.items() if job.started_at < limit]:
+            del self._jobs[job_id]
 
 
 ask_jobs = AskJobStore(ASK_JOB_WORKERS, ASK_JOB_MAX_PENDING, ASK_JOB_TTL_SECONDS)

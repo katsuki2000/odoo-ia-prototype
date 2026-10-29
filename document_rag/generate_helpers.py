@@ -105,9 +105,9 @@ def verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
     return verified
 
 
-def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float:
+def compute_rag_confidence(chunks: list) -> float:
     """Compute confidence score (0.0 to 1.0) deterministically for documentary branch."""
-    if is_out_of_scope or not chunks:
+    if not chunks:
         return 0.0
 
     top_chunk = chunks[0]

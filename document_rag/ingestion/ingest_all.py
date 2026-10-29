@@ -7,16 +7,13 @@ Facade module combining configuration, loaders, and orchestrator execution.
 
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 import sys
 from typing import Any, Optional
 
 from document_rag.ingestion.ingest_config import (
-    CORE_ADDONS_ROOT,
     CORE_MODULES_ALWAYS_LOADED,
-    CUSTOM_ADDONS_ROOT,
     DOCS_DIR,
     LOGS_DIR,
     PROJECT_ROOT,
@@ -31,7 +28,7 @@ from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.scan_root import resolve_scan_root
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME, RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
+from config.settings import DOCS_COLLECTION_NAME, RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -146,8 +143,6 @@ __all__ = [
     "main",
     "DOCS_DIR",
     "LOGS_DIR",
-    "CORE_ADDONS_ROOT",
-    "CUSTOM_ADDONS_ROOT",
     "CORE_MODULES_ALWAYS_LOADED",
     "PROJECT_ROOT",
     "PDFLoader",

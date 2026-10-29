@@ -24,18 +24,6 @@ def test_retrieve_node_lets_a_backend_failure_reach_the_pipeline():
             retrieve({'question': 'Comment déployer un module ?'})
 
 
-def test_generate_refuses_out_of_scope_before_calling_llm():
-    state = {
-        'question': 'Raconte-moi une blague sur les ERP.',
-        'chat_history': [],
-        'retrieved_chunks': [{'document': 'Odoo ERP context', 'metadata': {'source': 'wiki.txt'}}],
-    }
-    result = generate(state)
-    assert 'Cette question ne fait pas partie de mon périmètre' in result['response'].answer
-    assert result['response'].confidence == 0.0
-    assert not result['response'].sources
-
-
 def test_parse_raw_json_answer_extracts_answer_field():
     raw = '{"answer": "Réponse.", "sources": [], "confidence": 0.9}'
     assert _parse_raw_json_answer(raw) == 'Réponse.'
@@ -78,10 +66,10 @@ def test_format_output_without_ocr_warning():
 
 
 def test_used_sources_deduplicate_same_document():
-    aliasMap = {
+    alias_map = {
         'S1': {'document': 'Première section', 'metadata': {'source': 'wiki.md', 'type': 'wiki', 'title': 'Wiki'}},
         'S2': {'document': 'Deuxième section', 'metadata': {'source': 'wiki.md', 'type': 'wiki', 'title': 'Wiki'}},
     }
-    result = verify_used_sources(['S1', 'S2'], aliasMap)
+    result = verify_used_sources(['S1', 'S2'], alias_map)
     assert len(result) == 1
     assert result[0].snippet == 'Première section'

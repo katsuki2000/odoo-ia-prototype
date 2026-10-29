@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from config.settings import SCHEDULER_INTERVAL_HOURS
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.vectorstore.chroma_manager import ChromaManager
@@ -93,7 +94,7 @@ class PeriodicScanScheduler:
 
     def __init__(
         self,
-        interval_hours: int = 6,
+        interval_hours: int = SCHEDULER_INTERVAL_HOURS,
         roots: list[Path | str] | None = None,
         docs_manager: ChromaManager | None = None,
         status_dict: dict[str, Any] | None = None,

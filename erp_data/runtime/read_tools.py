@@ -36,11 +36,6 @@ def _get_connector() -> OdooConnector:
     return _connector
 
 
-def set_connector_for_tests(connector: Optional[OdooConnector]) -> None:
-    global _connector
-    _connector = connector
-
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

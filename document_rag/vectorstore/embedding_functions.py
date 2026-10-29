@@ -11,8 +11,8 @@ from config import settings
 class OllamaEmbeddingFunction(EmbeddingFunction):
     """HTTP embedding client for the configured Ollama server (OpenAI-compatible API)."""
     def __init__(self, base_url: str, model: str, api_key: str = 'ollama', timeout: Optional[float] = None, max_retries: int = 3, batch_size: int = 16):
-        cleanUrl = base_url.rstrip('/')
-        self.endpoint = f'{cleanUrl}/embeddings' if '/v1' in cleanUrl else f'{cleanUrl}/v1/embeddings'
+        clean_url = base_url.rstrip('/')
+        self.endpoint = f'{clean_url}/embeddings' if '/v1' in clean_url else f'{clean_url}/v1/embeddings'
         self.model = model
         self.api_key = api_key or 'ollama'
         self.timeout = float(timeout if timeout is not None else settings.EMBEDDING_TIMEOUT)

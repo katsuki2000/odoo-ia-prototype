@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 from unittest.mock import patch
-from core.graph.graph import route
+from core.routing.routing import route
 from core.routing.source_selection import SourceSelection
 
 

@@ -45,7 +45,7 @@ def download_drive_corpus(target_dir: Path) -> dict[str, Any]:
     from document_rag.ingestion.google_drive import GoogleDriveClient, document_suffix
 
     settings = GoogleDriveSettings.from_environment()
-    if not settings.folderIds or not settings.approvedForRag:
+    if not settings.folder_ids or not settings.approved_for_rag:
         raise CorpusUnavailable(
             "Google Drive corpus not configured: GOOGLE_DRIVE_FOLDER_IDS and "
             "GOOGLE_DRIVE_APPROVED_FOR_RAG=true are required."
@@ -54,12 +54,12 @@ def download_drive_corpus(target_dir: Path) -> dict[str, Any]:
     try:
         from google.auth.exceptions import DefaultCredentialsError
         try:
-            client = GoogleDriveClient(timeout=settings.timeout, maxBytes=settings.maxBytes)
+            client = GoogleDriveClient(timeout=settings.timeout, max_bytes=settings.max_bytes)
         except DefaultCredentialsError as error:
             raise CorpusUnavailable("Google Drive credentials are not available.") from error
     except ImportError as error:
         raise CorpusUnavailable("google-auth is not installed.") from error
-    records = client.list_documents(settings.folderIds, maxFiles=settings.maxFiles)
+    records = client.list_documents(settings.folder_ids, max_files=settings.max_files)
     target_dir.mkdir(parents=True, exist_ok=True)
     count = 0
     for record in records:

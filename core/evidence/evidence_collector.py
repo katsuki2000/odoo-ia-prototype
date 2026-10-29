@@ -1,32 +1,24 @@
 """
-core/evidence_collector.py
+core/evidence/evidence_collector.py
 
 Turn-scoped Evidence accumulator.
 
-Bloc B1 wired each of the 24+2 CI/ORM tools to compute a structured
-Evidence/List[Evidence] internally, but every public @tool wrapper
-discards it before returning (LangChain's @tool contract only lets a
-str reach the LLM/ToolMessage -- see tool_call_execution.py's
-`str(ctx.tool_map[tool_name].invoke(tool_args))`). This module is the
-side-channel that lets a wrapper hand its Evidence off without changing
-that return contract: same pattern as erp_data/odoo_context.py's
-per-request ContextVars for odoo_uid/odoo_api_key.
+Each ORM tool wrapper computes a structured List[Evidence], but LangChain's
+@tool contract only lets a str reach the LLM/ToolMessage. This module is the
+side-channel that lets a wrapper hand its Evidence off without changing that
+return contract: same pattern as erp_data/odoo_context.py's per-request
+ContextVars.
 
-Shared kernel: zero dependency on core/evidence.py's Evidence class is
-avoided here on purpose (only a runtime type check, no import of the
-pydantic model needed) so this module stays importable from any tool
-wrapper (CI or ORM side) without risking a cycle.
+Shared kernel: it never imports the pydantic Evidence class (only a runtime
+type check), so it stays importable from any tool wrapper without risking a
+cycle.
 
-Lifecycle: start_evidence_collection() once per turn (before the CI/ORM
-tool-calling loop starts), record_evidence() from inside each tool
-wrapper right before it returns its str, collect_and_clear_evidence()
-once per turn (right before format_output() composes AssistantResponse)
-to drain the accumulator into AssistantResponse.evidence_dossier.
+Lifecycle: start_evidence_collection() once per turn (query_graph),
+record_evidence() from inside each tool wrapper, collect_and_clear_evidence()
+once per turn to drain the accumulator into AssistantResponse.evidence_dossier.
 
-Same operational risk profile as the existing ContextVars this mirrors:
-a context not started/cleared correctly across an async boundary can
-leak or lose entries -- not a new risk category introduced by this
-module.
+Same operational risk profile as the ContextVars this mirrors: a context not
+started/cleared correctly across an async boundary can leak or lose entries.
 """
 
 import contextvars
@@ -48,10 +40,8 @@ def start_evidence_collection() -> None:
 
 def record_evidence(evidence: Any) -> None:
     """Append one Evidence, or extend with a List[Evidence], to the current
-    turn's accumulator. Normalizes the two shapes produced across the
-    codebase: most Bloc B1 tools return List[Evidence], but the two B0
-    pilots (get_total_sales_raw, get_order_count_raw) return a single
-    Evidence.
+    turn's accumulator. Accepts either shape: a List[Evidence] (what the ORM
+    tools produce) or a single Evidence.
 
     Silently no-ops (with a warning log) if called before
     start_evidence_collection() -- e.g. a tool invoked outside the normal
