@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""HTTP call from the Odoo controller to the MIRO AI backend.
-
-The next candidate URL is tried only when the server cannot be reached. Once a
-server accepted the request, it is never sent again: a read timeout means the
-backend is still working, and a second call would run the same question twice.
-"""
+"""HTTP calls to the single MIRO AI backend URL configured in Odoo."""
 import logging
 
 import requests
@@ -22,6 +17,38 @@ class BackendUnreachable(BackendError):
 
 class BackendTimeout(BackendError):
     pass
+
+
+class BackendInvalidResponse(BackendError):
+    pass
+
+
+def response_json_object(response):
+    try:
+        body = response.json()
+    except ValueError as error:
+        raise BackendInvalidResponse("Backend returned invalid JSON") from error
+    if not isinstance(body, dict):
+        raise BackendInvalidResponse("Backend response must be a JSON object")
+    return body
+
+
+def job_response_object(response):
+    job = response_json_object(response)
+    if (
+        not isinstance(job.get("question"), str)
+        or type(job.get("elapsed_ms")) is not int
+        or job.get("elapsed_ms") < 0
+        or job.get("status") not in {"pending", "done", "error"}
+    ):
+        raise BackendInvalidResponse("Backend returned an invalid job response")
+    if job.get("status") == "done":
+        result = job.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("answer"), str):
+            raise BackendInvalidResponse("Backend returned an invalid completed job")
+        if not isinstance(result.get("sources", []), list):
+            raise BackendInvalidResponse("Backend returned invalid answer sources")
+    return job
 
 
 def _send(verb, api_url, path, headers, payload, timeout):

@@ -27,6 +27,7 @@ def run_question(question, uid, api_key, db, model, result_queue):
     import erp_data.orm_agent_helpers as helpers
     import erp_data.orm_agent_node as agent
     from core.evaluation.ollama_server import model_override
+    from core.evidence import start_evidence_collection
 
     tool_calls = []
     llm_errors = []
@@ -61,6 +62,7 @@ def run_question(question, uid, api_key, db, model, result_queue):
             stack.enter_context(patch.object(agent, "ReasoningTraceLogger", _SilentTraceLogger))
             stack.enter_context(patch.object(
                 helpers, "invoke_llm", lambda *args, **kwargs: tracked_invoke(helper_invoke_llm, *args, **kwargs)))
+            start_evidence_collection()
             with model_override(model):
                 result = agent.orm_agent_loop({
                     "question": question,

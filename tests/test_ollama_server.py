@@ -6,14 +6,12 @@ from core.evaluation import ollama_server
 from core.evaluation.preflight import BackendUnavailable
 
 
-@pytest.mark.parametrize("model, marker", [("qwen3:8b", "/no_think"), ("QWEN3:30b-a3b", "/no_think"), ("gpt-oss:20b", "")])
-def test_model_override_replaces_then_restores_settings(model, marker):
-    before = (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llm_client.LLM_MODEL, llm_client.LLM_NO_THINK_MARKER)
+@pytest.mark.parametrize("model", ["qwen3:8b", "gpt-oss:20b"])
+def test_model_override_replaces_then_restores_settings(model):
+    before = (settings.LLM_MODEL, llm_client.LLM_MODEL)
     with ollama_server.model_override(model):
         assert (settings.LLM_MODEL, llm_client.LLM_MODEL) == (model, model)
-        assert (settings.LLM_NO_THINK_MARKER, llm_client.LLM_NO_THINK_MARKER) == (marker, marker)
-        assert llm_client.with_no_think("prompt").endswith(marker or "prompt")
-    assert (settings.LLM_MODEL, settings.LLM_NO_THINK_MARKER, llm_client.LLM_MODEL, llm_client.LLM_NO_THINK_MARKER) == before
+    assert (settings.LLM_MODEL, llm_client.LLM_MODEL) == before
 
 
 def _fake_server(monkeypatch, capabilities, loaded):

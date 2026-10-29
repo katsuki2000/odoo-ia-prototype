@@ -252,7 +252,7 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `ODOO_ADMIN_LOGIN` | No | `admin` | XML-RPC service username |
 | `JWT_SECRET` | Yes | none | Signing secret shared with the Odoo addon (at least 32 bytes) |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
-| `ODOO_MANAGER_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `tests/manual_check_odoo_assistant.py` sign in as |
+| `ODOO_BENCH_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `tests/manual_check_odoo_assistant.py` sign in as |
 
 ---
 

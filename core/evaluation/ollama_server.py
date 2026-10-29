@@ -52,9 +52,7 @@ def prepare_server(model):
 
 @contextlib.contextmanager
 def model_override(model):
-    marker = '/no_think' if model.lower().startswith('qwen3') else ''
     with contextlib.ExitStack() as stack:
         for module in (settings, llm_client):
             stack.enter_context(mock.patch.object(module, 'LLM_MODEL', model))
-            stack.enter_context(mock.patch.object(module, 'LLM_NO_THINK_MARKER', marker))
         yield

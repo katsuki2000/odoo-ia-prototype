@@ -109,14 +109,8 @@ def build_rag_messages(
     if chat_history is None:
         chat_history = []
 
-    messages = []
-    system_msg = SystemMessage(
-        content=DOCUMENTARY_RAG_SYSTEM_PROMPT.format(
-            context=context_text,
-            out_of_scope_answer=OUT_OF_SCOPE_ANSWER,
-        )
-    )
-    messages.append(system_msg)
+    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context=context_text, out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
+    messages = [SystemMessage(content=system_prompt)]
 
     if len(chat_history) > 10:
         chat_history = chat_history[-10:]

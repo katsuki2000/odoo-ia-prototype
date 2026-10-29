@@ -8,16 +8,11 @@ from config.settings import (
     LLM_MODEL,
     LLM_API_KEY,
     LLM_MAX_RETRIES,
-    LLM_NO_THINK_MARKER,
     LLM_REQUEST_TIMEOUT_SECONDS,
     require_inference_server,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def with_no_think(prompt: str) -> str:
-    return f"{prompt} {LLM_NO_THINK_MARKER}" if LLM_NO_THINK_MARKER else prompt
 
 
 def get_chat_llm(
@@ -28,6 +23,7 @@ def get_chat_llm(
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
     max_retries: int = LLM_MAX_RETRIES,
+    reasoning_effort: Optional[str] = None,
     model_kwargs: Optional[dict] = None,
 ):
     """Build the chat client for the configured Ollama server (OpenAI-compatible API)."""
@@ -42,6 +38,7 @@ def get_chat_llm(
         max_tokens=max_tokens,
         max_retries=max_retries,
         timeout=LLM_REQUEST_TIMEOUT_SECONDS,
+        reasoning_effort=reasoning_effort,
         model_kwargs=kw,
         **penalties,
     )

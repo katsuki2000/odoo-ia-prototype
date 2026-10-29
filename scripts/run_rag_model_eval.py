@@ -12,7 +12,12 @@ run resumes where it stopped. The measures need no judge model; the answers are 
     python scripts/run_rag_model_eval.py --model mistral-small3.2:24b
     python scripts/run_rag_model_eval.py --model qwen3:8b
     python scripts/run_rag_model_eval.py --model qwen3:30b-a3b
+    python scripts/run_rag_model_eval.py --model qwen3:14b --reasoning-effort none
     python scripts/run_rag_model_eval.py --report
+
+--reasoning-effort sends that value with the generation request (RAG_REASONING_EFFORT; `none` switches the
+reasoning off on models that support it); the results are recorded as `<model>+reasoning_<value>` so they sit
+beside the default run of the same model.
 
 fact_recall is the share of the key values of the question (number, name, command) found in the answer.
 Scores are recomputed from the stored answers at each load, so editing the facts needs no new run.
@@ -28,12 +33,14 @@ import re
 import sys
 import time
 from pathlib import Path
+from unittest import mock
 
 import requests
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
+import config.settings as settings
 from core.evaluation import run_store
 from core.evaluation.bench_common import (
     contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, run_on_model, seconds_text,
@@ -46,6 +53,7 @@ QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
 GENERATION_ERROR_PREFIX = 'Sorry, an error'
+REASONING_SUFFIX = '+reasoning_'
 
 
 # Matched on normalize() output: lowercase, no accent, no space. Models word a refusal in their own way
@@ -130,7 +138,12 @@ def describe(record):
     return f'facts {record["fact_recall"]:.0%}, sources {record["source_recall"]:.0%}'
 
 
-def execute(todo, runs, model, server_info, chunks_by_id):
+def result_label(model, reasoning_effort):
+    """Name under which the results are recorded: the Ollama model, suffixed when a reasoning effort is set."""
+    return model + REASONING_SUFFIX + reasoning_effort if reasoning_effort else model
+
+
+def execute(todo, runs, model, server_info, chunks_by_id, reasoning_effort=None):
     """Run the pending questions, appending each result. Returns False when the backend looks down."""
     def build_record(item, pass_number):
         return {
@@ -139,7 +152,8 @@ def execute(todo, runs, model, server_info, chunks_by_id):
             **server_info, **run_once(item, chunks_by_id[item['id']]),
         }
 
-    return execute_runs(todo, runs, RESULTS_PATH, build_record, describe)
+    with mock.patch.object(settings, 'RAG_REASONING_EFFORT', reasoning_effort):
+        return execute_runs(todo, runs, RESULTS_PATH, build_record, describe)
 
 
 def model_stats(records):
@@ -209,6 +223,7 @@ def main():
     parser.add_argument('--retry-errors', action='store_true', help='rerun the runs recorded as error')
     parser.add_argument('--fresh', action='store_true', help='discard the recorded results of this model first')
     parser.add_argument('--refresh-contexts', action='store_true', help='retrieve the passages again')
+    parser.add_argument('--reasoning-effort', help='reasoning effort sent with the request, e.g. none (default: model default)')
     parser.add_argument('--keep-loaded', action='store_true', help='do not unload the model at the end')
     parser.add_argument('--report', action='store_true', help='print the comparison of the recorded results and exit')
     args = parser.parse_args()
@@ -227,10 +242,11 @@ def main():
     if not questions:
         print('[ERROR] No question matches the filters.')
         return 1
+    label = result_label(args.model, args.reasoning_effort)
     if args.fresh:
-        run_store.discard_model(RESULTS_PATH, args.model)
+        run_store.discard_model(RESULTS_PATH, label)
     runs = load_scored_runs()
-    todo = list(run_store.pending_runs(args.model, questions, args.passes, runs,
+    todo = list(run_store.pending_runs(label, questions, args.passes, runs,
                                       lambda previous: args.retry_errors and bool(previous['error'])))
     if not todo:
         print_report(runs)
@@ -242,7 +258,7 @@ def main():
         print(f'[SKIP] {error}')
         return 2
     exit_code = run_on_model(args.model, args.context_length, args.keep_loaded,
-                            lambda server_info: execute(todo, runs, args.model, server_info, chunks_by_id))
+                            lambda server_info: execute(todo, runs, label, server_info, chunks_by_id, args.reasoning_effort))
     print_report(runs)
     return exit_code
 

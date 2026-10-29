@@ -10,10 +10,9 @@ MIRO AI Assistant - RAG and LangChain integration for Odoo 17
 
 Features:
 - API connection settings towards FastAPI / ChromaDB
-- Activation of the skill scope (Sales, Stock, Accounting, Tickets)
 - Chat interface and request audit log
     """,
-    'author': 'MIRO Team',
+    'author': 'RAILALA Mahalahatse',
     'website': 'https://github.com/katsuki2000/odoo-ia-prototype',
     'license': 'LGPL-3',
     'depends': ['base', 'web'],

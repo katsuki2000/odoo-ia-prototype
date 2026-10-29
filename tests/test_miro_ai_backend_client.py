@@ -97,3 +97,45 @@ def test_backend_client_has_no_machine_specific_fallback_urls(backend_client):
     assert "localhost" not in source
     assert "127.0.0.1" not in source
     assert "miro_rag" not in source
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {"status": "pending", "question": "q", "elapsed_ms": -1},
+        {"status": "unknown", "question": "q", "elapsed_ms": 1},
+        {"status": "done", "question": "q", "elapsed_ms": 1, "result": []},
+        {
+            "status": "done",
+            "question": "q",
+            "elapsed_ms": 1,
+            "result": {"answer": "ok", "sources": {}},
+        },
+    ],
+)
+def test_invalid_job_response_shapes_are_rejected(backend_client, body):
+    response = MagicMock()
+    response.json.return_value = body
+    with pytest.raises(backend_client.BackendInvalidResponse):
+        backend_client.job_response_object(response)
+
+
+def test_invalid_json_response_is_reported(backend_client):
+    response = MagicMock()
+    response.json.side_effect = ValueError("invalid JSON")
+    with pytest.raises(backend_client.BackendInvalidResponse):
+        backend_client.job_response_object(response)
+
+
+def test_valid_job_response_is_returned(backend_client):
+    job = {
+        "status": "done",
+        "question": "q",
+        "elapsed_ms": 4,
+        "result": {"answer": "ok", "sources": []},
+    }
+    response = MagicMock()
+    response.json.return_value = job
+
+    assert backend_client.job_response_object(response) == job

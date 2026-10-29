@@ -3,7 +3,7 @@
 Run from the project root:
     python -m tests.manual_check_odoo_assistant --login <odoo login>
 
-Needs ODOO_DB in .env and the password of that login in ODOO_MANAGER_PASSWORD.
+Needs ODOO_DB in .env and the password of that login in ODOO_BENCH_PASSWORD.
 """
 import argparse
 import sys
@@ -11,7 +11,7 @@ import time
 
 import requests
 
-from config.settings import ODOO_DB, ODOO_MANAGER_PASSWORD, ODOO_URL
+from config.settings import ODOO_DB, ODOO_BENCH_PASSWORD, ODOO_URL
 
 ASK_TIMEOUT_SECONDS = 600
 POLL_INTERVAL_SECONDS = 2
@@ -130,9 +130,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="End-to-end check of the MIRO AI addon through Odoo.")
     parser.add_argument("--login", required=True, help="Odoo user login")
     args = parser.parse_args()
-    password = ODOO_MANAGER_PASSWORD
+    password = ODOO_BENCH_PASSWORD
     if not password:
-        parser.error("ODOO_MANAGER_PASSWORD must be set in .env")
+        parser.error("ODOO_BENCH_PASSWORD must be set in .env")
     if not ODOO_DB:
         parser.error("ODOO_DB must be set in .env")
     sys.exit(0 if main(args.login, password) else 1)

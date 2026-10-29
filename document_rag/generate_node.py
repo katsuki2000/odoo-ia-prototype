@@ -4,7 +4,7 @@ import logging
 import time
 
 from core.schemas import AssistantResponse, LLMResponse, QueryRoute
-from config.settings import DOCUMENT_MAX_TOKENS
+import config.settings as settings
 from core.state import RAGState
 from core.llm.llm_client import get_chat_llm, invoke_llm
 from document_rag.generate_helpers import (
@@ -19,6 +19,11 @@ from document_rag.generate_helpers import (
 logger = logging.getLogger(__name__)
 
 _build_llm = get_chat_llm
+
+
+def _build_answer_llm():
+    return _build_llm(temperature=0.3, max_tokens=settings.DOCUMENT_MAX_TOKENS,
+                      reasoning_effort=settings.RAG_REASONING_EFFORT)
 
 
 def generate(state: RAGState) -> dict:
@@ -58,7 +63,7 @@ def generate(state: RAGState) -> dict:
     _llm_call_count = 0
     sources_fallback_eligible = False
     try:
-        llm = _build_llm(temperature=0.3, max_tokens=DOCUMENT_MAX_TOKENS)
+        llm = _build_answer_llm()
         llm_resp = invoke_llm(llm.with_structured_output(LLMResponse), messages)
         _llm_call_count += 1
         response = AssistantResponse(
@@ -69,7 +74,7 @@ def generate(state: RAGState) -> dict:
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
-            raw_resp = invoke_llm(_build_llm(temperature=0.3, max_tokens=DOCUMENT_MAX_TOKENS), messages)
+            raw_resp = invoke_llm(_build_answer_llm(), messages)
             _llm_call_count += 1
             parsed_answer = _parse_raw_json_answer(raw_resp.content)
             response = AssistantResponse(

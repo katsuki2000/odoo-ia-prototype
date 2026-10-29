@@ -128,25 +128,40 @@ class MiroAiLog(models.Model):
         if not groups:
             return []
 
-        latest_domains = [
-            [('session_id', '=', group['session_id']), ('create_date', '=', group['create_date'])]
-            for group in groups
-        ]
+        latest_domains = []
+        valid_groups = []
+        for group in groups:
+            session_id = group.get('session_id')
+            create_date = group.get('create_date')
+            if not session_id or not create_date:
+                _logger.warning("miro.ai.log: read_group returned an incomplete session group")
+                continue
+            valid_groups.append(group)
+            latest_domains.append([
+                ('session_id', '=', session_id),
+                ('create_date', '=', create_date),
+            ])
+        if not latest_domains:
+            return []
         latest_logs = self.search(OR(latest_domains), order='create_date desc, id desc')
         latest_by_session = {}
         for log in latest_logs:
             latest_by_session.setdefault(log.session_id, log)
 
-        return [
-            {
-                'session_id': group['session_id'],
-                'preview': (latest_by_session[group['session_id']].question or '')[:120],
-                'last_activity': group['create_date'].isoformat() if group.get('create_date') else None,
+        sessions = []
+        for group in valid_groups:
+            session_id = group.get('session_id')
+            latest = latest_by_session.get(session_id)
+            if not latest:
+                continue
+            create_date = group.get('create_date')
+            sessions.append({
+                'session_id': session_id,
+                'preview': (latest.question or '')[:120],
+                'last_activity': create_date.isoformat() if create_date else None,
                 'message_count': group.get('session_id_count', group.get('__count', 0)),
-            }
-            for group in groups
-            if group.get('session_id') in latest_by_session
-        ]
+            })
+        return sessions
 
     @api.model
     def get_session_history(self, session_id):

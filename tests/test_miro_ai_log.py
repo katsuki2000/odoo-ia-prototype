@@ -122,3 +122,13 @@ def test_sessions_reject_invalid_limits_and_cap_large_requests(log_module):
 
     log_module.MiroAiLog.get_sessions(model, limit=5000)
     assert calls[0]["limit"] == log_module.MAX_SESSION_LIST_LIMIT
+
+
+def test_sessions_skip_incomplete_group_results(log_module):
+    model = types.SimpleNamespace(
+        read_group=lambda domain, fields, groupby, **kwargs: [
+            {"session_id": False, "create_date": None},
+        ],
+    )
+
+    assert log_module.MiroAiLog.get_sessions(model) == []

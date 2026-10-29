@@ -9,7 +9,10 @@ from odoo.exceptions import UserError
 from odoo.http import request
 
 from .ask_flow import backend_headers, is_job_id, issue_requester_key, requester_scope, revoke_requester_keys
-from .backend_client import BackendError, get_from_backend, post_to_backend
+from .backend_client import (
+    BackendError, BackendInvalidResponse, get_from_backend, job_response_object,
+    post_to_backend,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -149,16 +152,27 @@ class MiroAiController(http.Controller):
             _logger.error("Backend HTTP error %s: %s", resp.status_code, resp.text)
             return {'answer': _server_error_message(resp.status_code), 'sources': []}
 
-        job = resp.json()
-        question, elapsed_ms = job['question'], job['elapsed_ms']
-        if job['status'] == 'done':
-            payload = _answer_payload(job['result'], session_id)
+        try:
+            job = job_response_object(resp)
+        except BackendInvalidResponse as error:
+            _logger.error("Invalid backend job response: %s", error)
+            return {'answer': _server_error_message(502), 'sources': []}
+
+        question = job.get('question')
+        elapsed_ms = job.get('elapsed_ms')
+        status = job.get('status')
+        if status == 'done':
+            result = job.get('result')
+            if not isinstance(result, dict):
+                return {'answer': _server_error_message(502), 'sources': []}
+            payload = _answer_payload(result, session_id)
             _log_exchange(
-                question, payload['answer'], payload['session_id'], elapsed_ms, payload['sources'],
-                metadata={name: payload[name] for name in METADATA_FIELDS},
+                question, payload.get('answer'), payload.get('session_id'), elapsed_ms,
+                payload.get('sources', []),
+                metadata={name: payload.get(name) for name in METADATA_FIELDS},
             )
             return payload
-        if job['status'] == 'pending':
+        if status == 'pending':
             timeout = settings.request_timeout
             if elapsed_ms <= timeout * 1000:
                 return {'status': 'pending'}
@@ -167,9 +181,19 @@ class MiroAiController(http.Controller):
                 "Try again, or increase the timeout in the MIRO AI settings.",
                 url=api_url, timeout=timeout,
             )
+        elif status == 'error':
+            error_status = job.get('error_status')
+            if type(error_status) is not int:
+                _logger.error("Backend failed job without a valid HTTP status.")
+                error_status = 502
+            _logger.error(
+                "Backend job failed with HTTP %s: %s",
+                error_status, job.get('error_detail', ''),
+            )
+            message = _server_error_message(error_status)
         else:
-            _logger.error("Backend job failed with HTTP %s: %s", job['error_status'], job['error_detail'])
-            message = _server_error_message(job['error_status'])
+            _logger.error("Backend returned unknown job status: %r", status)
+            message = _server_error_message(502)
         _log_exchange(question, message, session_id, elapsed_ms, state='error')
         return {'answer': message, 'sources': []}
 

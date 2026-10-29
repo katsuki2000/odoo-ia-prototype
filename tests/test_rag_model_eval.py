@@ -184,6 +184,22 @@ def test_execute_resets_the_error_counter_after_a_success(monkeypatch, bench):
     assert len(runs) == 5
 
 
+def test_a_reasoning_effort_variant_is_recorded_under_its_own_label(bench):
+    assert bench.result_label("qwen3:14b", None) == "qwen3:14b"
+    assert bench.result_label("qwen3:14b", "none") == "qwen3:14b+reasoning_none"
+
+
+def test_execute_sets_the_reasoning_effort_only_during_the_run_when_asked(monkeypatch, bench):
+    seen = []
+    monkeypatch.setattr(bench, "run_once", lambda item, chunks: seen.append(bench.settings.RAG_REASONING_EFFORT) or {
+        "error": None, "seconds": 1.0, "fact_recall": 1.0, "source_recall": 1.0, "abstained": False})
+    todo = [(_item(id="Q1"), 1)]
+    for effort in (None, "none"):
+        bench.execute(todo, {}, "m1", {"vram_fraction": 1.0}, {"Q1": []}, effort)
+    assert seen == [None, "none"]
+    assert bench.settings.RAG_REASONING_EFFORT is None
+
+
 def test_resume_skips_done_runs_and_retries_errors_on_request(bench):
     runs = {("m1", "Q1", 1): _record(question_id="Q1"), ("m1", "Q2", 1): _record(question_id="Q2", error="x")}
     questions = [_item(id="Q1"), _item(id="Q2"), _item(id="Q3")]

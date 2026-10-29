@@ -1,0 +1,898 @@
+(.venv) user@debian:~/odoo-ia-prototype$ cp captures/rag_model_eval.jsonl captures/rag_model_eval.avant_1664.jsonl
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model qwen3:14b --fresh --refresh-contexts
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (17.2s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (16.3s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (24.7s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (22.4s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (20.2s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (15.6s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (19.8s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (18.8s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (20.0s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (23.2s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (16.5s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (151.2s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (18.7s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (17.6s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 50% (15.9s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (32.3s)
+[17/60] MULTI-03 pass 1: facts 80%, sources 100% (31.2s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (24.6s)
+[19/60] TRAP-01 pass 1: abstained (20.0s)
+[20/60] TRAP-02 pass 1: abstained (18.1s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (14.2s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (19.9s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (26.1s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (26.4s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (18.7s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (19.0s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (20.5s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (16.4s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (19.9s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (24.3s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (17.5s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (57.9s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (19.5s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (19.7s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 50% (20.5s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (45.6s)
+[37/60] MULTI-03 pass 2: facts 60%, sources 100% (22.2s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (22.6s)
+[39/60] TRAP-01 pass 2: abstained (19.4s)
+[40/60] TRAP-02 pass 2: abstained (27.1s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (32.4s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (46.1s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (22.8s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (24.9s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (19.8s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (16.7s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (19.0s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (16.2s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (19.2s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (21.0s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (18.3s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (47.2s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (18.8s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (19.1s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 100% (24.2s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (36.6s)
+[57/60] MULTI-03 pass 3: facts 60%, sources 100% (20.7s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 100% (22.0s)
+[59/60] TRAP-01 pass 3: abstained (19.8s)
+[60/60] TRAP-02 pass 3: abstained (13.1s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    93%    80%    97%     0%   100%     0%    89%    403      7     14  1.00
+mistral-small3.2:24b     60    0    96%    91%    97%     0%   100%     0%    90%    378     10     23  1.00
+qwen3:14b                60    0    98%    94%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:30b-a3b            60    0    97%    91%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    94%    85%    98%     0%   100%     0%    92%    386     13     21  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%
+LIST-04                        57%                   57%                  100%                   57%                   48%
+TABLE-01                      100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                   73%
+MULTI-03                       80%                   73%                   67%                   80%                   73%
+MULTI-04                      100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ clear
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model gpt-oss:20b --fresh
+gpt-oss:20b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (4.8s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (5.5s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (10.3s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (7.8s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (5.2s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (5.4s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (6.7s)
+[8/60] FACT-08 pass 1: facts 50%, sources 100% (4.9s)
+[9/60] LIST-01 pass 1: facts 80%, sources 100% (6.5s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (11.8s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (7.1s)
+[12/60] LIST-04 pass 1: facts 86%, sources 100% (18.5s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (7.3s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (7.7s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 100% (6.0s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (17.8s)
+[17/60] MULTI-03 pass 1: facts 80%, sources 100% (13.3s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 50% (10.7s)
+[19/60] TRAP-01 pass 1: abstained (6.1s)
+[20/60] TRAP-02 pass 1: abstained (8.1s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (4.6s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (6.3s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (12.2s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (6.4s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (5.4s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (3.7s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (4.7s)
+[28/60] FACT-08 pass 2: facts 50%, sources 100% (4.7s)
+[29/60] LIST-01 pass 2: facts 80%, sources 100% (6.4s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (11.0s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (6.5s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (27.9s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (9.0s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (7.1s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 100% (6.7s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (13.5s)
+[37/60] MULTI-03 pass 2: facts 80%, sources 100% (16.1s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 50% (9.6s)
+[39/60] TRAP-01 pass 2: abstained (7.0s)
+[40/60] TRAP-02 pass 2: abstained (8.8s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (5.9s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (7.6s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (12.9s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (6.4s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (5.8s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (3.6s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (5.8s)
+[48/60] FACT-08 pass 3: facts 50%, sources 100% (3.3s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (7.5s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (12.7s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (6.8s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (33.5s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (6.4s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (51.6s)
+Structured LLM Generation failed (Request timed out.) → falling back to raw invoke
+[55/60] MULTI-01 pass 3: facts 100%, sources 0% (185.8s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (19.8s)
+[57/60] MULTI-03 pass 3: facts 80%, sources 100% (16.2s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 50% (13.1s)
+[59/60] TRAP-01 pass 3: abstained (6.0s)
+[60/60] TRAP-02 pass 3: abstained (7.8s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    95%    83%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0    96%    91%    97%     0%   100%     0%    90%    378     10     23  1.00
+qwen3:14b                60    0    98%    94%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:30b-a3b            60    0    97%    91%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    94%    85%    98%     0%   100%     0%    92%    386     13     21  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                   57%                  100%                   57%                   48%
+TABLE-01                      100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                   73%
+MULTI-03                       80%                   73%                   67%                   80%                   73%
+MULTI-04                      100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model mistral-small3.2:24b --fresh
+mistral-small3.2:24b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (8.7s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (9.4s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (20.8s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (10.2s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (9.7s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (10.0s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (10.4s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (9.4s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (13.1s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (20.3s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (16.6s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (140.0s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (9.3s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (12.0s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 50% (9.2s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (31.3s)
+[17/60] MULTI-03 pass 1: facts 80%, sources 100% (12.9s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (13.9s)
+[19/60] TRAP-01 pass 1: abstained (7.1s)
+[20/60] TRAP-02 pass 1: abstained (8.2s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (7.3s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (8.7s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (30.4s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (9.6s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (8.9s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (10.0s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (10.3s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (9.6s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (14.0s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (21.7s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (16.4s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (140.6s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (9.3s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (10.6s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 50% (9.2s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (34.8s)
+[37/60] MULTI-03 pass 2: facts 60%, sources 100% (16.0s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (13.8s)
+[39/60] TRAP-01 pass 2: abstained (7.1s)
+[40/60] TRAP-02 pass 2: abstained (8.3s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (7.4s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (8.8s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (29.8s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (11.1s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (9.0s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (10.1s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (10.7s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (10.0s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (14.0s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (20.4s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (15.8s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (61.1s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (9.3s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (10.7s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 50% (9.1s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (27.5s)
+[57/60] MULTI-03 pass 3: facts 80%, sources 100% (15.8s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 100% (14.0s)
+[59/60] TRAP-01 pass 3: abstained (7.1s)
+[60/60] TRAP-02 pass 3: abstained (8.3s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    95%    83%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0    99%    94%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3:14b                60    0    98%    94%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:30b-a3b            60    0    97%    91%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    94%    85%    98%     0%   100%     0%    92%    386     13     21  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                  100%                  100%                   57%                   48%
+TABLE-01                      100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                   73%
+MULTI-03                       80%                   73%                   67%                   80%                   73%
+MULTI-04                      100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model qwen3:8b --fresh
+qwen3:8b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (9.6s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (11.1s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (16.0s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (11.0s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (12.5s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (11.3s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (13.4s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (9.9s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (10.0s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (20.8s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (13.7s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (33.2s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (14.5s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (11.7s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 100% (14.0s)
+[16/60] MULTI-02 pass 1: facts 80%, sources 100% (16.5s)
+[17/60] MULTI-03 pass 1: facts 100%, sources 100% (18.8s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (11.7s)
+[19/60] TRAP-01 pass 1: abstained (9.2s)
+[20/60] TRAP-02 pass 1: abstained (12.7s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (12.8s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (9.9s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (12.4s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (11.8s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (12.4s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (11.7s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (13.2s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (10.0s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (9.9s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (15.2s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (9.4s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (28.3s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (15.6s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (10.8s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 100% (15.5s)
+[36/60] MULTI-02 pass 2: facts 60%, sources 100% (17.7s)
+[37/60] MULTI-03 pass 2: facts 100%, sources 100% (12.7s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (11.6s)
+[39/60] TRAP-01 pass 2: abstained (9.3s)
+[40/60] TRAP-02 pass 2: ANSWERED (unanswerable question) (18.9s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (9.4s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (11.8s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (16.3s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (12.7s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (11.7s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (11.1s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (12.4s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (10.0s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (10.5s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (17.2s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (12.5s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (27.1s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (15.0s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (12.3s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 50% (11.7s)
+[56/60] MULTI-02 pass 3: facts 60%, sources 100% (23.4s)
+[57/60] MULTI-03 pass 3: facts 100%, sources 100% (14.4s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 50% (15.6s)
+[59/60] TRAP-01 pass 3: abstained (8.9s)
+[60/60] TRAP-02 pass 3: ANSWERED (unanswerable question) (15.3s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model qwen3:14b --no-think
+python scripts/run_rag_model_eval.py --report
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (14.8s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (14.4s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (30.7s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (26.9s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (18.0s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (17.2s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (18.6s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (15.4s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (20.0s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (24.0s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (17.8s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (69.9s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (20.0s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (17.2s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 100% (16.4s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (31.1s)
+[17/60] MULTI-03 pass 1: facts 100%, sources 100% (25.8s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (22.1s)
+[19/60] TRAP-01 pass 1: abstained (16.0s)
+[20/60] TRAP-02 pass 1: abstained (18.3s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (18.1s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (15.3s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (27.0s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (25.1s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (17.0s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (16.7s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (21.7s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (15.2s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (23.4s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (25.4s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (20.7s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (49.2s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (18.7s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (18.2s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 100% (16.3s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (37.5s)
+[37/60] MULTI-03 pass 2: facts 100%, sources 100% (27.3s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (25.5s)
+[39/60] TRAP-01 pass 2: abstained (15.3s)
+[40/60] TRAP-02 pass 2: abstained (19.0s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (15.3s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (13.8s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (26.8s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (24.9s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (17.8s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (16.0s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (21.2s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (16.8s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (16.9s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (23.1s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (23.9s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (74.5s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (17.9s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (19.3s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 100% (20.2s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (36.1s)
+[57/60] MULTI-03 pass 3: facts 100%, sources 100% (21.0s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 100% (24.6s)
+[59/60] TRAP-01 pass 3: abstained (14.8s)
+[60/60] TRAP-02 pass 3: abstained (17.3s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b    qwen3:14b+no_think         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b             qwen3:14b    qwen3:14b+no_think         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ ollama pull qwen3.5:9b
+bash: ollama: command not found
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model qwen3.5:9b
+qwen3.5:9b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (12.0s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (9.8s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (16.8s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (16.2s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (13.5s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (9.3s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (13.1s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (12.5s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (12.8s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (14.4s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (10.9s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (40.6s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (51.4s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (10.7s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 100% (16.4s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (28.6s)
+[17/60] MULTI-03 pass 1: facts 100%, sources 100% (21.1s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 50% (15.8s)
+[19/60] TRAP-01 pass 1: abstained (15.8s)
+[20/60] TRAP-02 pass 1: abstained (10.9s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (13.1s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (11.2s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (17.8s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (110.9s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (12.9s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (8.6s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (11.5s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (13.4s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (15.5s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (12.2s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (11.6s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (37.6s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (57.4s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (11.0s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 100% (17.9s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (34.8s)
+[37/60] MULTI-03 pass 2: facts 100%, sources 100% (110.7s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 50% (16.2s)
+[39/60] TRAP-01 pass 2: abstained (14.4s)
+[40/60] TRAP-02 pass 2: abstained (12.1s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (8.9s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (8.9s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (13.9s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (14.5s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (10.3s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (8.3s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (9.1s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (99.5s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (17.0s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (15.8s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (9.5s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (31.0s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (16.9s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (10.7s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 100% (12.0s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (28.4s)
+[57/60] MULTI-03 pass 3: facts 100%, sources 100% (26.3s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 50% (14.1s)
+[59/60] TRAP-01 pass 3: abstained (22.2s)
+[60/60] TRAP-02 pass 3: abstained (12.4s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3.5:9b               60    0   100%   100%    97%     0%   100%     0%    90%    705     14     38  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question               gpt-oss:20b  mistral-small3.2:24b            qwen3.5:9b             qwen3:14b    qwen3:14b+no_think         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                        50%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-01                        87%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                        95%                  100%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model gemma4:26b
+gemma4:26b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (16.0s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (9.6s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (18.7s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (9.1s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (8.6s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (10.8s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (7.8s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (8.7s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (11.7s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (15.4s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (9.2s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (18.4s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (10.0s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (12.7s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 100% (8.8s)
+[16/60] MULTI-02 pass 1: facts 100%, sources 100% (23.2s)
+[17/60] MULTI-03 pass 1: facts 100%, sources 100% (19.8s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (12.8s)
+[19/60] TRAP-01 pass 1: abstained (16.6s)
+[20/60] TRAP-02 pass 1: abstained (32.6s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (8.5s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (10.0s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (13.1s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (8.3s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (10.8s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (11.8s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (8.3s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (8.3s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (9.9s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (18.3s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (10.7s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (25.7s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (10.5s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (10.8s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 100% (8.9s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (22.4s)
+[37/60] MULTI-03 pass 2: facts 100%, sources 100% (14.6s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (14.4s)
+[39/60] TRAP-01 pass 2: abstained (7.9s)
+[40/60] TRAP-02 pass 2: abstained (25.5s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (8.9s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (10.0s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (14.7s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (8.7s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (9.5s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (11.2s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (8.0s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (8.7s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (14.1s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (15.5s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (9.8s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (20.2s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (10.1s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (14.1s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 100% (8.9s)
+[56/60] MULTI-02 pass 3: facts 100%, sources 100% (26.1s)
+[57/60] MULTI-03 pass 3: facts 100%, sources 100% (13.7s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 100% (16.4s)
+[59/60] TRAP-01 pass 3: abstained (8.4s)
+[60/60] TRAP-02 pass 3: abstained (44.9s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gemma4:26b               60    0   100%   100%   100%     0%   100%     0%    92%    461     11     22  1.00
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3.5:9b               60    0   100%   100%    97%     0%   100%     0%    90%    705     14     38  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question                gemma4:26b           gpt-oss:20b  mistral-small3.2:24b            qwen3.5:9b             qwen3:14b    qwen3:14b+no_think         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                       100%                   50%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-01                       100%                   87%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                       100%                   95%                  100%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                  100%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_rag_model_eval.py --model qwen3:14b --reasoning-effort none
+python scripts/run_rag_model_eval.py --report
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/60] FACT-01 pass 1: facts 100%, sources 100% (5.7s)
+[2/60] FACT-02 pass 1: facts 100%, sources 100% (6.5s)
+[3/60] FACT-03 pass 1: facts 100%, sources 100% (15.2s)
+[4/60] FACT-04 pass 1: facts 100%, sources 100% (7.1s)
+[5/60] FACT-05 pass 1: facts 100%, sources 100% (6.8s)
+[6/60] FACT-06 pass 1: facts 100%, sources 100% (7.5s)
+[7/60] FACT-07 pass 1: facts 100%, sources 100% (8.5s)
+[8/60] FACT-08 pass 1: facts 100%, sources 100% (7.2s)
+[9/60] LIST-01 pass 1: facts 100%, sources 100% (9.6s)
+[10/60] LIST-02 pass 1: facts 100%, sources 100% (13.8s)
+[11/60] LIST-03 pass 1: facts 100%, sources 100% (11.5s)
+[12/60] LIST-04 pass 1: facts 100%, sources 100% (49.0s)
+[13/60] TABLE-01 pass 1: facts 100%, sources 100% (6.6s)
+[14/60] TABLE-02 pass 1: facts 100%, sources 100% (8.0s)
+[15/60] MULTI-01 pass 1: facts 100%, sources 50% (6.6s)
+[16/60] MULTI-02 pass 1: facts 60%, sources 100% (18.9s)
+[17/60] MULTI-03 pass 1: facts 100%, sources 100% (10.1s)
+[18/60] MULTI-04 pass 1: facts 100%, sources 100% (9.5s)
+[19/60] TRAP-01 pass 1: abstained (5.1s)
+[20/60] TRAP-02 pass 1: abstained (8.2s)
+[21/60] FACT-01 pass 2: facts 100%, sources 100% (5.2s)
+[22/60] FACT-02 pass 2: facts 100%, sources 100% (6.1s)
+[23/60] FACT-03 pass 2: facts 100%, sources 100% (15.1s)
+[24/60] FACT-04 pass 2: facts 100%, sources 100% (7.1s)
+[25/60] FACT-05 pass 2: facts 100%, sources 100% (6.4s)
+[26/60] FACT-06 pass 2: facts 100%, sources 100% (7.7s)
+[27/60] FACT-07 pass 2: facts 100%, sources 100% (8.7s)
+[28/60] FACT-08 pass 2: facts 100%, sources 100% (7.3s)
+[29/60] LIST-01 pass 2: facts 100%, sources 100% (9.4s)
+[30/60] LIST-02 pass 2: facts 100%, sources 100% (13.9s)
+[31/60] LIST-03 pass 2: facts 100%, sources 100% (11.4s)
+[32/60] LIST-04 pass 2: facts 100%, sources 100% (55.6s)
+[33/60] TABLE-01 pass 2: facts 100%, sources 100% (6.6s)
+[34/60] TABLE-02 pass 2: facts 100%, sources 100% (7.9s)
+[35/60] MULTI-01 pass 2: facts 100%, sources 50% (6.8s)
+[36/60] MULTI-02 pass 2: facts 100%, sources 100% (15.6s)
+[37/60] MULTI-03 pass 2: facts 100%, sources 100% (10.3s)
+[38/60] MULTI-04 pass 2: facts 100%, sources 100% (8.9s)
+[39/60] TRAP-01 pass 2: abstained (5.2s)
+[40/60] TRAP-02 pass 2: abstained (8.2s)
+[41/60] FACT-01 pass 3: facts 100%, sources 100% (5.2s)
+[42/60] FACT-02 pass 3: facts 100%, sources 100% (6.1s)
+[43/60] FACT-03 pass 3: facts 100%, sources 100% (15.1s)
+[44/60] FACT-04 pass 3: facts 100%, sources 100% (7.0s)
+[45/60] FACT-05 pass 3: facts 100%, sources 100% (6.4s)
+[46/60] FACT-06 pass 3: facts 100%, sources 100% (7.6s)
+[47/60] FACT-07 pass 3: facts 100%, sources 100% (8.6s)
+[48/60] FACT-08 pass 3: facts 100%, sources 100% (7.3s)
+[49/60] LIST-01 pass 3: facts 100%, sources 100% (9.5s)
+[50/60] LIST-02 pass 3: facts 100%, sources 100% (14.0s)
+[51/60] LIST-03 pass 3: facts 100%, sources 100% (11.6s)
+[52/60] LIST-04 pass 3: facts 100%, sources 100% (49.0s)
+[53/60] TABLE-01 pass 3: facts 100%, sources 100% (6.6s)
+[54/60] TABLE-02 pass 3: facts 100%, sources 100% (8.0s)
+[55/60] MULTI-01 pass 3: facts 100%, sources 50% (6.9s)
+[56/60] MULTI-02 pass 3: facts 40%, sources 100% (13.4s)
+[57/60] MULTI-03 pass 3: facts 100%, sources 100% (10.3s)
+[58/60] MULTI-04 pass 3: facts 100%, sources 100% (9.0s)
+[59/60] TRAP-01 pass 3: abstained (5.1s)
+[60/60] TRAP-02 pass 3: abstained (8.0s)
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gemma4:26b               60    0   100%   100%   100%     0%   100%     0%    92%    461     11     22  1.00
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3.5:9b               60    0   100%   100%    97%     0%   100%     0%    90%    705     14     38  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:14b+reasoning_none   60    0    98%    96%    97%     0%   100%     0%    91%    446      8     15  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question                gemma4:26b           gpt-oss:20b  mistral-small3.2:24b            qwen3.5:9b             qwen3:14b    qwen3:14b+no_think  qwen3:14b+reasoning_         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                       100%                   50%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-01                       100%                   87%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                       100%                   95%                  100%                  100%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                  100%                   67%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+
+Documentary RAG answers per model (error runs are excluded from the rates)
+model                  runs  err  facts   full    src  refus   trap  rawfb   conf  chars   p50s   p90s  vram
+gemma4:26b               60    0   100%   100%   100%     0%   100%     0%    92%    461     11     22  1.00
+gpt-oss:20b              60    0    96%    89%    95%     0%   100%     2%    89%    451      7     18  1.00
+mistral-small3.2:24b     60    0   100%   100%    97%     0%   100%     0%    90%    451     10     30  1.00
+qwen3.5:9b               60    0   100%   100%    97%     0%   100%     0%    90%    705     14     38  1.00
+qwen3:14b                60    0   100%   100%    98%     0%   100%     0%    90%    461     20     32  1.00
+qwen3:14b+no_think       60    0   100%   100%   100%     0%   100%     0%    92%    473     19     31  1.00
+qwen3:14b+reasoning_none   60    0    98%    96%    97%     0%   100%     0%    91%    446      8     15  1.00
+qwen3:30b-a3b            60    0    97%    93%    98%     0%   100%     0%    89%    485     13     19  1.00
+qwen3:8b                 60    0    98%    94%    98%     0%    67%     0%    90%    416     12     19  1.00
+
+facts = mean share of the expected facts found; full = answers with every fact; src = expected sources cited;
+refus = answerable questions where the model abstained; trap = unanswerable questions where it abstained;
+rawfb = structured output failed (raw reply parsed); conf = model-declared confidence (diagnostic only);
+chars = mean answer length; vram < 1.00 means CPU offload (latency not comparable).
+
+per question (over the passes done)
+question                gemma4:26b           gpt-oss:20b  mistral-small3.2:24b            qwen3.5:9b             qwen3:14b    qwen3:14b+no_think  qwen3:14b+reasoning_         qwen3:30b-a3b              qwen3:8b
+FACT-01                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-04                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-05                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-06                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-07                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+FACT-08                       100%                   50%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-01                       100%                   87%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-02                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-03                       100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+LIST-04                       100%                   95%                  100%                  100%                  100%                  100%                  100%                   57%                  100%
+TABLE-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TABLE-02                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-01                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+MULTI-02                      100%                  100%                  100%                  100%                  100%                  100%                   67%                  100%                   67%
+MULTI-03                      100%                  100%                  100%                  100%                  100%                  100%                  100%                   89%                  100%
+MULTI-04                      100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%                  100%
+TRAP-01                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.
+TRAP-02                  3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             3/3 abst.             1/3 abst.
+(.venv) user@debian:~/odoo-ia-prototype$ 

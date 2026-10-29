@@ -91,7 +91,7 @@ class SourceContractTests(unittest.TestCase):
         self.ns = load('core/routing/source_selection.py', {'SourceSelection', 'select_source'}, {
             'BaseModel': BaseModel, 'ConfigDict': ConfigDict, 'Field': Field, 'Literal': Literal,
             'get_chat_llm': lambda **kwargs: NS(with_structured_output=lambda *a, **k: object()),
-            'invoke_llm': self.invoke, 'with_no_think': lambda value: value,
+            'invoke_llm': self.invoke, 'ROUTING_REASONING_EFFORT': None,
             'HumanMessage': NS, 'SystemMessage': NS})
         self.ns['SourceSelection'].model_rebuild(_types_namespace={'Literal': Literal})
 

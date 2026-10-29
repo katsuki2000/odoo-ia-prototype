@@ -290,9 +290,9 @@ def main(argv=None):
         parser.error("--passes must be at least 1")
     if args.context_length < 1:
         parser.error("--context-length must be at least 1")
-    password = settings.ODOO_MANAGER_PASSWORD
+    password = settings.ODOO_BENCH_PASSWORD
     if not password:
-        parser.error("ODOO_MANAGER_PASSWORD must be set in the backend .env")
+        parser.error("ODOO_BENCH_PASSWORD must be set in the backend .env")
 
     questions = load_questions(args.ids)
     if not questions:
@@ -311,7 +311,7 @@ def main(argv=None):
     try:
         uid = authenticate_odoo(args.login, password)
     except (BackendUnavailable, OSError, xmlrpc.client.Error, OdooConnectorError) as error:
-        print(f"[ERROR] Odoo authentication/preflight failed: {type(error).__name__}")
+        print(f"[ERROR] Odoo authentication/preflight failed: {type(error).__name__}: {error}")
         return 2
     print(f"Authenticated to Odoo as {args.login} (uid {uid}).")
     exit_code = run_on_model(

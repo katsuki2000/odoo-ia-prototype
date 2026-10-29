@@ -30,7 +30,10 @@ _ollama_url = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
 LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollama_url)
 LLM_MODEL = 'qwen3:14b'
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
-LLM_NO_THINK_MARKER = '/no_think' if LLM_MODEL.lower().startswith('qwen3') else ''
+# Reasoning effort sent with the request: 'none' switches the reasoning off on models that support it, None keeps
+# the model default. The ERP tool-calling agent has no setting and keeps the model default.
+RAG_REASONING_EFFORT = None
+ROUTING_REASONING_EFFORT = None
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
 LLM_MAX_RETRIES = 1
 SCHEDULER_INTERVAL_HOURS = 6
@@ -61,6 +64,7 @@ ODOO_URL = os.getenv('ODOO_URL') or 'http://localhost:8069'
 ODOO_DB = os.getenv('ODOO_DB', '')
 ODOO_ADMIN_LOGIN = os.getenv('ODOO_ADMIN_LOGIN') or 'admin'
 ODOO_ADMIN_PASSWORD = os.getenv('ODOO_ADMIN_PASSWORD', '')
+ODOO_BENCH_PASSWORD = os.getenv('ODOO_BENCH_PASSWORD', '')
 
 # Models the AI may read. Empty: no restriction of ours, Odoo's own access rules decide; list model names to restrict it.
 ODOO_ALLOWED_MODELS = frozenset()
