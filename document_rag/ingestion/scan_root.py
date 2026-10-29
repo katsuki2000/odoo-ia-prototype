@@ -63,9 +63,7 @@ def confine_to_scan_roots(
             return resolved
         except ValueError:
             continue
-    raise ValueError(
-        f"Path is outside configured ingestion roots: {resolved}"
-    )
+    raise ValueError("Path is outside configured ingestion roots.")
 
 
 def compute_source(file_path: Path, scan_root: Optional[Path]) -> str:

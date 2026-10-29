@@ -1,11 +1,11 @@
-"""In-memory store of asynchronous ask jobs; single process, like the session store."""
+"""In-memory store of asynchronous ask jobs (single process)."""
 
 import logging
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 from fastapi import HTTPException
 
@@ -29,10 +29,10 @@ class AskJob:
     owner_uid: int
     question: str
     started_at: float = field(default_factory=time.monotonic)
-    finished_at: Optional[float] = None
-    result: Optional[AskResponseV1] = None
-    error_status: Optional[int] = None
-    error_detail: Optional[str] = None
+    finished_at: float | None = None
+    result: AskResponseV1 | None = None
+    error_status: int | None = None
+    error_detail: str | None = None
 
     @property
     def status(self) -> str:
@@ -63,7 +63,7 @@ class AskJobStore:
             job = self._jobs[job_id] = AskJob(owner_uid, question)
         self._executor.submit(self._run, job, work)
 
-    def get(self, job_id: str, owner_uid: int) -> Optional[AskJob]:
+    def get(self, job_id: str, owner_uid: int) -> AskJob | None:
         """The job, or None when unknown, expired or owned by someone else."""
         with self._lock:
             self._drop_expired()

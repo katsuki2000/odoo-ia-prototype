@@ -1,6 +1,7 @@
 """Pydantic request and response schemas for the MIRO API."""
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -8,17 +9,16 @@ class AskRequestV1(BaseModel):
     """Request body for /api/v1/ask."""
     question: str = Field(..., min_length=1)
     session_id: str
-    user_uid: int
     company_id: int
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default=None,
         description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
     )
-    source_mode: Optional[Literal["documentation", "system"]] = Field(
+    source_mode: Literal["documentation", "system"] | None = Field(
         default=None,
         description=(
-            "Source chosen by the user in the UI: 'documentation' forces the RAG "
-            "documentary path, 'system' excludes the documentary route; absent = automatic routing"
+            "Source chosen by the user: 'documentation' forces the documentary route, "
+            "'system' excludes it; absent means automatic routing."
         ),
     )
 
@@ -31,13 +31,10 @@ class AskResponseV1(BaseModel):
     sources: list[dict] = Field(default_factory=list)
     confidence: float = 1.0
     ocr_warning: bool = False
-    route: Optional[str] = None
+    route: str | None = None
     evidence_dossier: list[dict] = Field(
         default_factory=list,
-        description=(
-            "Structured tool-provenance Evidence"
-            "fact+provenance an ORM/CI tool produced this turn."
-        ),
+        description="Facts produced by the tools during this turn, each with its provenance.",
     )
 
 
@@ -55,21 +52,18 @@ class AskJobStatusV1(BaseModel):
     status: Literal["pending", "done", "error"]
     question: str
     elapsed_ms: int
-    result: Optional[AskResponseV1] = None
-    error_status: Optional[int] = None
-    error_detail: Optional[str] = None
+    result: AskResponseV1 | None = None
+    error_status: int | None = None
+    error_detail: str | None = None
 
 
 class ReindexRequestV1(BaseModel):
     """Request body for /api/v1/reindex."""
     scope: Literal["full", "incremental"] = Field(
         "incremental",
-        description="Use 'full' to clear/rebuild or 'incremental' to process changes only",
+        description="'full' clears and rebuilds the index, 'incremental' processes changes only.",
     )
-    path: Optional[str] = Field(
-        None,
-        description="Optional file or directory path to process",
-    )
+    path: str | None = Field(None, description="Optional file or directory to process.")
 
 
 class ReindexResponseV1(BaseModel):
@@ -82,16 +76,16 @@ class ReindexResponseV1(BaseModel):
 
 class IngestionStatusResponse(BaseModel):
     """Response body for /api/v1/ingestion/status."""
-    last_ingestion_time: Optional[str]
+    last_ingestion_time: str | None
     total_chunks: int
     files_monitored: int
-    scheduler_status: Optional[dict[str, Any]] = None
-    last_scan_type: Optional[str] = None
+    scheduler_status: dict[str, Any] | None = None
+    last_scan_type: str | None = None
 
 
 class ScheduledScanResponse(BaseModel):
-    """Response body for triggering or checking scheduled scan."""
+    """Response body for /api/v1/ingestion/scheduled-scan."""
     status: str
     scan_type: str
     result: dict[str, Any]
-    last_ingestion_time: Optional[str]
+    last_ingestion_time: str | None

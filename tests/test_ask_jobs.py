@@ -110,7 +110,7 @@ def client(monkeypatch):
 
 
 def _payload(job_id=JOB_ID):
-    return {"job_id": job_id, "question": "how?", "session_id": "s1", "user_uid": 7, "company_id": 1}
+    return {"job_id": job_id, "question": "how?", "session_id": "s1", "company_id": 1}
 
 
 def _poll_until_finished(client, job_id=JOB_ID):

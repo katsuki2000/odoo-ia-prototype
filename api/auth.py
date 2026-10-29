@@ -6,25 +6,24 @@ from config import settings
 
 security = HTTPBearer()
 
-MIN_JWT_SECRET_BYTES = 32
-
 
 def get_jwt_secret() -> str:
     secret = settings.JWT_SECRET
-    if len(secret.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
+    if len(secret.encode("utf-8")) < settings.JWT_SECRET_MIN_BYTES:
         raise RuntimeError(
-            f"JWT_SECRET must be set to a random value of at least {MIN_JWT_SECRET_BYTES} bytes"
+            f"JWT_SECRET must be set to a random value of at least {settings.JWT_SECRET_MIN_BYTES} bytes"
         )
     return secret
 
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-    token = credentials.credentials
     try:
-        payload = jwt.decode(
-            token, get_jwt_secret(), algorithms=["HS256"], options={"require": ["exp"]}
+        return jwt.decode(
+            credentials.credentials,
+            get_jwt_secret(),
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"require": ["exp"]},
         )
-        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except jwt.InvalidTokenError:

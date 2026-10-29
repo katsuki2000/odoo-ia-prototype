@@ -69,6 +69,8 @@ ODOO_BENCH_PASSWORD = os.getenv('ODOO_BENCH_PASSWORD', '')
 # Models the AI may read. Empty: no restriction of ours, Odoo's own access rules decide; list model names to restrict it.
 ODOO_ALLOWED_MODELS = frozenset()
 JWT_SECRET = os.getenv('JWT_SECRET', '')
+JWT_ALGORITHM = 'HS256'
+JWT_SECRET_MIN_BYTES = 32
 GOOGLE_DRIVE_FOLDER_IDS = tuple(dict.fromkeys(
     value.strip() for value in os.getenv('GOOGLE_DRIVE_FOLDER_IDS', '').split(',') if value.strip()))
 GOOGLE_DRIVE_APPROVED_FOR_RAG = os.getenv('GOOGLE_DRIVE_APPROVED_FOR_RAG', '').lower() == 'true'

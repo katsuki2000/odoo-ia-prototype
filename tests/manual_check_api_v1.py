@@ -55,7 +55,6 @@ for q in questions:
     payload = {
         "question": q,
         "session_id": "test_session",
-        "user_uid": 2,
         "company_id": 1,
     }
     try:

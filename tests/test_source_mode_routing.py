@@ -16,7 +16,7 @@ def test_route_decision_ignores_source_mode():
 
 
 def test_ask_request_source_mode_validation():
-    base = dict(question="q", session_id="s", user_uid=1, company_id=1)
+    base = dict(question="q", session_id="s", company_id=1)
     assert AskRequestV1(**base).source_mode is None
     assert AskRequestV1(**base, source_mode="documentation").source_mode == "documentation"
     with pytest.raises(ValidationError):

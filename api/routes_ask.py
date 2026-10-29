@@ -1,9 +1,10 @@
-"""Main query endpoint (/api/v1/ask) for the MIRO assistant."""
+"""Main query endpoints (/api/v1/ask) for the MIRO assistant."""
 
 import logging
 import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from api.ask_jobs import DuplicateJobError, JobCapacityError, ask_jobs
 from api.auth import get_current_user
@@ -16,34 +17,34 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+LANGUAGE_TAG = re.compile(r"[A-Za-z]{2,8}(?:_[A-Za-z0-9]{1,8})*")
+
 
 def _normalize_language_tag(value: str | None) -> str | None:
-    if not value:
-        return None
-    normalized = value.strip().replace("-", "_")
-    if not re.fullmatch(r"[A-Za-z]{2,8}(?:_[A-Za-z0-9]{1,8})*", normalized):
-        return None
-    return normalized
+    normalized = (value or "").strip().replace("-", "_")
+    return normalized if LANGUAGE_TAG.fullmatch(normalized) else None
+
+
+def _quality(parameters: list[str]) -> float:
+    for parameter in parameters:
+        if parameter.startswith("q="):
+            try:
+                return float(parameter[2:])
+            except ValueError:
+                return 0.0
+    return 1.0
 
 
 def _request_language(explicit: str | None, accept_language: str | None) -> str | None:
+    """The explicit tag, else the best-weighted Accept-Language tag (first listed wins ties)."""
     language = _normalize_language_tag(explicit)
     if language:
         return language
     candidates = []
     for position, item in enumerate((accept_language or "").split(",")):
-        parts = [part.strip() for part in item.split(";")]
-        language = _normalize_language_tag(parts[0])
-        if not language:
-            continue
-        quality = 1.0
-        for parameter in parts[1:]:
-            if parameter.startswith("q="):
-                try:
-                    quality = float(parameter[2:])
-                except ValueError:
-                    quality = 0.0
-        if quality > 0:
+        tag, *parameters = (part.strip() for part in item.split(";"))
+        language, quality = _normalize_language_tag(tag), _quality(parameters)
+        if language and quality > 0:
             candidates.append((-quality, position, language))
     return min(candidates)[2] if candidates else None
 
@@ -51,62 +52,49 @@ def _request_language(explicit: str | None, accept_language: str | None) -> str 
 def _answer_question(request: AskRequestV1, accept_language: str | None, user: dict) -> AskResponseV1:
     """Run the LangGraph agent for one authenticated question; only raises HTTPException."""
     try:
-        if not request.question or not request.question.strip():
+        if not request.question.strip():
             raise HTTPException(status_code=400, detail="Empty question provided.")
 
-        token_uid = user.get("uid")
-        if token_uid is None:
-            raise HTTPException(status_code=401, detail="Token missing uid")
-
-        session = get_session(request.session_id, owner_uid=token_uid)
+        uid = user["uid"]
+        session = get_session(request.session_id, owner_uid=uid)
         chat_history = session["chat_history"]
         last_route = session["last_route"]
 
-        token_api_key = user.get("api_key")
+        api_key = user.get("api_key")
         token_company_id = user.get("company_id")
-        if token_company_id is not None:
-            company_id = int(token_company_id)
-        else:
-            company_id = int(request.company_id)
-        request_language = _request_language(request.language, accept_language)
-        if not token_api_key:
-            logger.warning(
-                "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
-                "will be refused; documentation answers are unaffected.", token_uid,
-            )
+        company_id = request.company_id if token_company_id is None else int(token_company_id)
+        if not api_key:
+            logger.warning("No Odoo API key in the JWT for uid=%s: ERP calls will be refused.", uid)
 
         response = query_graph(
             question=request.question,
             chat_history=chat_history,
-            uid=token_uid,
-            api_key=token_api_key,
+            uid=uid,
+            api_key=api_key,
             last_route=last_route,
             source_mode=request.source_mode,
-            language=request_language,
+            language=_request_language(request.language, accept_language),
             company_id=company_id,
             company_ids=[company_id],
             db=user.get("db"),
         )
 
-        updated_history = chat_history + [
-            HumanMessage(content=request.question),
-            AIMessage(content=response.answer),
-        ]
         update_session(
-            request.session_id, updated_history,
+            request.session_id,
+            chat_history + [HumanMessage(content=request.question), AIMessage(content=response.answer)],
             response.route or last_route,
-            owner_uid=token_uid,
+            owner_uid=uid,
         )
 
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
             session_id=request.session_id,
-            sources=[s.model_dump() for s in response.sources],
+            sources=[source.model_dump() for source in response.sources],
             confidence=response.confidence,
             ocr_warning=response.ocr_warning,
             route=response.route,
-            evidence_dossier=[e.model_dump() for e in response.evidence_dossier],
+            evidence_dossier=[evidence.model_dump() for evidence in response.evidence_dossier],
         )
     except HTTPException:
         raise
@@ -122,7 +110,7 @@ def ask_question_v1(
     http_request: Request,
     user: dict = Depends(get_current_user),
 ):
-    """V1 endpoint for asking questions, using the LangGraph agent."""
+    """Answer one question synchronously."""
     return _answer_question(request, http_request.headers.get("accept-language"), user)
 
 

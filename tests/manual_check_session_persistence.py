@@ -67,7 +67,6 @@ for i, question in enumerate(turns, 1):
     payload = {
         "question": question,
         "session_id": SESSION_ID,
-        "user_uid": 2,
         "company_id": 1,
     }
     t0 = time.time()

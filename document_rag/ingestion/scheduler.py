@@ -3,7 +3,9 @@
 import logging
 from itertools import chain, repeat
 from threading import Event, Thread
+from typing import Any
 
+from config.settings import SCHEDULER_INTERVAL_HOURS
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.ingestion.periodic import run_periodically
@@ -14,6 +16,16 @@ logger = logging.getLogger(__name__)
 
 STARTUP_SCAN = "startup_incremental_scan"
 PERIODIC_SCAN = "periodic_incremental_scan"
+
+INGESTION_STATUS: dict[str, Any] = {
+    "last_ingestion_time": None,
+    "last_result": None,
+    "last_scan_type": None,
+    "scheduler_status": {
+        "interval_hours": SCHEDULER_INTERVAL_HOURS,
+        "running": False,
+    },
+}
 
 
 def run_scan(scan_type, roots=None, docs_manager=None, status_dict=None):

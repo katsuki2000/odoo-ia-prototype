@@ -92,7 +92,6 @@ class MiroAiController(http.Controller):
             "job_id": job_id,
             "question": question,
             "session_id": effective_session,
-            "user_uid": user.id,
             "company_id": company_id,
             "groups": groups,
         }
