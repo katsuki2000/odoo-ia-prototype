@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import FrozenSet
 
-from config.settings import CORE_ADDONS_PATH
+from config.settings import ODOO_SOURCE_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -29,4 +29,4 @@ def load_base_model_methods(models_source: Path) -> FrozenSet[str]:
 
 @lru_cache(maxsize=1)
 def default_base_model_methods() -> FrozenSet[str]:
-    return load_base_model_methods(Path(CORE_ADDONS_PATH).parent / "odoo" / "models.py")
+    return load_base_model_methods(Path(ODOO_SOURCE_PATH) / "odoo" / "models.py")

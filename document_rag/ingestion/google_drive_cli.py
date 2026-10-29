@@ -13,7 +13,7 @@ def main():
     args = parser.parse_args()
     from config.google_drive import GoogleDriveSettings
     try:
-        settings = GoogleDriveSettings.from_environment()
+        settings = GoogleDriveSettings.current()
         if not settings.folder_ids:
             print(json.dumps({'status': 'skipped', 'reason': 'GOOGLE_DRIVE_FOLDER_IDS is not configured'}))
             return 0
@@ -23,7 +23,8 @@ def main():
             raise ValueError('Invalid chunk size or overlap.')
         from filelock import FileLock
         from document_rag.ingestion.google_drive import GoogleDriveClient
-        from document_rag.ingestion.google_drive_sync import synchronize_google_drive, run_periodic_sync
+        from document_rag.ingestion.google_drive_sync import synchronize_google_drive
+        from document_rag.ingestion.periodic import run_periodically
         from document_rag.vectorstore.chroma_manager import ChromaManager
         client = GoogleDriveClient(timeout=settings.timeout, max_bytes=settings.max_bytes)
         manager = ChromaManager()
@@ -34,7 +35,7 @@ def main():
             print(json.dumps(result, ensure_ascii=False), flush=True)
         with FileLock(str(manager.db_path / '.google_drive_sync.lock'), timeout=0):
             if args.watch:
-                run_periodic_sync(synchronize, settings.sync_interval, emit)
+                run_periodically(synchronize, settings.sync_interval, emit)
                 return 0
             result = synchronize()
     except KeyboardInterrupt:

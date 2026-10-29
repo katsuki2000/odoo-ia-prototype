@@ -1,12 +1,6 @@
 """Odoo service account: login and password come from the backend environment, never from a default."""
 
-import os
-
-import config.settings  # noqa: F401  (loads .env)
-
-PASSWORD_VARIABLE = "ODOO_ADMIN_PASSWORD"
-LOGIN_VARIABLE = "ODOO_ADMIN_LOGIN"
-DEFAULT_LOGIN = "admin"
+from config import settings
 
 
 class MissingServiceCredentialError(RuntimeError):
@@ -14,13 +8,12 @@ class MissingServiceCredentialError(RuntimeError):
 
 
 def service_login() -> str:
-    return os.getenv(LOGIN_VARIABLE) or DEFAULT_LOGIN
+    return settings.ODOO_ADMIN_LOGIN
 
 
 def service_password() -> str:
-    value = os.getenv(PASSWORD_VARIABLE)
-    if value:
-        return value
+    if settings.ODOO_ADMIN_PASSWORD:
+        return settings.ODOO_ADMIN_PASSWORD
     raise MissingServiceCredentialError(
         "The Odoo service account password is not configured: set ODOO_ADMIN_PASSWORD in the backend .env "
         "(never in the Odoo interface)."

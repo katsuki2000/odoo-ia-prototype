@@ -13,10 +13,10 @@ from core.guardrails import REACT_RECURSION_LIMIT
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 
-BRANCH_ORDER = ["documentaire", "donnees_erp"]
+BRANCH_ORDER = ["documentation", "system"]
 BRANCH_LABELS = {
-    "documentaire": "RAG simple (documentaire)",
-    "donnees_erp": "Function Calling (donnees_erp)",
+    "documentation": "RAG simple (documentation)",
+    "system": "Function Calling (system)",
 }
 
 
@@ -53,7 +53,7 @@ def build_budget_report(log_filepath: Path = None) -> str:
     if not summaries:
         lines.append(
             "Aucune trace enregistree pour le moment -- ce rapport se remplit au fil des "
-            "questions reellement posees (documentaire / donnees_erp "
+            "questions reellement posees (documentation / system "
             "logguent chacune une SUMMARY dans `reasoning_trace.jsonl` a chaque appel). "
             "Interroger le pipeline via `core.graph.graph.query_graph()` pour peupler ce rapport avec des chiffres reels.\n"
         )
@@ -100,15 +100,15 @@ def build_budget_report(log_filepath: Path = None) -> str:
         )
 
     lines.append(
-        f"\n*Plafond de sauts par question : `donnees_erp` applique "
-        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentaire` ne fait jamais de hop (0 par construction).*\n"
+        f"\n*Plafond de sauts par question : `system` applique "
+        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentation` ne fait jamais de hop (0 par construction).*\n"
     )
 
     lines.append("---\n## Lecture\n")
     lines.append(
-        "- `documentaire` (RAG simple) sert de plancher de comparaison : 0 hop, 1-2 appels LLM "
+        "- `documentation` (RAG simple) sert de plancher de comparaison : 0 hop, 1-2 appels LLM "
         "(1 en generation structuree, +1 seulement si le fallback texte-brut est declenche).\n"
-        f"- `donnees_erp` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) allers-retours "
+        f"- `system` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) allers-retours "
         "outil+LLM, plus 1 appel de synthese forcee si la limite est atteinte sans reponse finale.\n"
     )
 

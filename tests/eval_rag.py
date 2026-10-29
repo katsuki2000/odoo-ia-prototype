@@ -48,7 +48,7 @@ def run_evaluation():
         
         # 1. Check out-of-scope logic
         if q["category"] == "hors_perimetre":
-            is_correct = "cette question ne fait pas partie de mon périmètre" in answer_lower
+            is_correct = "this question is outside my scope" in answer_lower
             
             results_log.append({
                 "id": q["id"],

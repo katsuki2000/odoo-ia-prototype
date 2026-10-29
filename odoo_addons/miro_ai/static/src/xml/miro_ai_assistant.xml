@@ -105,8 +105,8 @@
                                 title="Answer only from the internal documentation">
                             <i class="fa fa-book"/> From the documentation
                         </button>
-                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'systeme' ? 'active' : ''}"
-                                t-on-click="() => this.toggleSourceMode('systeme')"
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'system' ? 'active' : ''}"
+                                t-on-click="() => this.toggleSourceMode('system')"
                                 title="Answer from the system's data and code">
                             <i class="fa fa-cogs"/> From the system
                         </button>

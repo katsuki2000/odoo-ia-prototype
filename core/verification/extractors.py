@@ -8,7 +8,7 @@ GROUP_XMLID_RE = re.compile(r"\b[a-z][a-z0-9_]*\.group_[a-z0-9_]+\b")
 METHOD_CALL_RE = re.compile(r"(?<![\w.])((?:[a-z][a-z0-9_]*\.)*)(_*[a-z][a-z0-9_]*)\(\)")
 SOURCE_FOOTER_RE = re.compile(r"^\[Source\b[^\n]*", re.MULTILINE)
 SYSTEM_BLOCK_RE = re.compile(
-    r"^\[(?:ACC[EÈ]S RESTREINT|V[EÉ]RIFICATION D[EÉ]TERMINISTE)\].*",
+    r"^\[(?:RESTRICTED ACCESS|DETERMINISTIC VERIFICATION)\].*",
     re.MULTILINE | re.DOTALL | re.IGNORECASE,
 )
 

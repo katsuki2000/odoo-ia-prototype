@@ -54,6 +54,6 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
     except Exception as exc:
         logger.error("Forced synthesis failed: %s", exc)
         return (
-            "Je n'ai pas pu obtenir une réponse complète à partir des observations disponibles.",
+            "I could not obtain a complete answer from the available observations.",
             llm_calls,
         )

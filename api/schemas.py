@@ -14,11 +14,11 @@ class AskRequestV1(BaseModel):
         default=None,
         description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
     )
-    source_mode: Optional[Literal["documentation", "systeme"]] = Field(
+    source_mode: Optional[Literal["documentation", "system"]] = Field(
         default=None,
         description=(
             "Source chosen by the user in the UI: 'documentation' forces the RAG "
-            "documentary path, 'systeme' excludes the documentary route; absent = automatic routing"
+            "documentary path, 'system' excludes the documentary route; absent = automatic routing"
         ),
     )
 
@@ -32,7 +32,6 @@ class AskResponseV1(BaseModel):
     confidence: float = 1.0
     ocr_warning: bool = False
     route: Optional[str] = None
-    omitted_for_authorization: list[dict] = Field(default_factory=list)
     evidence_dossier: list[dict] = Field(
         default_factory=list,
         description=(
@@ -86,7 +85,6 @@ class IngestionStatusResponse(BaseModel):
     last_ingestion_time: Optional[str]
     total_chunks: int
     files_monitored: int
-    watcher_status: dict[str, Any]
     scheduler_status: Optional[dict[str, Any]] = None
     last_scan_type: Optional[str] = None
 

@@ -43,26 +43,27 @@ class Graph:
 
 class RoutingTests(unittest.TestCase):
     def setUp(self):
-        self.select = Mock(return_value=NS(source='systeme', confidence=.9))
+        self.select = Mock(return_value=NS(source='system', confidence=.9))
         self.ns = load('core/routing/routing.py', {'route', 'route_decision'}, {
             'time': time, 'SOURCE_SELECTION_MIN_CONFIDENCE': .75, 'SOURCE_CLARIFICATION': 'source_clarification',
-            'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentaire', 'ERP_DATA': 'donnees_erp'}),
+            'SOURCES': {'documentation', 'system'},
+            'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentation', 'ERP_DATA': 'system'}),
             'select_source': self.select, 'AssistantResponse': NS})
 
     def test_explicit_sources_bypass_selection(self):
-        self.assertEqual(self.ns['route']({'source_mode': 'systeme'})['route'], 'donnees_erp')
-        self.assertEqual(self.ns['route']({'source_mode': 'documentation'})['route'], 'documentaire')
+        self.assertEqual(self.ns['route']({'source_mode': 'system'})['route'], 'system')
+        self.assertEqual(self.ns['route']({'source_mode': 'documentation'})['route'], 'documentation')
         self.select.assert_not_called()
 
     def test_confident_automatic_system_selection(self):
-        self.assertEqual(self.ns['route']({'question': 'approve'})['route'], 'donnees_erp')
+        self.assertEqual(self.ns['route']({'question': 'approve'})['route'], 'system')
 
     def test_confident_automatic_document_selection(self):
         self.select.return_value = NS(source='documentation', confidence=.9)
-        self.assertEqual(self.ns['route']({'question': 'policy'})['route'], 'documentaire')
+        self.assertEqual(self.ns['route']({'question': 'policy'})['route'], 'documentation')
 
     def test_low_confidence_asks_for_source_without_evidence(self):
-        self.select.return_value = NS(source='systeme', confidence=.74)
+        self.select.return_value = NS(source='system', confidence=.74)
         result = self.ns['route']({'question': 'ambiguous'})
         self.assertEqual(result['route'], 'source_clarification')
         self.assertEqual(result['response'].sources, [])
@@ -86,7 +87,7 @@ class RoutingTests(unittest.TestCase):
 class SourceContractTests(unittest.TestCase):
     def setUp(self):
         from typing import Literal
-        self.invoke = Mock(return_value={'source': 'systeme', 'confidence': .9})
+        self.invoke = Mock(return_value={'source': 'system', 'confidence': .9})
         self.ns = load('core/routing/source_selection.py', {'SourceSelection', 'select_source'}, {
             'BaseModel': BaseModel, 'ConfigDict': ConfigDict, 'Field': Field, 'Literal': Literal,
             'get_chat_llm': lambda **kwargs: NS(with_structured_output=lambda *a, **k: object()),
@@ -95,11 +96,11 @@ class SourceContractTests(unittest.TestCase):
         self.ns['SourceSelection'].model_rebuild(_types_namespace={'Literal': Literal})
 
     def test_valid_structured_selection(self):
-        self.assertEqual(self.ns['select_source']('approval').source, 'systeme')
+        self.assertEqual(self.ns['select_source']('approval').source, 'system')
 
     def test_malformed_selection_is_uncertain(self):
-        for result in ({'source': 'other', 'confidence': .9}, {'source': 'systeme', 'confidence': 1.1}, {},
-                       {'source': 'systeme', 'confidence': float('nan')}):
+        for result in ({'source': 'other', 'confidence': .9}, {'source': 'system', 'confidence': 1.1}, {},
+                       {'source': 'system', 'confidence': float('nan')}):
             self.invoke.return_value = result
             self.assertEqual(self.ns['select_source']('approval').source, 'uncertain')
 
@@ -116,7 +117,7 @@ class VerificationTests(unittest.TestCase):
     def setUp(self):
         self.ns = load('core/graph/verify_node.py', {'_build_context'}, {
             '_evidence': lambda state: (('actual evidence',), ()),
-            'answered_by_documents': lambda state: state.get('route') == 'documentaire',
+            'answered_by_documents': lambda state: state.get('route') == 'documentation',
             'default_base_model_methods': lambda: set(), 'VerificationContext': NS})
 
     def test_user_question_is_not_treated_as_factual_evidence(self):

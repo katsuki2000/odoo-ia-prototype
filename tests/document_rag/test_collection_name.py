@@ -7,12 +7,7 @@ import chromadb
 
 from config.settings import DOCS_COLLECTION_NAME
 from document_rag.ingestion.ingest_all import IngestionOrchestrator
-from document_rag.ingestion.scheduler import (
-    PeriodicScanScheduler,
-    run_scheduled_scan,
-    run_startup_scan,
-)
-from document_rag.ingestion.watcher import IngestionWatcher
+from document_rag.ingestion.scheduler import PERIODIC_SCAN, STARTUP_SCAN, run_scan
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
@@ -49,9 +44,7 @@ def test_pipeline_components_only_create_the_documentary_collection(tmp_path):
         patch("document_rag.ingestion.scheduler.write_ingestion_event"),
     ):
         IngestionOrchestrator(chroma_db_path=db_path)
-        IngestionWatcher(watched_paths=[docs_dir])
-        PeriodicScanScheduler(roots=[docs_dir])
-        run_startup_scan([docs_dir])
-        run_scheduled_scan([docs_dir])
+        run_scan(STARTUP_SCAN, [docs_dir])
+        run_scan(PERIODIC_SCAN, [docs_dir])
 
     assert _collection_names(db_path) == {DOCS_COLLECTION_NAME}

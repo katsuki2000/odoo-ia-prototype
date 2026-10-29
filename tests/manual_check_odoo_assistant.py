@@ -6,15 +6,13 @@ Run from the project root:
 Needs ODOO_DB in .env and the password of that login in ODOO_MANAGER_PASSWORD.
 """
 import argparse
-import os
 import sys
 import time
 
 import requests
 
-from config.settings import ODOO_DB, ODOO_URL_DEFAULT
+from config.settings import ODOO_DB, ODOO_MANAGER_PASSWORD, ODOO_URL
 
-ODOO_URL = os.getenv("ODOO_URL") or ODOO_URL_DEFAULT
 ASK_TIMEOUT_SECONDS = 600
 POLL_INTERVAL_SECONDS = 2
 AUDIT_LOG_FIELDS = ["question", "response_time_ms", "sources_count", "state"]
@@ -132,9 +130,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="End-to-end check of the MIRO AI addon through Odoo.")
     parser.add_argument("--login", required=True, help="Odoo user login")
     args = parser.parse_args()
-    password = os.getenv("ODOO_MANAGER_PASSWORD")
+    password = ODOO_MANAGER_PASSWORD
     if not password:
-        parser.error("ODOO_MANAGER_PASSWORD must be set in the environment")
+        parser.error("ODOO_MANAGER_PASSWORD must be set in .env")
     if not ODOO_DB:
         parser.error("ODOO_DB must be set in .env")
     sys.exit(0 if main(args.login, password) else 1)

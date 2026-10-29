@@ -110,13 +110,6 @@ msgid "Close"
 msgstr ""
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Code Intelligence"
-msgstr ""
-
-#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__company_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Company"
@@ -191,31 +184,6 @@ msgid "ERP data"
 msgstr ""
 
 #. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_comptabilite
-msgid "Enable ORM and documentary search on the Accounting module"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_ventes
-msgid "Enable ORM and documentary search on the Sales module"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_stocks
-msgid "Enable ORM and documentary search on the Stock / Inventory module"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_tickets
-msgid "Enable ORM and documentary search on the Support & Tickets module"
-msgstr ""
-
-#. module: miro_ai
-#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
-msgid "Enabled skill categories"
-msgstr ""
-
-#. module: miro_ai
 #: model:ir.model.fields.selection,name:miro_ai.selection__miro_ai_log__state__error
 msgid "Error"
 msgstr ""
@@ -282,13 +250,6 @@ msgstr ""
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
 msgid "History"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Hybrid"
 msgstr ""
 
 #. module: miro_ai
@@ -508,8 +469,7 @@ msgstr ""
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__metadata_text
 msgid ""
-"Route, confidence, evidence status, investigation plan and omitted items, "
-"serialized as JSON."
+"Route and confidence of the answer, serialized as JSON."
 msgstr ""
 
 #. module: miro_ai
@@ -532,32 +492,12 @@ msgstr ""
 
 #. module: miro_ai
 #: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
-msgid "Set the FastAPI server address and enable the ORM skill categories."
+msgid "Set the FastAPI server address and request timeout."
 msgstr ""
 
 #. module: miro_ai
 #: model:ir.ui.menu,name:miro_ai.menu_miro_ai_settings_action
 msgid "Settings"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_comptabilite
-msgid "Skill: Accounting (account)"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_ventes
-msgid "Skill: Sales (sale)"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_stocks
-msgid "Skill: Stock (stock)"
-msgstr ""
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_tickets
-msgid "Skill: Support / Tickets (helpdesk)"
 msgstr ""
 
 #. module: miro_ai

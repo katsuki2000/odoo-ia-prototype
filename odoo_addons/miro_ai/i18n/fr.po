@@ -111,13 +111,6 @@ msgid "Close"
 msgstr "Fermer"
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Code Intelligence"
-msgstr "Code Intelligence"
-
-#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__company_id
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Company"
@@ -192,31 +185,6 @@ msgid "ERP data"
 msgstr "Données ERP"
 
 #. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_comptabilite
-msgid "Enable ORM and documentary search on the Accounting module"
-msgstr "Activer la recherche ORM et documentaire sur le module Comptabilité"
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_ventes
-msgid "Enable ORM and documentary search on the Sales module"
-msgstr "Activer la recherche ORM et documentaire sur le module Ventes"
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_stocks
-msgid "Enable ORM and documentary search on the Stock / Inventory module"
-msgstr "Activer la recherche ORM et documentaire sur le module Stocks / Inventaire"
-
-#. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__activer_tickets
-msgid "Enable ORM and documentary search on the Support & Tickets module"
-msgstr "Activer la recherche ORM et documentaire sur le module Support & Tickets"
-
-#. module: miro_ai
-#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
-msgid "Enabled skill categories"
-msgstr "Catégories de compétences activées"
-
-#. module: miro_ai
 #: model:ir.model.fields.selection,name:miro_ai.selection__miro_ai_log__state__error
 msgid "Error"
 msgstr "Erreur"
@@ -284,13 +252,6 @@ msgstr "Bonjour ! Posez votre question ou interrogez-moi sur le document actif."
 #, python-format
 msgid "History"
 msgstr "Historique"
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Hybrid"
-msgstr "Hybride"
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__id
@@ -509,9 +470,8 @@ msgstr "Adresse racine du serveur FastAPI MIRO RAG (ex : http://127.0.0.1:8000 o
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__metadata_text
 msgid ""
-"Route, confidence, evidence status, investigation plan and omitted items, "
-"serialized as JSON."
-msgstr "Route, confiance, statut de preuve, plan d'investigation et éléments masqués, sérialisés en JSON."
+"Route and confidence of the answer, serialized as JSON."
+msgstr "Route et confiance de la réponse, sérialisées en JSON."
 
 #. module: miro_ai
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
@@ -533,33 +493,13 @@ msgstr "ID de session"
 
 #. module: miro_ai
 #: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
-msgid "Set the FastAPI server address and enable the ORM skill categories."
-msgstr "Configurez l'adresse du serveur FastAPI et activez les catégories de compétences ORM."
+msgid "Set the FastAPI server address and request timeout."
+msgstr "Configurez l'adresse du serveur FastAPI et le délai d'attente."
 
 #. module: miro_ai
 #: model:ir.ui.menu,name:miro_ai.menu_miro_ai_settings_action
 msgid "Settings"
 msgstr "Paramètres"
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_comptabilite
-msgid "Skill: Accounting (account)"
-msgstr "Compétence : Comptabilité (account)"
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_ventes
-msgid "Skill: Sales (sale)"
-msgstr "Compétence : Ventes (sale)"
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_stocks
-msgid "Skill: Stock (stock)"
-msgstr "Compétence : Stocks (stock)"
-
-#. module: miro_ai
-#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__activer_tickets
-msgid "Skill: Support / Tickets (helpdesk)"
-msgstr "Compétence : Support / Tickets (helpdesk)"
 
 #. module: miro_ai
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree

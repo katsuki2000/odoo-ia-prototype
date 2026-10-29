@@ -4,7 +4,6 @@ import hashlib
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from threading import Event
 from urllib.error import HTTPError
 
 from config.google_drive import DEFAULT_MAX_FILES
@@ -130,16 +129,3 @@ def synchronize_google_drive(client, folder_ids, manager, loader=None, chunk_siz
     result['chunks_deleted'] += deleted
     result['status'] = 'partial' if result['failed'] else 'complete'
     return result
-
-
-def run_periodic_sync(action, interval_seconds, emit, stop_event=None):
-    if interval_seconds <= 0:
-        raise ValueError('Synchronization interval must be positive.')
-    stop_event = stop_event or Event()
-    while not stop_event.is_set():
-        try:
-            emit(action())
-        except Exception as error:
-            emit({'status': 'failed', 'error_type': type(error).__name__})
-        if stop_event.wait(interval_seconds):
-            break

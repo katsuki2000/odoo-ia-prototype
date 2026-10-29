@@ -51,7 +51,7 @@ class ReasoningRouting:
 class ReasoningSummary:
     trace_id: str
     timestamp: str
-    branch: str  # "documentaire" | "donnees_erp"
+    branch: str  # "documentation" | "system"
     question_preview: str  # first ~80 chars only -- log hygiene, never the full question
     hop_count: int
     llm_call_count: int

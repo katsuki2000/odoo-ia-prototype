@@ -3,14 +3,14 @@
 import re
 from typing import Optional
 
-MASSIVE_EXTRACTION_REFUSAL_MSG = 'La demande dépasse le périmètre d\'analyse autorisé.'
+CREDENTIAL_REFUSAL_MSG = 'The request exceeds the authorized analysis scope.'
 PROMPT_INJECTION_REFUSAL_MSG = (
-    'Demande non autorisée : les consignes système et politiques de sécurité '
-    'ne peuvent pas être altérées ou divulguées.'
+    'Unauthorized request: system instructions and security policies '
+    'cannot be altered or disclosed.'
 )
 OUT_OF_SCOPE_ANSWER = (
-    "Cette question ne fait pas partie de mon périmètre. "
-    "Je suis spécialisé dans l'assistance et les procédures internes"
+    "This question is outside my scope. "
+    "I specialize in internal assistance and procedures"
 )
 
 OUT_OF_SCOPE_TERMS = {
@@ -32,22 +32,9 @@ _ARITHMETIC_ONLY_RE = re.compile(
 
 REACT_RECURSION_LIMIT = 6
 
-_MASSIVE_EXTRACTION_PATTERNS = [
-    r"tous\s+les\s+modèles",
-    r"tous\s+les\s+modules",
-    r"chaque\s+modèle",
-    r"l'intégralité\s+du\s+code",
-    r"dump\s+de\s+tous",
-    r"liste\s+complète\s+de\s+tous",
+_CREDENTIAL_PATTERNS = [
     r"tous\s+les\s+mots\s+de\s+passe",
-    r"(?:liste|dump|export|afficher?|donne)\w*\s+(?:de\s+)?tous\s+les\s+utilisateurs",
     r"tous\s+les\s+utilisateurs\s+et\s+(?:leurs\s+)?mots\s+de\s+passe",
-    r"extraire?\s+tout",
-    r"all\s+rules\s+of\s+all\s+models",
-    r"dump\s+all\s+models",
-    r"dump\s+all\s+rules",
-    r"list\s+all\s+models",
-    r"extract\s+all\s+code",
     r"all\s+users\s+and\s+passwords",
 ]
 
@@ -74,24 +61,10 @@ def is_out_of_scope(question: str) -> bool:
     return any(term in normalized for term in OUT_OF_SCOPE_TERMS)
 
 
-def is_massive_extraction_request(question: str) -> bool:
-    """Detect queries attempting bulk metadata or rule extraction across models."""
+def is_credential_request(question: str) -> bool:
+    """Detect requests for passwords: Odoo does not expose them, so the model must not improvise a search."""
     q = question.lower().strip()
-    if not q:
-        return False
-
-    bulk_scopes = [
-        "tous les modèles", "tous les modules", "chaque modèle",
-        "tout le système", "all models", "all modules", "whole database",
-    ]
-    bulk_targets = [
-        "toutes les règles", "tous les accès", "tous les droits",
-        "all rules", "all permissions", "all access",
-    ]
-    if any(s in q for s in bulk_scopes) and any(t in q for t in bulk_targets):
-        return True
-
-    return any(re.search(pat, q) for pat in _MASSIVE_EXTRACTION_PATTERNS)
+    return any(re.search(pat, q) for pat in _CREDENTIAL_PATTERNS)
 
 
 def is_prompt_injection(question: str) -> bool:
@@ -103,11 +76,11 @@ def is_prompt_injection(question: str) -> bool:
 
 
 def refusal_message(question: str) -> Optional[str]:
-    """Return the refusal answer for a question no branch may handle, or None to let it through."""
+    """Return the refusal answer for a question the ERP data branch must not run, or None to let it through."""
     if is_out_of_scope(question):
         return OUT_OF_SCOPE_ANSWER
     if is_prompt_injection(question):
         return PROMPT_INJECTION_REFUSAL_MSG
-    if is_massive_extraction_request(question):
-        return MASSIVE_EXTRACTION_REFUSAL_MSG
+    if is_credential_request(question):
+        return CREDENTIAL_REFUSAL_MSG
     return None

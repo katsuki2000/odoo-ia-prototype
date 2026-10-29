@@ -28,10 +28,8 @@ export const evidenceLabel = (count) => _t("Evidence (%s)", count);
 
 export function routeLabel(route) {
     switch (route) {
-        case "code_intelligence": return _t("Code Intelligence");
-        case "donnees_erp": return _t("ERP data");
-        case "documentaire": return _t("Documentation");
-        case "hybride": return _t("Hybrid");
+        case "system": return _t("ERP data");
+        case "documentation": return _t("Documentation");
         default: return route || _t("General");
     }
 }

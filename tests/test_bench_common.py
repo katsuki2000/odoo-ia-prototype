@@ -18,6 +18,17 @@ def test_a_number_is_never_found_inside_a_longer_number():
     assert common.contains_fact(common.normalize("moins de **4 heures**, écart de 2 %"), "4 heures")
 
 
+def test_a_number_ending_a_line_is_not_glued_to_the_next_numbered_line():
+    answer = common.normalize("2. Restaurer le code : `git checkout HEAD~1`\n3. Restaurer la base")
+    assert common.contains_fact(answer, "git checkout HEAD~1")
+    assert not common.contains_fact(common.normalize("git checkout HEAD~12"), "git checkout HEAD~1")
+
+
+def test_a_fact_wrapped_over_two_lines_is_found():
+    text = common.normalize("Signé pour MIRO K.E. : Direction des\nAchats & Direction Générale.")
+    assert common.contains_fact(text, "Direction des Achats")
+
+
 def test_latency_percentiles():
     assert common.latency_percentiles([float(number) for number in range(10, 0, -1)]) == (5.5, 9.0)
     assert common.latency_percentiles([]) == (None, None)

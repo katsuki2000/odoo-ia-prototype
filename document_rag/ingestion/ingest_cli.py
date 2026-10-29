@@ -1,6 +1,5 @@
 """
 document_rag/ingestion/ingest_cli.py
-
 CLI entry point for document ingestion into ChromaDB (PDF, TXT, MD).
 """
 
@@ -74,7 +73,6 @@ def main() -> int:
 
     logger.info(f"\nStatistics saved to {stats_file}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -106,7 +106,6 @@ function createMessage(id, sender, content, extra = {}) {
         sources: [],
         route: null,
         confidence: 1.0,
-        omitted_for_authorization: [],
         cancelled: false,
     }, extra);
 }
@@ -126,7 +125,6 @@ function buildMessagesFromHistory(history) {
             sources: turn.sources || [],
             route: turn.route || null,
             confidence: turn.confidence !== undefined && turn.confidence !== null ? turn.confidence : 1.0,
-            omitted_for_authorization: turn.omitted_for_authorization || [],
         }));
     }
     return { messages, nextId };
@@ -286,10 +284,8 @@ export class MiroAiSystray extends Component {
 
     getRouteBadgeClass(route) {
         switch (route) {
-            case "code_intelligence": return "badge-code-intelligence";
-            case "donnees_erp": return "badge-donnees-erp";
-            case "documentaire": return "badge-documentaire";
-            case "hybride": return "badge-hybride";
+            case "system": return "badge-system";
+            case "documentation": return "badge-documentation";
             default: return "badge-secondary";
         }
     }
@@ -359,7 +355,7 @@ export class MiroAiSystray extends Component {
             question: question,
             session_id: this.state.sessionId,
         };
-        // Explicit source chosen by the user ("documentation" | "systeme"); null = automatic routing.
+        // Explicit source chosen by the user ("documentation" | "system"); null = automatic routing.
         if (this.state.sourceMode) {
             rpcPayload.source_mode = this.state.sourceMode;
         }
@@ -372,7 +368,6 @@ export class MiroAiSystray extends Component {
                     sources: response.sources || [],
                     route: response.route || null,
                     confidence: response.confidence !== undefined ? response.confidence : 1.0,
-                    omitted_for_authorization: response.omitted_for_authorization || [],
                 }));
                 if (response.session_id) {
                     this.state.sessionId = response.session_id;

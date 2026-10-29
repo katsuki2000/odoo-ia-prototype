@@ -3,7 +3,7 @@
 import logging
 import time
 
-from core.schemas import AssistantResponse, LLMResponse
+from core.schemas import AssistantResponse, LLMResponse, QueryRoute
 from config.settings import DOCUMENT_MAX_TOKENS
 from core.state import RAGState
 from core.llm.llm_client import get_chat_llm, invoke_llm
@@ -35,14 +35,14 @@ def generate(state: RAGState) -> dict:
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
         response = AssistantResponse(
-            answer="Je n'ai pas de source fiable pour répondre à cette question.",
+            answer="I have no reliable source to answer this question.",
             sources=[],
             confidence=0.0,
         )
         timing = state.get("timing", {}).copy()
         timing["generation_time"] = time.time() - start_time
         _trace_logger.log_summary(
-            trace_id=_trace_id, branch="documentaire", question=question,
+            trace_id=_trace_id, branch=QueryRoute.DOCUMENTARY.value, question=question,
             hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
         )
         return {"response": response, "timing": timing}
@@ -81,7 +81,7 @@ def generate(state: RAGState) -> dict:
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
-                answer=f"Désolé, une erreur s'est produite lors de la génération. Détails: {str(e2)}",
+                answer=f"Sorry, an error occurred during generation. Details: {str(e2)}",
                 sources=[],
                 confidence=0.0,
             )
@@ -90,7 +90,7 @@ def generate(state: RAGState) -> dict:
     timing["generation_time"] = time.time() - start_time
     timing["llm_call_count"] = _llm_call_count
     _trace_logger.log_summary(
-        trace_id=_trace_id, branch="documentaire", question=question,
+        trace_id=_trace_id, branch=QueryRoute.DOCUMENTARY.value, question=question,
         hop_count=0, llm_call_count=_llm_call_count,
         total_time_ms=timing["generation_time"] * 1000,
     )

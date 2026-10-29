@@ -9,12 +9,12 @@ from odoo.exceptions import UserError
 from odoo.http import request
 
 from .ask_flow import backend_headers, is_job_id, issue_requester_key, requester_scope, revoke_requester_keys
-from .backend_client import BackendError, candidate_urls_for, get_with_failover, post_with_failover
+from .backend_client import BackendError, get_from_backend, post_to_backend
 
 _logger = logging.getLogger(__name__)
 
 BACKEND_REPLY_TIMEOUT_SECONDS = 10
-METADATA_FIELDS = ('route', 'confidence', 'omitted_for_authorization')
+METADATA_FIELDS = ('route', 'confidence')
 
 
 def _settings_and_secret():
@@ -53,7 +53,6 @@ def _answer_payload(data, session_id):
         'route': data.get('route'),
         'confidence': data.get('confidence', 1.0),
         'ocr_warning': data.get('ocr_warning', False),
-        'omitted_for_authorization': data.get('omitted_for_authorization', []),
     }
 
 
@@ -98,14 +97,14 @@ class MiroAiController(http.Controller):
         if interface_language:
             payload["language"] = interface_language
         # Explicit source chosen in the UI; anything else means automatic routing.
-        if source_mode in ("documentation", "systeme"):
+        if source_mode in ("documentation", "system"):
             payload["source_mode"] = source_mode
 
         api_url = settings.api_url.rstrip('/')
         start_time = time.time()
         try:
-            resp, api_url = post_with_failover(
-                candidate_urls_for(api_url), "/api/v1/ask/jobs", headers, payload, BACKEND_REPLY_TIMEOUT_SECONDS)
+            resp = post_to_backend(
+                api_url, "/api/v1/ask/jobs", headers, payload, BACKEND_REPLY_TIMEOUT_SECONDS)
             if resp.status_code == 202:
                 return {'job_id': job_id, 'session_id': effective_session}
             _logger.error("Backend HTTP error %s: %s", resp.status_code, resp.text)
@@ -139,8 +138,8 @@ class MiroAiController(http.Controller):
         headers = backend_headers(secret_key, request.env.user, company_id, groups)
         api_url = settings.api_url.rstrip('/')
         try:
-            resp, api_url = get_with_failover(
-                candidate_urls_for(api_url), f"/api/v1/ask/jobs/{job_id}", headers, BACKEND_REPLY_TIMEOUT_SECONDS)
+            resp = get_from_backend(
+                api_url, f"/api/v1/ask/jobs/{job_id}", headers, BACKEND_REPLY_TIMEOUT_SECONDS)
         except BackendError as error:
             _logger.exception("Backend unreachable: %s", error)
             return {'answer': _unreachable_message(api_url), 'sources': []}

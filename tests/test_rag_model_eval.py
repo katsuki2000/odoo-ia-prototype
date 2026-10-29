@@ -61,6 +61,27 @@ def test_score_of_an_unanswerable_question_has_no_recall(bench):
     assert scored == {"fact_recall": None, "source_recall": None, "abstained": True}
 
 
+@pytest.mark.parametrize("answer", [
+    "Je n'ai pas trouvé cette information dans la base de connaissance interne.",
+    "Je n'ai pas trouvé d'information concernant le plafond pour un repas du soir.",
+    "Aucun plafond spécifique pour un repas du soir n'est mentionné dans les documents.",
+    "Les documents ne précisent pas ce plafond.",
+    "I have no reliable source to answer this question.",
+    "This question is outside my scope. I specialize in internal assistance and procedures",
+])
+def test_a_refusal_is_recognized_whatever_its_wording(bench, answer):
+    assert bench.score(_trap(), answer, [])["abstained"] is True
+
+
+def test_an_answer_that_gives_its_facts_is_not_a_refusal_even_with_a_side_remark(bench):
+    answer = "Validation en **48 heures ouvrées** ; le circuit de relance n'est pas mentionné dans le guide."
+    assert bench.score(_item(), answer, [])["abstained"] is False
+
+
+def test_an_answerable_question_declined_without_any_fact_counts_as_a_refusal(bench):
+    assert bench.score(_item(), "Je n'ai pas trouvé cette information dans la base de connaissance interne.", [])["abstained"] is True
+
+
 def test_a_numeric_fact_is_not_found_inside_a_longer_number(bench):
     item = _item(facts=["4 heures", "2%"], reference_sources=[])
     assert bench.score(item, "P4 : moins de 24 heures, écart de 12 %.", [])["fact_recall"] == 0.0

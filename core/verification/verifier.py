@@ -11,7 +11,7 @@ from core.verification.sentence_bounds import expand_to_sentence_bounds
 
 logger = logging.getLogger(__name__)
 
-RETIREMENT_NOTICE = "[VÉRIFICATION DÉTERMINISTE] Affirmation(s) retirée(s) faute de preuve dans les données de ce tour : "
+RETIREMENT_NOTICE = "[DETERMINISTIC VERIFICATION] Claim(s) removed for lack of evidence in this turn's data: "
 
 
 def _by_type(claims: List[Claim]) -> Dict[ClaimType, int]:

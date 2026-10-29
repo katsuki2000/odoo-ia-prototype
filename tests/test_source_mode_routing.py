@@ -10,7 +10,7 @@ from core.schemas import QueryRoute
 
 def test_route_decision_ignores_source_mode():
     """La topologie du graphe ne change pas : route_decision() renvoie toujours la route calculee."""
-    for mode in (None, "documentation", "systeme"):
+    for mode in (None, "documentation", "system"):
         assert route_decision({"route": QueryRoute.ERP_DATA.value, "source_mode": mode}) == QueryRoute.ERP_DATA.value
         assert route_decision({"route": QueryRoute.DOCUMENTARY.value, "source_mode": mode}) == QueryRoute.DOCUMENTARY.value
 

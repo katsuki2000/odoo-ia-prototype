@@ -3,8 +3,24 @@
 import json
 import logging
 from odoo import models, fields, api
+from odoo.osv.expression import OR
 
 _logger = logging.getLogger(__name__)
+MAX_SESSION_LIST_LIMIT = 1000
+
+
+def _parse_json_field(value, field_name, record_id, expected_type, default):
+    if not value:
+        return default
+    try:
+        result = json.loads(value)
+    except (TypeError, ValueError) as error:
+        _logger.warning("miro.ai.log: %s parsing failed (id=%s): %s", field_name, record_id, error)
+        return default
+    if not isinstance(result, expected_type):
+        _logger.warning("miro.ai.log: %s of id %s is not a JSON %s", field_name, record_id, expected_type.__name__)
+        return default
+    return result
 
 
 class MiroAiLog(models.Model):
@@ -63,7 +79,7 @@ class MiroAiLog(models.Model):
     metadata_text = fields.Text(
         string='Metadata (raw JSON)',
         readonly=True,
-        help="Route, confidence, evidence status, investigation plan and omitted items, serialized as JSON."
+        help="Route and confidence of the answer, serialized as JSON."
     )
     state = fields.Selection([
         ('success', 'Success'),
@@ -73,21 +89,8 @@ class MiroAiLog(models.Model):
     @api.depends('sources_text')
     def _compute_sources_count(self):
         for rec in self:
-            count = 0
-            if rec.sources_text:
-                try:
-                    data = json.loads(rec.sources_text)
-                    if isinstance(data, list):
-                        count = len(data)
-                    else:
-                        _logger.warning("miro.ai.log: sources_text of id %s is not a JSON list", rec.id)
-                        count = 0
-                except Exception as e:
-                    _logger.warning("miro.ai.log: JSON decoding of sources_text failed for id %s: %s", rec.id, e)
-                    count = 0
-            else:
-                count = 0
-            rec.sources_count = count
+            sources = _parse_json_field(rec.sources_text, 'sources_text', rec.id, list, [])
+            rec.sources_count = len(sources)
 
     @api.model
     def log_query(self, question, answer, session_id, response_time_ms, sources, state='success', metadata=None):
@@ -107,49 +110,43 @@ class MiroAiLog(models.Model):
         })
 
     @api.model
-    def get_sessions(self, limit=30, scan_limit=1000):
+    def get_sessions(self, limit=30):
         """
-        List the most recent conversations visible to the current user. Not elevated: the
-        rule_miro_ai_log_user record rule already filters on the user. Message counts come
-        from a single read_group to avoid N+1 queries.
+        List recent conversations visible to the current user. Grouping and counts stay in
+        the ORM; record rules apply to both queries.
         """
-        logs = self.search([], order='create_date desc', limit=scan_limit)
-        sessions = []
-        seen = set()
-        for log in logs:
-            session_id = log.session_id
-            if not session_id or session_id in seen:
-                continue
-            seen.add(session_id)
-            sessions.append({
-                'session_id': session_id,
-                'preview': (log.question or '')[:120],
-                'last_activity': log.create_date.isoformat() if log.create_date else None,
-                'message_count': 0,
-            })
-            if len(sessions) >= limit:
-                break
+        if type(limit) is not int or limit < 1:
+            raise ValueError('limit must be a positive integer.')
+        limit = min(limit, MAX_SESSION_LIST_LIMIT)
+        groups = self.read_group(
+            [('session_id', '!=', False)],
+            ['session_id', 'create_date:max'],
+            ['session_id'],
+            limit=limit,
+            orderby='create_date desc',
+        )
+        if not groups:
+            return []
 
-        target_session_ids = [s['session_id'] for s in sessions]
-        if target_session_ids:
-            try:
-                grouped_counts = self.read_group(
-                    [('session_id', 'in', target_session_ids)],
-                    ['session_id'],
-                    ['session_id']
-                )
-                counts = {
-                    g.get('session_id'): g.get('session_id_count', g.get('__count', 0))
-                    for g in grouped_counts
-                    if g.get('session_id')
-                }
-            except Exception as e:
-                _logger.warning("miro.ai.log: grouped session count failed: %s", e)
-                counts = {}
-            for s in sessions:
-                s['message_count'] = counts.get(s['session_id'], 0)
+        latest_domains = [
+            [('session_id', '=', group['session_id']), ('create_date', '=', group['create_date'])]
+            for group in groups
+        ]
+        latest_logs = self.search(OR(latest_domains), order='create_date desc, id desc')
+        latest_by_session = {}
+        for log in latest_logs:
+            latest_by_session.setdefault(log.session_id, log)
 
-        return sessions
+        return [
+            {
+                'session_id': group['session_id'],
+                'preview': (latest_by_session[group['session_id']].question or '')[:120],
+                'last_activity': group['create_date'].isoformat() if group.get('create_date') else None,
+                'message_count': group.get('session_id_count', group.get('__count', 0)),
+            }
+            for group in groups
+            if group.get('session_id') in latest_by_session
+        ]
 
     @api.model
     def get_session_history(self, session_id):
@@ -159,26 +156,8 @@ class MiroAiLog(models.Model):
         logs = self.search([('session_id', '=', session_id)], order='create_date asc')
         history = []
         for log in logs:
-            metadata = {}
-            if log.metadata_text:
-                try:
-                    metadata = json.loads(log.metadata_text)
-                except Exception as e:
-                    _logger.warning("miro.ai.log: metadata_text parsing failed (id=%s): %s", log.id, e)
-                    metadata = {}
-            else:
-                metadata = {}
-
-            sources = []
-            if log.sources_text:
-                try:
-                    sources = json.loads(log.sources_text)
-                except Exception as e:
-                    _logger.warning("miro.ai.log: sources_text parsing failed (id=%s): %s", log.id, e)
-                    sources = []
-            else:
-                sources = []
-
+            metadata = _parse_json_field(log.metadata_text, 'metadata_text', log.id, dict, {})
+            sources = _parse_json_field(log.sources_text, 'sources_text', log.id, list, [])
             history.append({
                 'question': log.question,
                 'answer': log.answer,
@@ -187,6 +166,5 @@ class MiroAiLog(models.Model):
                 'create_date': log.create_date.isoformat() if log.create_date else None,
                 'route': metadata.get('route'),
                 'confidence': metadata.get('confidence'),
-                'omitted_for_authorization': metadata.get('omitted_for_authorization'),
             })
         return history

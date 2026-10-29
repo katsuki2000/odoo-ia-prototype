@@ -187,23 +187,13 @@
     border-radius: 6px;
 }
 
-.badge-code-intelligence {
-    background-color: #0284c7;
-    color: #ffffff;
-}
-
-.badge-donnees-erp {
+.badge-system {
     background-color: #16a34a;
     color: #ffffff;
 }
 
-.badge-documentaire {
+.badge-documentation {
     background-color: #ea580c;
-    color: #ffffff;
-}
-
-.badge-hybride {
-    background-color: #9333ea;
     color: #ffffff;
 }
 
@@ -471,7 +461,7 @@ details[open] .verification-chevron {
     padding: 2px 5px;
 }
 
-/* Source selector (documentation / systeme); none selected = automatic routing */
+/* Source selector (documentation / system); none selected = automatic routing */
 .miro-source-toggle {
     display: flex;
     gap: 6px;

@@ -1,6 +1,6 @@
 """
 Canonical scan-root definitions and helpers shared by the ingestion
-pipeline (ingest_all.py, incremental.py, watcher.py) and loaders
+pipeline (ingest_all.py, incremental.py) and loaders
 (wiki_loader.py, pdf_loader.py).
 """
 
@@ -9,20 +9,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
+from config.settings import RAG_DOCS_PATH
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 DOCS_DIR = Path(RAG_DOCS_PATH)
-CORE_ADDONS_ROOT = Path(CORE_ADDONS_PATH)
-CUSTOM_ADDONS_ROOT = Path(CUSTOM_ADDONS_PATH)
 
-# The 3 logical roots the ingestion pipeline actually scans. Used as the
+# The root the ingestion pipeline scans. Used as the
 # default candidate list for resolve_scan_root() wherever a caller doesn't
-# know (or care) which specific root a file belongs under -- e.g. a single
-# file path handed to the watcher on a filesystem event.
-DEFAULT_SCAN_ROOT_CANDIDATES: list[Path] = [DOCS_DIR, CORE_ADDONS_ROOT, CUSTOM_ADDONS_ROOT]
+# know (or care) which specific root a file belongs under.
+DEFAULT_SCAN_ROOT_CANDIDATES: list[Path] = [DOCS_DIR]
 
 
 def resolve_scan_root(file_path: Path, candidate_roots: Iterable[Path]) -> Optional[Path]:
@@ -55,8 +52,7 @@ def confine_to_scan_roots(
 ) -> Path:
     """Resolve path and accept it only if it lies under a configured scan root.
 
-    Roots come from the settings (RAG_DOCS_PATH, CORE_ADDONS_PATH,
-    CUSTOM_ADDONS_PATH). Symlinks are followed via resolve() so a link inside
+    The root comes from the settings (RAG_DOCS_PATH). Symlinks are followed via resolve() so a link inside
     a root cannot escape to the rest of the filesystem.
     """
     resolved = Path(path).resolve()

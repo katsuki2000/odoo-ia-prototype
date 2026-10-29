@@ -9,7 +9,8 @@ import unittest
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
-from document_rag.ingestion.google_drive_sync import synchronize_google_drive, run_periodic_sync
+from document_rag.ingestion.google_drive_sync import synchronize_google_drive
+from document_rag.ingestion.periodic import run_periodically
 from document_rag.vectorstore.drive_guard import filter_current_drive_chunks
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -178,7 +179,7 @@ class SharedDriveSyncTests(unittest.TestCase):
                 raise TimeoutError()
             return {'status': 'complete'}
         reports = []
-        run_periodic_sync(action, 300, reports.append, Stop())
+        run_periodically(action, 300, reports.append, Stop())
         self.assertEqual([report['status'] for report in reports], ['failed', 'complete'])
 
     def test_post_expansion_guard_removes_an_inactive_neighbor(self):

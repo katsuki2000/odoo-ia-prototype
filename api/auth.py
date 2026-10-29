@@ -1,7 +1,8 @@
-import os
 import jwt
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+from config import settings
 
 security = HTTPBearer()
 
@@ -9,7 +10,7 @@ MIN_JWT_SECRET_BYTES = 32
 
 
 def get_jwt_secret() -> str:
-    secret = os.getenv("JWT_SECRET", "")
+    secret = settings.JWT_SECRET
     if len(secret.encode("utf-8")) < MIN_JWT_SECRET_BYTES:
         raise RuntimeError(
             f"JWT_SECRET must be set to a random value of at least {MIN_JWT_SECRET_BYTES} bytes"

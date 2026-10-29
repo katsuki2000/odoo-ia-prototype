@@ -44,7 +44,7 @@ def download_drive_corpus(target_dir: Path) -> dict[str, Any]:
     from config.google_drive import GoogleDriveSettings
     from document_rag.ingestion.google_drive import GoogleDriveClient, document_suffix
 
-    settings = GoogleDriveSettings.from_environment()
+    settings = GoogleDriveSettings.current()
     if not settings.folder_ids or not settings.approved_for_rag:
         raise CorpusUnavailable(
             "Google Drive corpus not configured: GOOGLE_DRIVE_FOLDER_IDS and "

@@ -6,12 +6,7 @@ from unittest.mock import patch
 import chromadb
 
 from document_rag.ingestion.ingest_all import IngestionOrchestrator
-from document_rag.ingestion.scheduler import (
-    PeriodicScanScheduler,
-    run_scheduled_scan,
-    run_startup_scan,
-)
-from document_rag.ingestion.watcher import IngestionWatcher
+from document_rag.ingestion.scheduler import PERIODIC_SCAN, STARTUP_SCAN, run_scan
 
 
 def _collection_names(db_path: Path) -> set[str]:
@@ -29,9 +24,7 @@ def test_odoo_code_collection_is_never_created(tmp_path):
         patch("document_rag.ingestion.scheduler.write_ingestion_event"),
     ):
         IngestionOrchestrator(chroma_db_path=db_path)
-        IngestionWatcher(watched_paths=[docs_dir])
-        PeriodicScanScheduler(roots=[docs_dir])
-        run_startup_scan([docs_dir])
-        run_scheduled_scan([docs_dir])
+        run_scan(STARTUP_SCAN, [docs_dir])
+        run_scan(PERIODIC_SCAN, [docs_dir])
 
     assert "odoo_code" not in _collection_names(db_path)

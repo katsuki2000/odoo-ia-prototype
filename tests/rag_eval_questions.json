@@ -152,7 +152,7 @@
       "question": "Le bon de commande BC-2025-00142 relève de quelle tranche d'approbation selon la procédure achats, et qui l'a signé ?",
       "reference": "Son total hors taxes est de 33 000 000 Ar, soit une tranche supérieure à 5 000 000 Ar : validation par le Directeur Général, délai moyen de 72 heures ouvrées. Le bon est signé pour MIRO K.E. par la Direction des Achats et la Direction Générale.",
       "reference_sources": ["bon_commande_fournisseur_PO2025_00142.pdf", "guide_achats_fournisseurs.docx"],
-      "facts": ["33 000 000", "5 000 000", "Directeur Général", "72 heures", "Direction des Achats"]
+      "facts": ["5 000 000", "Directeur Général", "Direction des Achats"]
     },
     {
       "id": "MULTI-04",

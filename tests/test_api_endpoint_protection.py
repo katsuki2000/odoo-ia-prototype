@@ -10,6 +10,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from config import settings
+
 from api import auth
 from api.main import app
 
@@ -27,7 +29,7 @@ AUTHENTICATED_ROUTES = [
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", SECRET)
+    monkeypatch.setattr(settings, "JWT_SECRET", SECRET)
     return TestClient(app)
 
 
@@ -62,7 +64,7 @@ def test_health_stays_public(client):
 
 
 def test_scheduled_scan_reachable_with_an_admin_token(client):
-    with patch("api.routes_ingestion.run_scheduled_scan") as scan:
+    with patch("api.routes_ingestion.run_scan") as scan:
         scan.return_value = {"status": "success", "files_scanned": 0, "chunks_added": 0, "duration_ms": 0}
         response = client.post("/api/v1/ingestion/scheduled-scan", headers=_headers(is_admin=True))
     assert response.status_code != 403

@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from typing import Any, Mapping, Sequence
+
+from config.settings import RAG_DOCUMENT_EXPANSION_MAX_CHUNKS, RAG_DOCUMENT_EXPANSION_MIN_CHUNKS
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,47 @@ def fetch_source_chunks(chroma_manager: Any, source: str) -> dict[int, dict[str,
     except Exception as e:
         logger.warning("Failed to fetch contiguous chunks for %s: %s", source, e)
         return {}
+
+
+def expand_dominant_documents(
+    results: Sequence[Mapping[str, Any]],
+    chroma_manager: Any = None,
+    min_chunks: int = RAG_DOCUMENT_EXPANSION_MIN_CHUNKS,
+    max_chunks: int = RAG_DOCUMENT_EXPANSION_MAX_CHUNKS,
+) -> list[dict[str, Any]]:
+    """
+    Read in full a document that dominates the results.
+
+    A question asking for an exhaustive list (rules, steps) is answered by many chunks of one document, and the
+    ranking keeps only the best-scored ones. A document with at least min_chunks chunks among the results is the
+    source of the answer: its chunks are returned in document order, where its first chunk was, and the retrieved
+    ones keep their scores. A document of more than max_chunks chunks, or one that cannot be read, is left as is.
+    """
+    if not results or chroma_manager is None:
+        return [dict(item) for item in results]
+
+    def source_of(item: Mapping[str, Any]) -> Any:
+        return (item.get("metadata") or {}).get("source")
+
+    counts = Counter(source_of(item) for item in results)
+    whole_documents = {}
+    for source, count in counts.items():
+        if source and count >= min_chunks:
+            available = fetch_source_chunks(chroma_manager, source)
+            if available and len(available) <= max_chunks:
+                whole_documents[source] = available
+
+    expanded, done = [], set()
+    for item in results:
+        source = source_of(item)
+        if source not in whole_documents:
+            expanded.append(dict(item))
+        elif source not in done:
+            done.add(source)
+            retrieved = {(chunk.get("metadata") or {}).get("chunk_index"): chunk for chunk in results if source_of(chunk) == source}
+            for index in sorted(whole_documents[source]):
+                expanded.append(dict(retrieved.get(index) or whole_documents[source][index]))
+    return expanded
 
 
 def expand_contiguous_chunks(

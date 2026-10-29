@@ -16,13 +16,15 @@ run resumes where it stopped. The measures need no judge model; the answers are 
 
 fact_recall is the share of the key values of the question (number, name, command) found in the answer.
 Scores are recomputed from the stored answers at each load, so editing the facts needs no new run.
-abstained is a keyword heuristic. The semantic judgement is left to RAGAS.
+abstained is a keyword heuristic, true when the answer says the information was not found and gives none of the
+expected facts. The semantic judgement is left to RAGAS.
 All candidates use the same cached retrieval contexts and are required to report the same
 Ollama context length; raw answers are retained for qualitative review.
 """
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -43,13 +45,17 @@ from document_rag.generate_node import generate
 QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
-GENERATION_ERROR_PREFIX = 'Désolé, une erreur'
+GENERATION_ERROR_PREFIX = 'Sorry, an error'
 
 
-ABSTENTION_MARKERS = tuple(normalize(marker) for marker in (
-    'pas trouvé cette information', 'pas de source fiable', 'aucune information',
-    'pas documenté', 'pas précisé', 'pas mentionné', 'ne fait pas partie de mon périmètre',
-))
+# Matched on normalize() output: lowercase, no accent, no space. Models word a refusal in their own way
+# ("pas trouvé cette information", "pas trouvé d'information", "aucun plafond ... n'est mentionné"), so the
+# pattern covers the family and not only the sentence the prompt suggests.
+ABSTENTION_PATTERN = re.compile('|'.join((
+    r"pastrouve(?:cette|d'|del')?information", r'pasdesourcefiable', r'noreliablesource', r'aucune?(?:information|mention)',
+    r"n'est(?:pas)?(?:mentionne|precise|indique|documente)", r'ne(?:mentionne|precise|documente)(?:nt)?pas', r'ne(?:contient|contiennent)pas',
+    r'pas(?:documente|precise|mentionne)', r'nefaitpaspartiedemonperimetre', r'outsidemyscope',
+)))
 
 
 def load_questions(ids):
@@ -76,10 +82,11 @@ def load_contexts(questions, refresh):
 def score(item, answer, cited_sources):
     folded = normalize(answer)
     facts, references = item['facts'], item['reference_sources']
+    fact_recall = sum(contains_fact(folded, fact) for fact in facts) / len(facts) if facts else None
     return {
-        'fact_recall': sum(contains_fact(folded, fact) for fact in facts) / len(facts) if facts else None,
+        'fact_recall': fact_recall,
         'source_recall': len(set(references) & set(cited_sources)) / len(references) if references else None,
-        'abstained': any(marker in folded for marker in ABSTENTION_MARKERS),
+        'abstained': ABSTENTION_PATTERN.search(folded) is not None and not fact_recall,
     }
 
 

@@ -4,13 +4,12 @@ Provides read-only ORM access under the requester's identity.
 """
 
 import logging
-import os
 import re
 import time
 import xmlrpc.client
 
+from config import settings
 from config.odoo_credentials import service_login, service_password
-from config.settings import ODOO_URL_DEFAULT
 from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_db_ctx
 
 logger = logging.getLogger(__name__)
@@ -34,14 +33,6 @@ TECHNICAL_ONLY_MODELS = frozenset({
 })
 
 
-def resolve_allowed_models():
-    """Return an optional deployment-specific allowlist; unset means Odoo ACLs decide."""
-    raw = os.getenv("ODOO_ALLOWED_MODELS")
-    if raw is None or not str(raw).strip() or str(raw).strip() == "*":
-        return frozenset(), True
-    return frozenset(part.strip() for part in str(raw).split(",") if part.strip()), False
-
-
 class OdooConnectorError(Exception):
     """Custom exception for Odoo connection or enforcement errors."""
     pass
@@ -52,7 +43,7 @@ class OdooConnector:
 
     def __init__(self, url: str = None, db: str = None, password: str = None, technical: bool = False):
         """
-        Initialize the connector. Credentials can be passed directly or read from env.
+        Initialize the connector. Credentials can be passed directly or come from config/settings.py.
         Note: We do not store uid here because each query must pass the requesting user's uid.
         The password used here is the application token or user password for the XML-RPC connection.
         Without an explicit password the service account password is read from the environment
@@ -62,7 +53,7 @@ class OdooConnector:
         registry labels) with the configured service account and ignores the per-request
         API key, so the uid and the password always belong to the same identity.
         """
-        self.url = url or os.getenv("ODOO_URL") or ODOO_URL_DEFAULT
+        self.url = url or settings.ODOO_URL
         self._db = db
         self.username = service_login()
         self._password = password
@@ -72,7 +63,6 @@ class OdooConnector:
 
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")
         self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
-        self._allowed_models, self._wildcard_models = resolve_allowed_models()
 
     @property
     def db(self) -> str:
@@ -130,7 +120,7 @@ class OdooConnector:
             raise OdooConnectorError(f"Model {model} is not a valid Odoo model name.")
         if self.technical and model in TECHNICAL_ONLY_MODELS:
             return
-        if not self._wildcard_models and model not in self._allowed_models:
+        if settings.ODOO_ALLOWED_MODELS and model not in settings.ODOO_ALLOWED_MODELS:
             raise OdooConnectorError(f"Model {model} is not allowed by ODOO_ALLOWED_MODELS.")
 
     def _session_orm_context(self) -> dict:

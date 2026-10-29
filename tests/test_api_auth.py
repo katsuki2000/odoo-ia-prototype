@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
 from api import auth
+from config import settings
 
 STRONG_SECRET = "s" * 40
 LEGACY_SECRET = "default_insecure_secret_for_dev"
@@ -22,18 +23,18 @@ def _token(secret, **claims):
 
 @pytest.fixture
 def strong_secret(monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", STRONG_SECRET)
+    monkeypatch.setattr(settings, "JWT_SECRET", STRONG_SECRET)
 
 
 def test_missing_secret_is_refused(monkeypatch):
-    monkeypatch.delenv("JWT_SECRET", raising=False)
+    monkeypatch.setattr(settings, "JWT_SECRET", "")
     with pytest.raises(RuntimeError):
         auth.get_jwt_secret()
 
 
 @pytest.mark.parametrize("secret", ["", "a" * 31, LEGACY_SECRET])
 def test_weak_secret_is_refused(monkeypatch, secret):
-    monkeypatch.setenv("JWT_SECRET", secret)
+    monkeypatch.setattr(settings, "JWT_SECRET", secret)
     with pytest.raises(RuntimeError):
         auth.get_jwt_secret()
 

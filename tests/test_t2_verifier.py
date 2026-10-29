@@ -1,7 +1,6 @@
 from core.verification.claims import ClaimType, VerifierMode
 from core.verification.context import VerificationContext
 from core.verification.verifier import verify_answer_claims
-from tests.t2_graph_factory import build_graph
 
 ANSWER = (
     "Le seuil est de 10 000 €. Le groupe purchase.group_purchase_director peut approuver. "
@@ -13,7 +12,6 @@ ANSWER = (
 def _context():
     return VerificationContext(
         texts=("if amount > 10000:", "(groupes: account.group_account_manager)"),
-        graph=build_graph(),
     )
 
 
@@ -31,7 +29,7 @@ def test_report_mode_counts_without_touching_the_answer():
     assert report.claims_by_type == {ClaimType.NUMBER: 1, ClaimType.GROUP: 2}
     assert report.unsupported_by_type == {ClaimType.GROUP: 1}
     assert [(item.text, item.reason) for item in report.unsupported] == [
-        ("purchase.group_purchase_director", "unknown_group"),
+        ("purchase.group_purchase_director", "not_in_evidence"),
     ]
 
 
@@ -51,7 +49,7 @@ def test_enforce_retires_only_the_sentence_with_the_unsupported_claim():
 
 def test_enforce_notice_names_the_claim_and_stays_before_the_source_footer():
     answer, _ = verify_answer_claims(ANSWER, _context(), VerifierMode.ENFORCE)
-    notice_at = answer.index("[VÉRIFICATION DÉTERMINISTE]")
+    notice_at = answer.index("[DETERMINISTIC VERIFICATION]")
     assert "purchase.group_purchase_director" in answer[notice_at:]
     assert notice_at < answer.index("[Source:")
     assert answer.rstrip().endswith("[Source: Graphe de Connaissances Code Intelligence]")

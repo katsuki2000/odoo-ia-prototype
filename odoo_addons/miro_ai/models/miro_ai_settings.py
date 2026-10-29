@@ -44,28 +44,6 @@ class MiroAiSettings(models.Model):
              'Read and write restricted to administrators.'
     )
 
-    # Skill toggles
-    activer_ventes = fields.Boolean(
-        string='Skill: Sales (sale)',
-        default=True,
-        help='Enable ORM and documentary search on the Sales module'
-    )
-    activer_stocks = fields.Boolean(
-        string='Skill: Stock (stock)',
-        default=True,
-        help='Enable ORM and documentary search on the Stock / Inventory module'
-    )
-    activer_comptabilite = fields.Boolean(
-        string='Skill: Accounting (account)',
-        default=True,
-        help='Enable ORM and documentary search on the Accounting module'
-    )
-    activer_tickets = fields.Boolean(
-        string='Skill: Support / Tickets (helpdesk)',
-        default=True,
-        help='Enable ORM and documentary search on the Support & Tickets module'
-    )
-
     _sql_constraints = [
         ('request_timeout_min', 'CHECK(request_timeout >= 10)',
          'The maximum response time must be at least 10 seconds.'),

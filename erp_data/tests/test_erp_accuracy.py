@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import settings
 from config.settings import ODOO_DB
 from core.graph.graph import query_graph
 
@@ -30,9 +31,9 @@ def run_erp_evaluation():
     
     from erp_data.odoo_connector import OdooConnector
     _conn = OdooConnector(db=ODOO_DB)
-    _manager_password = os.environ.get("ODOO_MANAGER_PASSWORD")
+    _manager_password = settings.ODOO_MANAGER_PASSWORD
     if not _manager_password:
-        raise ValueError("ODOO_MANAGER_PASSWORD environment variable is required")
+        raise ValueError("ODOO_MANAGER_PASSWORD must be set in .env")
     manager_uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _manager_password, {})
         
     if not manager_uid:

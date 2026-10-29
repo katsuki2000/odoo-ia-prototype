@@ -55,10 +55,19 @@ SOURCE_SELECTION_MIN_CONFIDENCE = 0.75
 if not 0.0 <= SOURCE_SELECTION_MIN_CONFIDENCE <= 1.0:
     raise ValueError('SOURCE_SELECTION_MIN_CONFIDENCE must be between 0 and 1.')
 
-CORE_ADDONS_PATH = os.getenv('CORE_ADDONS_PATH') or str(_ROOT.parent / 'odoo-17.0' / 'addons')
-CUSTOM_ADDONS_PATH = os.getenv('CUSTOM_ADDONS_PATH') or str(_ROOT / 'odoo_addons')
-ODOO_URL_DEFAULT = 'http://localhost:8069'
+# Location of an Odoo source checkout: the answer verifier reads the native ORM method names from odoo/models.py.
+ODOO_SOURCE_PATH = os.getenv('ODOO_SOURCE_PATH') or str(_ROOT.parent / 'odoo-17.0')
+ODOO_URL = os.getenv('ODOO_URL') or 'http://localhost:8069'
 ODOO_DB = os.getenv('ODOO_DB', '')
+ODOO_ADMIN_LOGIN = os.getenv('ODOO_ADMIN_LOGIN') or 'admin'
+ODOO_ADMIN_PASSWORD = os.getenv('ODOO_ADMIN_PASSWORD', '')
+
+# Models the AI may read. Empty: no restriction of ours, Odoo's own access rules decide; list model names to restrict it.
+ODOO_ALLOWED_MODELS = frozenset()
+JWT_SECRET = os.getenv('JWT_SECRET', '')
+GOOGLE_DRIVE_FOLDER_IDS = tuple(dict.fromkeys(
+    value.strip() for value in os.getenv('GOOGLE_DRIVE_FOLDER_IDS', '').split(',') if value.strip()))
+GOOGLE_DRIVE_APPROVED_FOR_RAG = os.getenv('GOOGLE_DRIVE_APPROVED_FOR_RAG', '').lower() == 'true'
 RAG_DOCS_PATH = str(_ROOT / 'document_rag' / 'documents')
 RAG_CHUNK_SIZE = 512
 RAG_CHUNK_OVERLAP = 50
@@ -68,6 +77,8 @@ RAG_VECTOR_WEIGHT = 0.7
 RAG_BM25_WEIGHT = 0.3
 RAG_RELEVANCE_THRESHOLD = 0.01
 RAG_TOP_K = 10
+RAG_DOCUMENT_EXPANSION_MIN_CHUNKS = 3
+RAG_DOCUMENT_EXPANSION_MAX_CHUNKS = 20
 API_HOST = os.getenv('API_HOST', '127.0.0.1')
 
 

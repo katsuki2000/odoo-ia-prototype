@@ -4,7 +4,6 @@
 import argparse
 import json
 import multiprocessing
-import os
 import queue
 import sys
 import time
@@ -291,9 +290,9 @@ def main(argv=None):
         parser.error("--passes must be at least 1")
     if args.context_length < 1:
         parser.error("--context-length must be at least 1")
-    password = os.getenv("ODOO_MANAGER_PASSWORD")
+    password = settings.ODOO_MANAGER_PASSWORD
     if not password:
-        parser.error("ODOO_MANAGER_PASSWORD must be set in the backend environment")
+        parser.error("ODOO_MANAGER_PASSWORD must be set in the backend .env")
 
     questions = load_questions(args.ids)
     if not questions:

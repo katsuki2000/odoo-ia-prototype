@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class SourceSelection(BaseModel):
     model_config = ConfigDict(strict=True, extra='forbid')
-    source: Literal['documentation', 'systeme', 'uncertain']
+    source: Literal['documentation', 'system', 'uncertain']
     confidence: float = Field(ge=0.0, le=1.0)
 
 
@@ -26,7 +26,7 @@ def select_source(question: str) -> SourceSelection:
         messages = [SystemMessage(content=with_no_think(
             'Select the evidence source for an Odoo business question. '
             'documentation means written internal policies or document contents. '
-            'systeme means this installed Odoo instance: behavior, approvals, access, '
+            'system means this installed Odoo instance: behavior, approvals, access, '
             'procedures in its interface, blocking conditions or live records. '
             'If the intended source is ambiguous or both are requested, choose uncertain. '
             'Report confidence in the source choice from 0 to 1. Do not answer the question. '

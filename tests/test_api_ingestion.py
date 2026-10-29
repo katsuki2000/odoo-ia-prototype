@@ -66,7 +66,7 @@ def test_api_v1_reindex_rejects_path_outside_scan_roots(tmp_path):
     reindex.assert_not_called()
 
 
-def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):
+def test_api_v1_ingestion_status_reports_stats(tmp_path):
     manager = MagicMock()
     manager.get_stats.return_value = {"total_chunks": 1}
 
@@ -76,7 +76,6 @@ def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):
     payload = response.model_dump()
     assert payload["total_chunks"] == 1
     assert payload["files_monitored"] >= 0
-    assert payload["watcher_status"]["watcher_running"] is False
 
 
 def test_api_v1_reindex_rejects_invalid_scope():

@@ -7,6 +7,8 @@ except by tests marked integration.
 
 import pytest
 
+from config import settings
+
 UNREACHABLE_ODOO_URL = "http://127.0.0.1:9"
 EMBEDDING_PROBE_TIMEOUT_SECONDS = 5
 
@@ -45,11 +47,11 @@ def offline_odoo_runtime():
     """Module-scoped fixtures run before function-scoped autouse ones, so a graph built
     in one needs this explicit request to stay independent of a running Odoo."""
     with pytest.MonkeyPatch.context() as patch:
-        patch.setenv("ODOO_URL", UNREACHABLE_ODOO_URL)
+        patch.setattr(settings, "ODOO_URL", UNREACHABLE_ODOO_URL)
         yield
 
 
 @pytest.fixture(autouse=True)
 def _isolate_odoo_runtime(request, monkeypatch):
     if request.node.get_closest_marker("integration") is None:
-        monkeypatch.setenv("ODOO_URL", UNREACHABLE_ODOO_URL)
+        monkeypatch.setattr(settings, "ODOO_URL", UNREACHABLE_ODOO_URL)

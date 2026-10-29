@@ -1,7 +1,7 @@
 """
 core/routing/__init__.py
 
-Regroupement : routing.py (choix de la source : documentation ou systeme).
+Regroupement : routing.py (choix de la source : documentation ou system).
 """
 
 from .routing import (

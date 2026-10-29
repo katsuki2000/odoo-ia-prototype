@@ -24,16 +24,15 @@ Prerequisites: the API is already started and JWT_SECRET and ODOO_DB are set in 
 Run from the project root: python -m tests.manual_check_session_persistence
 """
 
-import os
 import sys
 import time
 
 import jwt
 import requests
 
-from config.settings import API_HOST, API_PORT, ODOO_DB
+from config.settings import API_HOST, API_PORT, JWT_SECRET, ODOO_DB
 
-secret = os.getenv("JWT_SECRET")
+secret = JWT_SECRET
 if not secret or not ODOO_DB:
     sys.exit("JWT_SECRET and ODOO_DB must be set in .env.")
 token = jwt.encode(

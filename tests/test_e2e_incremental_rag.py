@@ -1,5 +1,5 @@
 """
-tests/test_e2e_watcher_rag.py
+tests/test_e2e_incremental_rag.py
 End-to-end validation: drop a new document into monitored directory, verify incremental reindex
 indexes it and the assistant/retrieval pipeline answers correctly.
 Delete the document, verify incremental reindex removes it and the assistant says it doesn't know / no results.
@@ -20,7 +20,7 @@ from core.schemas import AssistantResponse, LLMResponse
 @pytest.mark.integration
 def test_e2e_live_add_delete_query_cycle():
     """
-    Simulate the end-to-end add/delete cycle monitored by watcher / incremental scanner:
+    Simulate the end-to-end add/delete cycle monitored by the incremental scanner:
     1. Drop new document into monitored `docs/` folder.
     2. Run ingestion check (`reindex_if_changed`).
     3. Verify retrieval finds the new document content.
@@ -102,7 +102,7 @@ def test_e2e_live_add_delete_query_cycle():
                 response_after_delete = query_graph("Selon la documentation, quel est le code secret Katsuki ?", source_mode="documentation")
                 assert len(response_after_delete.sources) == 0
                 assert response_after_delete.confidence == 0.0
-                assert "pas de source fiable" in response_after_delete.answer.lower() or "ne sais pas" in response_after_delete.answer.lower()
+                assert "no reliable source" in response_after_delete.answer.lower() or "ne sais pas" in response_after_delete.answer.lower()
 
         try:
             manager.delete_collection()

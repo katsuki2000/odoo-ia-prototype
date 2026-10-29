@@ -246,12 +246,13 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `OLLAMA_HOST` | Yes | none | Ollama server address (`KAGGLE_OLLAMA_HOST` when `LLM_TARGET=kaggle`; every inference variable takes the `KAGGLE_` prefix on that target) |
 | `LLM_BASE_URL` / `LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
 | `EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
-| `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
-| `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
+| `ODOO_SOURCE_PATH` | No | `../odoo-17.0` | Odoo source checkout; the answer verifier reads the native ORM method names from `odoo/models.py` |
 | `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
 | `ODOO_DB` | For the health check and scripts | none | Odoo database for calls made outside a user request; a request only uses the database signed into its JWT by the Odoo addon, never this value |
 | `ODOO_ADMIN_LOGIN` | No | `admin` | XML-RPC service username |
+| `JWT_SECRET` | Yes | none | Signing secret shared with the Odoo addon (at least 32 bytes) |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
+| `ODOO_MANAGER_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `tests/manual_check_odoo_assistant.py` sign in as |
 
 ---
 

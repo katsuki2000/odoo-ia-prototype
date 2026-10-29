@@ -4,18 +4,17 @@ Run from the project root with the API already started:
     python -m tests.manual_check_api_v1
 Needs JWT_SECRET (the API's value) and ODOO_DB in .env.
 """
-import os
 import sys
 import time
 
 import jwt
 import requests
 
-from config.settings import API_HOST, API_PORT, ODOO_DB
+from config.settings import API_HOST, API_PORT, JWT_SECRET, ODOO_DB
 
 BASE_URL = f"http://{API_HOST}:{API_PORT}"
 
-secret = os.getenv("JWT_SECRET")
+secret = JWT_SECRET
 if not secret or not ODOO_DB:
     sys.exit("JWT_SECRET and ODOO_DB must be set in .env.")
 token = jwt.encode(

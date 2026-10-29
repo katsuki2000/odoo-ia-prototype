@@ -10,7 +10,7 @@ from document_rag.vectorstore.bm25_index import _STOP_WORDS, _tokenize, BM25Inde
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search_hybrid import hybrid_search, vector_search
 from document_rag.vectorstore.search_ranking import reciprocal_rank_fusion
-from document_rag.vectorstore.search_contiguous import expand_contiguous_chunks
+from document_rag.vectorstore.search_contiguous import expand_contiguous_chunks, expand_dominant_documents
 from document_rag.vectorstore.drive_guard import filter_current_drive_chunks
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,8 @@ def retrieve(query: str, top_k: int = 5, chroma_manager: ChromaManager | list[Ch
     if not fused_results:
         logger.warning('No results after hybrid search for query: %s', query[:100])
         return []
-    final_results = expand_contiguous_chunks(fused_results[:top_k], chroma_manager=chroma_manager)
+    final_results = expand_dominant_documents(fused_results[:top_k], chroma_manager=chroma_manager)
+    final_results = expand_contiguous_chunks(final_results, chroma_manager=chroma_manager)
     final_results = filter_current_drive_chunks(final_results, chroma_manager)
     logger.info("Retrieval complete: %d results for query '%s'", len(final_results), query[:80])
     top1_excerpt = None

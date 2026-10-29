@@ -6,7 +6,7 @@ Validates authentication, read-only enforcement, and model whitelisting.
 """
 
 import pytest
-import os
+from config import settings
 from config.settings import ODOO_DB
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
 from erp_data.odoo_context import odoo_api_key_ctx, odoo_db_ctx
@@ -23,9 +23,7 @@ class _AccessDeniedModels:
 @pytest.fixture(scope="module")
 def odoo_connector():
     """Provides a configured OdooConnector instance."""
-    url = os.getenv("ODOO_URL", "http://localhost:8069")
-    password = os.getenv("ODOO_ADMIN_PASSWORD", "admin")
-    return OdooConnector(url=url, db=ODOO_DB, password=password)
+    return OdooConnector(db=ODOO_DB, password=settings.ODOO_ADMIN_PASSWORD or "admin")
 
 @pytest.fixture(scope="module")
 def uid(odoo_connector):
@@ -53,7 +51,7 @@ def test_authentication_failure(odoo_connector):
 
 
 def test_username_comes_from_environment(monkeypatch):
-    monkeypatch.setenv("ODOO_ADMIN_LOGIN", "service_user")
+    monkeypatch.setattr(settings, "ODOO_ADMIN_LOGIN", "service_user")
 
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
 
@@ -61,7 +59,7 @@ def test_username_comes_from_environment(monkeypatch):
 
 def test_optional_model_allowlist_enforcement(monkeypatch):
     """A deployment may restrict models explicitly without hardcoding defaults."""
-    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "res.partner")
+    monkeypatch.setattr(settings, "ODOO_ALLOWED_MODELS", frozenset({"res.partner"}))
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
     with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
         connector.search_read(1, "x_custom.record", domain=[], fields=["name"])
@@ -69,7 +67,6 @@ def test_optional_model_allowlist_enforcement(monkeypatch):
 
 def test_custom_models_are_allowed_by_default(monkeypatch):
     """Custom addon models are not blocked by a built-in model list."""
-    monkeypatch.delenv("ODOO_ALLOWED_MODELS", raising=False)
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
     recorder = _RecordingModels([1])
     connector.models = recorder
@@ -120,7 +117,7 @@ def test_technical_connector_ignores_the_request_api_key():
 
 @pytest.mark.parametrize("model", ["ir.model.data", "ir.module.category", "res.groups"])
 def test_technical_connector_can_read_graph_translation_metadata(monkeypatch, model):
-    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "sale.order")
+    monkeypatch.setattr(settings, "ODOO_ALLOWED_MODELS", frozenset({"sale.order"}))
     connector = OdooConnector(
         url="http://odoo.invalid",
         db="test",
@@ -136,7 +133,7 @@ def test_technical_connector_can_read_graph_translation_metadata(monkeypatch, mo
 
 @pytest.mark.parametrize("model", ["ir.model.data", "ir.module.category", "res.groups"])
 def test_request_connector_cannot_read_technical_translation_metadata(monkeypatch, model):
-    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "sale.order")
+    monkeypatch.setattr(settings, "ODOO_ALLOWED_MODELS", frozenset({"sale.order"}))
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="unused")
     recorder = _RecordingModels([])
     connector.models = recorder
@@ -211,18 +208,6 @@ def test_explicit_database_wins_over_the_request_database():
     finally:
         odoo_db_ctx.reset(token)
 
-
-def test_allowed_models_env_wildcard(monkeypatch):
-    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "*")
-    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
-    recorder = _RecordingModels([1, 2])
-    connector.models = recorder
-    token = odoo_api_key_ctx.set("k")
-    try:
-        assert connector.search(9, "hr.employee", domain=[], limit=2) == [1, 2]
-    finally:
-        odoo_api_key_ctx.reset(token)
-    assert recorder.calls[0][0][3:6] == ("hr.employee", "search", [[]])
 
 
 def test_search_read_count_name_search_dispatch(monkeypatch):

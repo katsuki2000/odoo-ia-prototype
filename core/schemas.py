@@ -17,8 +17,8 @@ from core.verification.claims import VerificationReport
 
 class QueryRoute(str, Enum):
     """Classification of the query type for routing."""
-    DOCUMENTARY = "documentaire"
-    ERP_DATA = "donnees_erp"
+    DOCUMENTARY = "documentation"
+    ERP_DATA = "system"
 
 
 class SourceReference(BaseModel):
@@ -65,16 +65,6 @@ class LLMResponse(BaseModel):
     )
 
 
-class OmittedForAuthorization(BaseModel):
-    """
-    A single element withheld from the answer because the requester's permissions do not cover it.
-    """
-    model_config = ConfigDict(strict=True)
-
-    label: str = Field(..., description="What was omitted (rule names, or tool+model), never the withheld content itself")
-    reason: str = Field(..., description="Explicit, human-readable authorization reason for the omission")
-
-
 class AssistantResponse(BaseModel):
     """Structured response from the MIRO Assistant."""
     model_config = ConfigDict(strict=True)
@@ -83,10 +73,6 @@ class AssistantResponse(BaseModel):
     sources: List[SourceReference] = Field(default_factory=list, description="List of sources cited in the answer")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
     ocr_warning: bool = Field(default=False, description="True if any of the sources come from a low-quality OCR scan")
-    omitted_for_authorization: List[OmittedForAuthorization] = Field(
-        default_factory=list,
-        description="Elements withheld because the requester's permissions do not cover them",
-    )
     route: Optional[str] = Field(
         default=None,
         description="Which QueryRoute branch handled this turn",

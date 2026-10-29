@@ -2,6 +2,7 @@
 
 import pytest
 
+from config import settings
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
 
 
@@ -13,7 +14,7 @@ def test_read_only_enforcement():
 
 
 def test_optional_model_allowlist_enforcement(monkeypatch):
-    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "res.partner")
+    monkeypatch.setattr(settings, "ODOO_ALLOWED_MODELS", frozenset({"res.partner"}))
     restricted = OdooConnector(url="http://odoo.invalid", db="test", password="unused")
     with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
         restricted.search_read(1, "x_custom.record", [], [])

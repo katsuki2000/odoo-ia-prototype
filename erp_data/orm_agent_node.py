@@ -7,9 +7,9 @@ from typing import Any, List, NamedTuple, Optional
 from langchain_core.messages import ToolMessage
 
 from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA
-from core.guardrails import REACT_RECURSION_LIMIT
+from core.guardrails import REACT_RECURSION_LIMIT, refusal_message
 from core.llm.llm_client import invoke_llm
-from core.schemas import AssistantResponse, SourceReference
+from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 from core.state import RAGState
 from erp_data.orm_agent_helpers import (
@@ -22,7 +22,7 @@ from erp_data.prompts import build_orm_agent_messages
 
 logger = logging.getLogger(__name__)
 
-NO_DATA_ANSWER = "Je n'ai pas de données disponibles pour répondre à cette question."
+NO_DATA_ANSWER = "I have no data available to answer this question."
 
 
 class ReactResult(NamedTuple):
@@ -70,7 +70,7 @@ def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLo
 
 def _build_response(result: ReactResult) -> AssistantResponse:
     sources = [
-        SourceReference(source="odoo://xmlrpc", doc_type="erp_data", title="Données ERP Odoo", snippet=str(obs)[:150])
+        SourceReference(source="odoo://xmlrpc", doc_type="erp_data", title="Odoo ERP data", snippet=str(obs)[:150])
         for obs in result.observations if obs and str(obs).strip()
     ]
     confidence = ORM_CONFIDENCE_WITH_DATA if result.observations else ORM_CONFIDENCE_WITHOUT_DATA
@@ -85,15 +85,21 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     trace_logger = ReasoningTraceLogger()
     trace_id = new_trace_id()
-    result = _run_react(question, state.get("chat_history", []), trace_logger, trace_id)
-    response = _build_response(result)
+    refusal = refusal_message(question)
+    if refusal:
+        logger.info("Node [orm_agent_loop]: Early refusal, no LLM call.")
+        result = ReactResult(refusal, [], 0, 0)
+        response = AssistantResponse(answer=refusal, sources=[], confidence=0.0)
+    else:
+        result = _run_react(question, state.get("chat_history", []), trace_logger, trace_id)
+        response = _build_response(result)
 
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
     timing["llm_call_count"] = result.llm_calls
     timing["hop_count"] = result.hops
     trace_logger.log_summary(
-        trace_id=trace_id, branch="donnees_erp", question=question,
+        trace_id=trace_id, branch=QueryRoute.ERP_DATA.value, question=question,
         hop_count=result.hops, llm_call_count=result.llm_calls,
         total_time_ms=timing["generation_time"] * 1000, hop_cap=REACT_RECURSION_LIMIT,
     )

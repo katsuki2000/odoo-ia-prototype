@@ -106,7 +106,6 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
             confidence=response.confidence,
             ocr_warning=response.ocr_warning,
             route=response.route,
-            omitted_for_authorization=[o.model_dump() for o in response.omitted_for_authorization],
             evidence_dossier=[e.model_dump() for e in response.evidence_dossier],
         )
     except HTTPException:

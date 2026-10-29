@@ -20,7 +20,7 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Demande une précision lorsque le terme métier, le modèle, le statut ou la période est ambigu. "
     "N'assimile pas automatiquement les ventes aux commandes, factures ou paiements. "
     "Respecte les limites et les indicateurs de troncature des observations. "
-    "Réponds en français à partir des observations obtenues, indique les limites et cite les "
+    "Réponds dans la langue de la question à partir des observations obtenues, indique les limites et cite les "
     "modèles/champs réellement consultés. Format Markdown uniquement, sans HTML brut."
 )
 

@@ -2,6 +2,7 @@
 import json
 import logging
 from core.routing.routing import route
+from core.schemas import QueryRoute
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 
 # Setup basic logging to suppress noisy output
@@ -47,7 +48,7 @@ def test_routing_accuracy():
             chosen_route = state.get("route")
             
             # Determine expected route
-            expected_route = "donnees_erp" if category == "erp_chiffre" else "documentaire"
+            expected_route = QueryRoute.ERP_DATA.value if category == "erp_chiffre" else QueryRoute.DOCUMENTARY.value
             
             is_correct = (chosen_route == expected_route)
             if is_correct:

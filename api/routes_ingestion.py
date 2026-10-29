@@ -19,7 +19,7 @@ from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.ingest_all import DOCS_DIR, IngestionOrchestrator
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.ingestion.scan_root import confine_to_scan_roots
-from document_rag.ingestion.scheduler import run_scheduled_scan
+from document_rag.ingestion.scheduler import PERIODIC_SCAN, run_scan
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -34,8 +34,6 @@ LAST_INGESTION_STATUS: dict[str, Any] = {
     "scheduler_status": {
         "interval_hours": SCHEDULER_INTERVAL_HOURS,
         "running": False,
-        "last_startup_scan_time": None,
-        "last_scheduled_scan_time": None,
     },
 }
 
@@ -104,17 +102,15 @@ def reindex_v1(request: ReindexRequestV1):
 
 @router.get("/api/v1/ingestion/status", response_model=IngestionStatusResponse)
 def ingestion_status():
-    """Return ingestion status, vectorstore stats, and watcher state."""
+    """Return ingestion status and vectorstore stats."""
     manager = ChromaManager()
     stats = manager.get_stats()
-    watcher_status = _get_watcher_status()
     status_dict = LAST_INGESTION_STATUS
 
     return IngestionStatusResponse(
         last_ingestion_time=status_dict.get("last_ingestion_time"),
         total_chunks=int(stats.get("total_chunks", 0) or 0),
         files_monitored=_count_supported_files([DOCS_DIR]),
-        watcher_status=watcher_status,
         scheduler_status=status_dict.get("scheduler_status"),
         last_scan_type=status_dict.get("last_scan_type"),
     )
@@ -122,14 +118,14 @@ def ingestion_status():
 
 @router.post("/api/v1/ingestion/scheduled-scan", response_model=ScheduledScanResponse)
 def trigger_scheduled_scan():
-    """Manually trigger one execution of the 6-hour scheduled periodic incremental scan."""
+    """Manually trigger one incremental scan of the documents folder."""
     try:
         manager = ChromaManager()
         status_dict = LAST_INGESTION_STATUS
-        result = run_scheduled_scan([DOCS_DIR], docs_manager=manager, status_dict=status_dict)
+        result = run_scan(PERIODIC_SCAN, [DOCS_DIR], docs_manager=manager, status_dict=status_dict)
         return ScheduledScanResponse(
             status="success",
-            scan_type="periodic_incremental_scan",
+            scan_type=PERIODIC_SCAN,
             result=result,
             last_ingestion_time=status_dict.get("last_ingestion_time"),
         )
@@ -146,15 +142,3 @@ def _count_supported_files(paths: list[Path]) -> int:
         elif path.is_dir():
             count += sum(1 for file_path in path.rglob("*") if file_path.is_file() and is_supported_document(file_path))
     return count
-
-
-def _get_watcher_status() -> dict[str, Any]:
-    """Return the idle watcher status; the API never starts a watcher."""
-    return {
-        "watched_paths": [],
-        "watcher_running": False,
-        "last_event_path": None,
-        "last_event_type": None,
-        "last_result": None,
-        "errors": [],
-    }

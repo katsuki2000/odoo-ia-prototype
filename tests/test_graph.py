@@ -12,7 +12,7 @@ from document_rag.generate_helpers import verify_used_sources
 def test_generate_without_context_returns_no_source_answer():
     state = {'question': 'Où est le bureau ?', 'chat_history': [], 'retrieved_chunks': []}
     result = generate(state)
-    assert result['response'].answer == "Je n'ai pas de source fiable pour répondre à cette question."
+    assert result['response'].answer == "I have no reliable source to answer this question."
     assert result['response'].confidence == 0.0
     assert not result['response'].sources
 
@@ -62,7 +62,7 @@ def test_format_output_without_ocr_warning():
     }
     result = format_output(state)
     assert not result['response'].ocr_warning
-    assert 'qualité de lecture est limitée' not in result['response'].answer
+    assert 'reading quality is limited' not in result['response'].answer
 
 
 def test_used_sources_deduplicate_same_document():

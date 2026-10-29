@@ -20,16 +20,18 @@ def _fold_accents(text):
 
 
 def normalize(text):
-    """Case, accent, whitespace and markdown-emphasis insensitive form used to find a fact in an answer."""
-    return re.sub(r'[\s*`]+', '', _fold_accents(text.casefold()).replace('’', "'"))
+    """Case, accent, blank and markdown-emphasis insensitive form used to find a fact in an answer.
+    Line breaks are kept: they end a number, so 'HEAD~1' then a line '3. ...' is not read as 'HEAD~13'."""
+    return re.sub(r'[^\S\n]+|[*`]', '', _fold_accents(text.casefold()).replace('’', "'"))
 
 
 def contains_fact(folded_answer, fact):
-    """A normalized fact occurs in the answer; a number is never matched inside a longer one (4 heures vs 24 heures)."""
-    needle = re.escape(normalize(fact))
+    """A normalized fact occurs in the text, even wrapped over lines (OCR, hard-wrapped sources); a number is never
+    matched inside a longer one (4 heures vs 24 heures), a line break ending it."""
+    needle = normalize(fact)
     before = r'(?<!\d)' if needle[0].isdigit() else ''
     after = r'(?!\d)' if needle[-1].isdigit() else ''
-    return re.search(before + needle + after, folded_answer) is not None
+    return re.search(before + '\n?'.join(map(re.escape, needle)) + after, folded_answer) is not None
 
 
 def mean(values):
