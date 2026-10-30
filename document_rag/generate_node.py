@@ -37,6 +37,8 @@ def generate(state: RAGState) -> dict:
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
 
+    from document_rag.prompts import NO_DOCUMENTS_ANSWER
+
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
         response = AssistantResponse(
@@ -52,7 +54,7 @@ def generate(state: RAGState) -> dict:
         )
         return {"response": response, "timing": timing}
 
-    from document_rag.prompts import NO_DOCUMENTS_ANSWER, build_rag_messages as build_messages
+    from document_rag.prompts import build_rag_messages as build_messages
 
     alias_map = _build_source_aliases(chunks)
     context_text = _format_context(alias_map)
