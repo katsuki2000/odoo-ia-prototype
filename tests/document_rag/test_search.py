@@ -402,10 +402,6 @@ def test_vector_search_lets_a_backend_failure_reach_the_caller():
         vector_search(manager, "question")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 def test_hybrid_search_applies_metadata_filters_to_bm25_candidates():
     manager = Mock()
     manager.query.return_value = {"results": [], "count": 0}
@@ -465,3 +461,7 @@ def test_fetch_source_chunks_uses_the_collection_containing_the_seed_chunk():
 
     assert list(chunks) == [0]
     second.collection.get.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
