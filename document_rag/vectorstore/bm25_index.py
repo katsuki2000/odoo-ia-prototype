@@ -83,14 +83,7 @@ class BM25Index:
         all_metadatas: list[dict[str, Any]] = []
 
         for manager in managers:
-            try:
-                docs = manager.collection.get(include=["documents", "metadatas"])
-            except Exception as e:
-                logger.error(
-                    "Failed to retrieve documents from collection '%s': %s",
-                    getattr(manager.collection, "name", "?"), e
-                )
-                continue
+            docs = manager.collection.get(include=["documents", "metadatas"])
             all_ids.extend(docs.get("ids", []))
             all_documents.extend(docs.get("documents", []))
             all_metadatas.extend(docs.get("metadatas", []))
