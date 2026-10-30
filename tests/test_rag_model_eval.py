@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.evaluation import bench_common
+from evaluation import bench_common
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "run_rag_model_eval.py"
 QUESTIONS = json.loads((Path(__file__).resolve().parent / "rag_eval_questions.json").read_text(encoding="utf-8"))["questions"]

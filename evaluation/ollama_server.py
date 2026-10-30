@@ -1,13 +1,12 @@
 """Ollama server control shared by the model comparison benches: one chat model loaded at a time."""
 
 import contextlib
-from unittest import mock
 
 import requests
 
 import config.settings as settings
 from core.llm import llm_client
-from core.evaluation.preflight import BackendUnavailable
+from evaluation.preflight import BackendUnavailable
 
 SERVER_TIMEOUT_SECONDS = 900
 
@@ -52,7 +51,12 @@ def prepare_server(model):
 
 @contextlib.contextmanager
 def model_override(model):
-    with contextlib.ExitStack() as stack:
-        for module in (settings, llm_client):
-            stack.enter_context(mock.patch.object(module, 'LLM_MODEL', model))
+    modules = (settings, llm_client)
+    previous = [module.LLM_MODEL for module in modules]
+    for module in modules:
+        module.LLM_MODEL = model
+    try:
         yield
+    finally:
+        for module, value in zip(modules, previous):
+            module.LLM_MODEL = value

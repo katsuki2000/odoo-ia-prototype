@@ -56,9 +56,7 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
             raise HTTPException(status_code=400, detail="Empty question provided.")
 
         uid = user["uid"]
-        session = get_session(request.session_id, owner_uid=uid)
-        chat_history = session["chat_history"]
-        last_route = session["last_route"]
+        chat_history = get_session(request.session_id, owner_uid=uid)
 
         api_key = user.get("api_key")
         token_company_id = user.get("company_id")
@@ -71,7 +69,6 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
             chat_history=chat_history,
             uid=uid,
             api_key=api_key,
-            last_route=last_route,
             source_mode=request.source_mode,
             language=_request_language(request.language, accept_language),
             company_id=company_id,
@@ -82,7 +79,6 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         update_session(
             request.session_id,
             chat_history + [HumanMessage(content=request.question), AIMessage(content=response.answer)],
-            response.route or last_route,
             owner_uid=uid,
         )
 

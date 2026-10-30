@@ -2,8 +2,8 @@ import contextlib
 
 import pytest
 
-from core.evaluation import bench_common as common
-from core.evaluation import run_store
+from evaluation import bench_common as common
+from evaluation import run_store
 
 
 def test_normalize_ignores_case_accents_spaces_and_emphasis():

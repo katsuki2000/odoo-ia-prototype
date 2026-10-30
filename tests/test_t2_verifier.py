@@ -1,4 +1,4 @@
-from core.verification.claims import ClaimType, VerifierMode
+from core.schemas import ClaimType, VerifierMode
 from core.verification.context import VerificationContext
 from core.verification.verifier import verify_answer_claims
 

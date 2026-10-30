@@ -7,9 +7,9 @@ import unicodedata
 
 import requests
 
-from core.evaluation import run_store
-from core.evaluation.ollama_server import model_override, prepare_server, set_keep_alive
-from core.evaluation.preflight import BackendUnavailable, require_backends
+from evaluation import run_store
+from evaluation.ollama_server import model_override, prepare_server, set_keep_alive
+from evaluation.preflight import BackendUnavailable, require_backends
 
 MAX_CONSECUTIVE_ERRORS = 3
 

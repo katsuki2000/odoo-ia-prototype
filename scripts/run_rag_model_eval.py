@@ -41,11 +41,11 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 import config.settings as settings
-from core.evaluation import run_store
-from core.evaluation.bench_common import (
+from evaluation import run_store
+from evaluation.bench_common import (
     contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, run_on_model, seconds_text,
 )
-from core.evaluation.preflight import BackendUnavailable
+from evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
 from document_rag.generate_node import generate
 

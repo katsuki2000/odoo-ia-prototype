@@ -167,7 +167,7 @@ def resolve_window(requested: Optional[int]) -> tuple[int, str]:
     """The window is --window if given, else the context the server actually loaded."""
     if requested:
         return requested, "--window"
-    from core.llm.server_fingerprint import get_inference_fingerprint
+    from evaluation.server_fingerprint import get_inference_fingerprint
     loaded = (get_inference_fingerprint().get("ollama") or {}).get("loaded_context_length")
     if not loaded:
         raise SystemExit("Cannot read the loaded context from the server (model not loaded?). Pass --window.")

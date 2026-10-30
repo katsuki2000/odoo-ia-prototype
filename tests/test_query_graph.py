@@ -1,5 +1,8 @@
+import logging
+
 import pytest
 
+from config.settings import QUESTION_PREVIEW_CHARS
 from core.graph import graph as graph_module
 from core.schemas import AssistantResponse
 from erp_data.odoo_context import (
@@ -70,3 +73,11 @@ def test_nested_request_does_not_inherit_the_outer_identity():
             assert _identity() == (None, None, None, None, None)
         assert _identity() == (1, 'outer', 3, [3, 4], 'outer_db')
     assert _identity() == (None, None, None, None, None)
+
+
+def test_the_question_is_logged_truncated(fake_graph, caplog):
+    question = 'q' * (QUESTION_PREVIEW_CHARS + 50)
+    with caplog.at_level(logging.INFO, logger=graph_module.logger.name):
+        graph_module.query_graph(question)
+    assert question not in caplog.text
+    assert question[:QUESTION_PREVIEW_CHARS] in caplog.text

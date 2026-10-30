@@ -1,17 +1,12 @@
-"""
-core/evidence/evidence.py
+"""Evidence: the fact an ORM tool produced while it worked, with its provenance.
 
-Evidence is the internal reasoning/provenance object produced directly by the ORM tools (live Odoo
-reads). It lives alongside
-SourceReference (core/schemas.py), not instead of it -- SourceReference
-stays the UI-facing citation derived later for display, Evidence is the
-structured fact a tool produced while it worked.
+Distinct from SourceReference (core/schemas.py), which is the UI-facing citation of a RAG chunk.
 """
 
 import hashlib
 import json
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,15 +16,7 @@ class EvidenceSourceType(str, Enum):
 
 
 def _canonical_json(value: Any) -> str:
-    """
-    Stable JSON serialization used as input to stable_content_hash(). Sorted
-    keys and compact separators so two semantically identical dicts/lists
-    always serialize identically regardless of construction order.
-    default=str covers non-JSON-native types (e.g. a datetime in a scope's
-    read_at) via their str/ISO representation, so an Evidence built from a
-    datetime object and one built from the equivalent ISO string still hash
-    the same.
-    """
+    """Key-sorted compact JSON; non-JSON types (e.g. a datetime) go through str()."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
 
 
@@ -40,15 +27,7 @@ def stable_content_hash(
     source: str,
     scope: dict[str, Any],
 ) -> str:
-    """
-    Deterministic evidence_id: the same fact reported twice (by CI and ORM
-    on the same underlying truth, or by the same tool across two runs)
-    hashes to the same id, enabling dedup at the Evidence Builder level
-    instead of listing the same fact twice. SHA-256 truncated to 32 hex
-    chars -- long enough that accidental collision within a single
-    investigation's evidence set is not a practical concern, short enough
-    to stay readable in traces and tests.
-    """
+    """Deterministic evidence_id: the same fact reported twice hashes to the same id (32 hex chars of SHA-256)."""
     payload = _canonical_json({
         "source_type": source_type.value,
         "claim": claim,
@@ -60,36 +39,19 @@ def stable_content_hash(
 
 
 class Evidence(BaseModel):
-    """
-    Internal reasoning/provenance contract of the ORM tools. Distinct from
-    SourceReference: Evidence is what a tool
-    actually produced (fact + provenance), SourceReference is how a fact
-    gets displayed in the UI.
-    """
     model_config = ConfigDict(strict=True)
 
-    evidence_id: str = Field(
-        ..., description="stable_content_hash() of this evidence's canonical payload"
-    )
+    evidence_id: str = Field(..., description="stable_content_hash() of this evidence's canonical payload")
     source_type: EvidenceSourceType
     claim: str = Field(..., description="What this evidence asserts, in plain language")
     value: Any = Field(default=None, description="The concrete fact/value backing the claim")
     source: str = Field(
         ...,
-        description=(
-            "Which tool/rule/file produced this evidence "
-            "(e.g. a rule xml_id, a model.method, an ORM model+domain)"
-        ),
+        description="Which tool/rule/file produced this evidence (e.g. a rule xml_id, a model.method, an ORM model+domain)",
     )
     scope: dict[str, Any] = Field(
         default_factory=dict,
-        description=(
-            "Context under which value/claim holds. Canonical keys: "
-            "company_id, read_at, execution_identity. Additional keys "
-            "(record_ids, model, date_from, date_to, ...) are allowed when "
-            "a tool has a real need for them, and must be documented where "
-            "they are introduced."
-        ),
+        description="Context under which the claim holds: company_id, read_at, execution_identity, plus tool-specific keys.",
     )
 
 
@@ -98,14 +60,12 @@ def make_evidence(
     claim: str,
     source: str,
     value: Any = None,
-    scope: Optional[dict[str, Any]] = None,
+    scope: dict[str, Any] | None = None,
 ) -> Evidence:
-    """Convenience constructor: computes evidence_id from the canonical
-    payload so call sites never hand-roll the hash themselves."""
+    """Build an Evidence and compute its evidence_id."""
     scope = scope or {}
-    evidence_id = stable_content_hash(source_type, claim, value, source, scope)
     return Evidence(
-        evidence_id=evidence_id,
+        evidence_id=stable_content_hash(source_type, claim, value, source, scope),
         source_type=source_type,
         claim=claim,
         value=value,

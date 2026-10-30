@@ -13,11 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 ENGINES = ("document_rag", "erp_data")
 KERNEL = ("core.llm", "core.session", "core.schemas", "core.evidence")
-ORCHESTRATION = ("core.graph", "core.routing", "core.verification", "core.evaluation")
+ORCHESTRATION = ("core.graph", "core.routing", "core.verification")
 
-KNOWN_VIOLATIONS = frozenset({
-    ("core.schemas", "core.verification.claims"),
-})
+KNOWN_VIOLATIONS = frozenset()
 
 
 def _is_under(module, prefixes):

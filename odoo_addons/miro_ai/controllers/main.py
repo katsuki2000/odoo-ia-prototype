@@ -49,13 +49,15 @@ def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='s
 
 
 def _answer_payload(data, session_id):
+    answer = data.get('answer', _("The backend returned no answer."))
+    if data.get('ocr_warning'):
+        answer += "\n\n" + _("Warning: this information comes from a scanned document whose reading quality is limited.")
     return {
-        'answer': data.get('answer', _("The backend returned no answer.")),
+        'answer': answer,
         'sources': data.get('sources', []),
         'session_id': data.get('session_id', session_id),
         'route': data.get('route'),
         'confidence': data.get('confidence', 1.0),
-        'ocr_warning': data.get('ocr_warning', False),
     }
 
 
@@ -93,7 +95,6 @@ class MiroAiController(http.Controller):
             "question": question,
             "session_id": effective_session,
             "company_id": company_id,
-            "groups": groups,
         }
         interface_language = request.env.context.get('lang') or user.lang
         if interface_language:

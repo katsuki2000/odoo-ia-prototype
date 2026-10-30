@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from core.evaluation.erp_model_worker import classify_tool_observation
+from evaluation.erp_model_worker import classify_tool_observation
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "run_erp_model_eval.py"
 

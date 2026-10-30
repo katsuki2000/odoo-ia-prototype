@@ -26,7 +26,7 @@ def run_question(question, uid, api_key, db, model, result_queue):
     from erp_data.odoo_context import request_identity
     import erp_data.orm_agent_helpers as helpers
     import erp_data.orm_agent_node as agent
-    from core.evaluation.ollama_server import model_override
+    from evaluation.ollama_server import model_override
     from core.evidence import start_evidence_collection
 
     tool_calls = []

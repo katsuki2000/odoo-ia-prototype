@@ -13,7 +13,7 @@ from core.graph.graph import build_graph
 from core.graph.graph_nodes import answered_by_documents
 from core.state import RAGState
 from core.schemas import AssistantResponse
-from core.verification.claims import VerifierMode
+from core.schemas import VerifierMode
 from erp_data import orm_agent_node
 
 DOC_QUESTION = "Selon le wiki, quelle est la procedure ?"
@@ -210,5 +210,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"guard_gate", "route", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"route", "verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"generate", "orm_agent_loop"}

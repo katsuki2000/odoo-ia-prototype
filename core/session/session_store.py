@@ -1,60 +1,41 @@
-"""In-memory thread-safe session store for chat history and last route."""
+"""In-memory thread-safe chat history store, namespaced by authenticated owner and bounded in sessions and messages."""
 
 import threading
-from typing import Any, Dict, List, Optional, Union
+from collections import OrderedDict
+from typing import List, Union
 
 from langchain_core.messages import BaseMessage
 
+from config.settings import CHAT_HISTORY_MAX_MESSAGES, SESSION_MAX_COUNT
+
 OwnerUid = Union[int, str]
 
-# owner_uid:session_id -> session state
-_SESSIONS: Dict[str, Dict[str, Any]] = {}
+_SESSIONS: "OrderedDict[tuple[OwnerUid, str], List[BaseMessage]]" = OrderedDict()
 _LOCK = threading.Lock()
 
 
-def _owned_key(session_id: str, owner_uid: OwnerUid) -> str:
+def _owned_key(session_id: str, owner_uid: OwnerUid) -> tuple[OwnerUid, str]:
     if owner_uid is None or str(owner_uid).strip() == "":
         raise ValueError("owner_uid is required")
-    return f"{owner_uid}:{session_id}"
+    return owner_uid, session_id
 
 
-def get_session(session_id: str, owner_uid: OwnerUid) -> Dict[str, Any]:
-    """Return this owner's session state, or a fresh empty one if unseen.
+def get_session(session_id: str, owner_uid: OwnerUid) -> List[BaseMessage]:
+    """Return a copy of this owner's chat history, empty if the session is unknown."""
+    with _LOCK:
+        return list(_SESSIONS.get(_owned_key(session_id, owner_uid), ()))
 
-    Never returns None and never raises on an unknown session_id -- callers
-    can always read ["chat_history"]/["last_route"]
-    without a presence check first. Returns a shallow copy so in-place
-    mutation cannot corrupt the store without update_session().
-    """
+
+def update_session(session_id: str, chat_history: List[BaseMessage], *, owner_uid: OwnerUid) -> None:
+    """Overwrite this owner's chat history, keeping its last messages; the least recently updated sessions are evicted."""
     key = _owned_key(session_id, owner_uid)
     with _LOCK:
-        session = _SESSIONS.get(key)
-        if session is None:
-            return {"chat_history": [], "last_route": None}
-        return {
-            "chat_history": list(session.get("chat_history", [])),
-            "last_route": session.get("last_route"),
-        }
-
-
-def update_session(
-    session_id: str,
-    chat_history: List[BaseMessage],
-    last_route: Optional[str] = None,
-    *,
-    owner_uid: OwnerUid,
-) -> None:
-    """Overwrite this owner's session state (last-write-wins)."""
-    key = _owned_key(session_id, owner_uid)
-    with _LOCK:
-        _SESSIONS[key] = {
-            "chat_history": list(chat_history),
-            "last_route": last_route,
-        }
+        _SESSIONS[key] = chat_history[-CHAT_HISTORY_MAX_MESSAGES:]
+        _SESSIONS.move_to_end(key)
+        while len(_SESSIONS) > SESSION_MAX_COUNT:
+            _SESSIONS.popitem(last=False)
 
 
 def clear_session(session_id: str, owner_uid: OwnerUid) -> None:
-    """Remove this owner's session state entirely."""
-    key = _owned_key(session_id, owner_uid)
     with _LOCK:
-        _SESSIONS.pop(key, None)
+        _SESSIONS.pop(_owned_key(session_id, owner_uid), None)

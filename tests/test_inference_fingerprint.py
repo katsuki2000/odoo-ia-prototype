@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from core.llm import server_fingerprint as fp
+from evaluation import server_fingerprint as fp
 
 
 class _Models:

@@ -1,24 +1,63 @@
-"""
-core/schemas.py
+"""Pydantic models for structured output."""
 
-Pydantic models for structured output.
-"""
-
+import logging
 import os
 from enum import Enum
-from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, Field
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.evidence.evidence import Evidence
-from core.verification.claims import VerificationReport
 
+logger = logging.getLogger(__name__)
 
-# ── Routing ───────────────────────────────────────────────────────────────────
 
 class QueryRoute(str, Enum):
-    """Classification of the query type for routing."""
+    """Branch that answers a question."""
     DOCUMENTARY = "documentation"
     ERP_DATA = "system"
+
+
+class ClaimType(str, Enum):
+    NUMBER = "number"
+    GROUP = "group"
+    METHOD = "method"
+
+
+class VerifierMode(str, Enum):
+    OFF = "off"
+    REPORT = "report"
+    ENFORCE = "enforce"
+
+    @classmethod
+    def parse(cls, value: object) -> "VerifierMode":
+        try:
+            return cls(str(value).strip().lower())
+        except ValueError:
+            logger.warning("Unknown ANSWER_VERIFIER_MODE %r -- falling back to '%s'.", value, cls.REPORT.value)
+            return cls.REPORT
+
+
+class UnsupportedClaim(BaseModel):
+    claim_type: ClaimType
+    text: str
+    reason: str
+
+
+class VerificationReport(BaseModel):
+    """Claim counts are taken before any action, so the unsupported rate stays measurable in enforce mode."""
+
+    mode: VerifierMode
+    claims_total: int = Field(default=0, ge=0)
+    unsupported_claims: int = Field(default=0, ge=0)
+    claims_by_type: dict[ClaimType, int] = Field(default_factory=dict)
+    unsupported_by_type: dict[ClaimType, int] = Field(default_factory=dict)
+    unsupported: list[UnsupportedClaim] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _unsupported_within_total(self) -> "VerificationReport":
+        if self.unsupported_claims > self.claims_total:
+            raise ValueError("unsupported_claims cannot exceed claims_total")
+        return self
 
 
 class SourceReference(BaseModel):
@@ -29,30 +68,21 @@ class SourceReference(BaseModel):
     doc_type: str = Field(..., description="Type of the document (e.g., pdf, wiki, code, ticket)")
     title: str = Field(..., description="Title or descriptive name of the source")
     snippet: str = Field(..., description="A short excerpt from the document showing the context")
-    page: Optional[int] = Field(default=None, description="Page number if applicable (e.g., for PDFs)")
+    page: int | None = Field(default=None, description="Page number if applicable (e.g., for PDFs)")
 
 
 def source_display_title(meta: dict) -> str:
-    """
-    User-facing title for a chunk's metadata:
-    ingestion stores the absolute file path as 'source' (separate, unfixed
-    debt), so falling back to it directly leaks the local filesystem layout
-    into the answer text. Falls back to the basename instead when 'title' is
-    absent, never the full path.
-    """
-    title = meta.get("title")
-    if title:
-        return title
-    return os.path.basename(meta.get("source", "unknown"))
+    """Title of a chunk for display: its title, else the file name, never the full path."""
+    return meta.get("title") or os.path.basename(meta.get("source", "unknown"))
 
 
 class LLMResponse(BaseModel):
     """Internal model for the LLM output before formatting."""
     model_config = ConfigDict(strict=True)
-    
+
     answer: str = Field(..., description="The main text of the assistant's answer in French")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
-    used_sources: List[str] = Field(
+    used_sources: list[str] = Field(
         default_factory=list,
         description=(
             "Short per-turn source aliases (e.g. 'S1', 'S2', matching the "
@@ -70,28 +100,18 @@ class AssistantResponse(BaseModel):
     model_config = ConfigDict(strict=True)
 
     answer: str = Field(..., description="The main text of the assistant's answer in French")
-    sources: List[SourceReference] = Field(default_factory=list, description="List of sources cited in the answer")
+    sources: list[SourceReference] = Field(default_factory=list, description="List of sources cited in the answer")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
     ocr_warning: bool = Field(default=False, description="True if any of the sources come from a low-quality OCR scan")
-    route: Optional[str] = Field(
+    route: str | None = Field(
         default=None,
         description="Which QueryRoute branch handled this turn",
     )
-    verification: Optional[VerificationReport] = Field(
+    verification: VerificationReport | None = Field(
         default=None,
-        description=(
-            "Deterministic claim verification of the final answer: counts of number, group and method claims and the ones "
-            "no evidence supports. None when the verifier did not run this turn."
-        ),
+        description="Deterministic claim verification of the final answer; None when the verifier did not run.",
     )
-    evidence_dossier: List[Evidence] = Field(
+    evidence_dossier: list[Evidence] = Field(
         default_factory=list,
-        description=(
-            "Structured, tool-provenance Evidence gathered this turn "
-            "via core/evidence/evidence_collector.py. "
-            "Distinct from 'sources' (SourceReference, UI-facing citation "
-            "derived from RAG chunks) -- this is the raw fact + provenance an "
-            "ORM tool actually produced while it worked. An empty list means "
-            "no ORM tool recorded Evidence this turn."
-        ),
+        description="Facts produced by the ORM tools this turn, with their provenance; distinct from the UI-facing 'sources'.",
     )

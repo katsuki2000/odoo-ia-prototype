@@ -9,7 +9,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from core.guardrails import REACT_RECURSION_LIMIT
+from config.settings import REACT_RECURSION_LIMIT
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 

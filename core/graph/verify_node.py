@@ -9,7 +9,7 @@ from core.evidence.evidence_collector import peek_turn_evidence
 from core.graph.graph_nodes import answered_by_documents
 from core.state import RAGState
 from core.verification.base_methods import default_base_model_methods
-from core.verification.claims import VerifierMode
+from core.schemas import VerifierMode
 from core.verification.context import VerificationContext, flatten_numeric_values
 from core.verification.verifier import verify_answer_claims
 

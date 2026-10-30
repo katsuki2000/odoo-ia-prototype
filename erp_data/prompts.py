@@ -4,6 +4,9 @@ from typing import List, Optional
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from config.settings import CHAT_HISTORY_MAX_MESSAGES
+from core.guardrails import OUT_OF_SCOPE_ANSWER
+
 
 ORM_AGENT_SYSTEM_PROMPT = (
     "Tu es un assistant interne qui interroge une instance Odoo précise. "
@@ -20,6 +23,8 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Demande une précision lorsque le terme métier, le modèle, le statut ou la période est ambigu. "
     "N'assimile pas automatiquement les ventes aux commandes, factures ou paiements. "
     "Respecte les limites et les indicateurs de troncature des observations. "
+    "Si la question est hors périmètre Odoo ou ERP, réponds exactement : "
+    f'"{OUT_OF_SCOPE_ANSWER}" '
     "Réponds dans la langue de la question à partir des observations obtenues, indique les limites et cite les "
     "modèles/champs réellement consultés. Format Markdown uniquement, sans HTML brut."
 )
@@ -41,7 +46,7 @@ def build_orm_agent_messages(
     system_prompt: Optional[str] = None,
 ) -> List[BaseMessage]:
     """Construct initial message sequence for the ORM agent loop."""
-    history = (chat_history or [])[-10:]
+    history = (chat_history or [])[-CHAT_HISTORY_MAX_MESSAGES:]
     return [
         SystemMessage(content=system_prompt or ORM_AGENT_SYSTEM_PROMPT),
         *history,

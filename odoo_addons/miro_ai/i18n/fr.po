@@ -567,6 +567,13 @@ msgid "The backend returned no answer."
 msgstr "Aucune réponse renvoyée par le backend."
 
 #. module: miro_ai
+#. odoo-python
+#: code:addons/miro_ai/controllers/main.py:0
+#, python-format
+msgid "Warning: this information comes from a scanned document whose reading quality is limited."
+msgstr "Attention : cette information provient d'un document numérisé dont la qualité de lecture est limitée."
+
+#. module: miro_ai
 #: model:ir.model.constraint,message:miro_ai.constraint_miro_ai_settings_request_timeout_min
 msgid "The maximum response time must be at least 10 seconds."
 msgstr "Le délai maximal de réponse doit être d'au moins 10 secondes."

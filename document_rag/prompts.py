@@ -7,7 +7,9 @@ System prompts and template building logic for the documentary RAG pipeline.
 from typing import List, Optional
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
+from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from core.guardrails import OUT_OF_SCOPE_ANSWER
+
 
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
 Tu es un assistant IA interne spécialisé dans la documentation et les procédures de l'ERP Odoo.
@@ -112,10 +114,7 @@ def build_rag_messages(
     system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context=context_text, out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
     messages = [SystemMessage(content=system_prompt)]
 
-    if len(chat_history) > 10:
-        chat_history = chat_history[-10:]
-
-    messages.extend(chat_history)
+    messages.extend(chat_history[-CHAT_HISTORY_MAX_MESSAGES:])
     messages.append(HumanMessage(content=question))
     return messages
 

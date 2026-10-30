@@ -65,6 +65,17 @@ def test_format_output_without_ocr_warning():
     assert 'reading quality is limited' not in result['response'].answer
 
 
+def test_format_output_flags_a_low_quality_scan_without_changing_the_answer():
+    state = {
+        'route': 'documentation',
+        'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=[]),
+        'retrieved_chunks': [{'document': 'scan', 'metadata': {'source': 'scan.pdf', 'type': 'pdf', 'ocr_quality': 'low'}}],
+    }
+    result = format_output(state)
+    assert result['response'].ocr_warning
+    assert result['response'].answer == 'Voici la réponse.'
+
+
 def test_used_sources_deduplicate_same_document():
     alias_map = {
         'S1': {'document': 'Première section', 'metadata': {'source': 'wiki.md', 'type': 'wiki', 'title': 'Wiki'}},

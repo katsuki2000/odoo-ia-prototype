@@ -1,6 +1,6 @@
 import pytest
 
-from core.evaluation.preflight import BackendUnavailable, require_backends
+from evaluation.preflight import BackendUnavailable, require_backends
 
 
 def _failing(message):

@@ -2,8 +2,8 @@ import pytest
 
 import config.settings as settings
 from core.llm import llm_client
-from core.evaluation import ollama_server
-from core.evaluation.preflight import BackendUnavailable
+from evaluation import ollama_server
+from evaluation.preflight import BackendUnavailable
 
 
 @pytest.mark.parametrize("model", ["qwen3:8b", "gpt-oss:20b"])

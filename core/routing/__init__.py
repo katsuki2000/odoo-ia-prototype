@@ -1,17 +1,5 @@
-"""
-core/routing/__init__.py
+"""Source selection and routing between the documentation and system branches."""
 
-Regroupement : routing.py (choix de la source : documentation ou system).
-"""
+from .routing import route, route_decision
 
-from .routing import (
-    logger,
-    route,
-    route_decision,
-)
-
-__all__ = [
-    "logger",
-    "route",
-    "route_decision",
-]
+__all__ = ["route", "route_decision"]

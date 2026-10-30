@@ -2,21 +2,8 @@
 
 from config.settings import RAG_TOP_K
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
-from core.schemas import AssistantResponse, QueryRoute, SourceReference, source_display_title
-from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
+from core.schemas import QueryRoute, SourceReference, source_display_title
 from core.state import RAGState
-
-
-def guard_gate(state: RAGState) -> dict:
-    """Refuse out-of-scope questions before routing; injection and bulk extraction are refused by the ERP branch only."""
-    if not is_out_of_scope(state.get('question', '')):
-        return {}
-    return {'response': AssistantResponse(answer=OUT_OF_SCOPE_ANSWER, sources=[], confidence=0.0),
-            'route': 'out_of_scope', 'retrieved_chunks': []}
-
-
-def guard_decision(state: RAGState) -> str:
-    return 'format_output' if state.get('response') is not None else 'route'
 
 
 def answered_by_documents(state: RAGState) -> bool:
@@ -39,7 +26,6 @@ def format_output(state: RAGState) -> dict:
         metadata = chunks[0].get('metadata') or {}
         if metadata.get('ocr_quality') == 'low' and metadata.get('type', '') in ('doc_pdf', 'pdf'):
             response.ocr_warning = True
-            response.answer += "\n\nWarning: this information comes from a scanned document whose reading quality is limited."
         if not response.sources and state.get('sources_fallback_eligible'):
             sources = []
             for chunk in chunks:

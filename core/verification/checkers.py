@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 
-from core.verification.claims import ClaimType
+from core.schemas import ClaimType
 from core.verification.context import VerificationContext
 from core.verification.extractors import Claim
 

@@ -8,7 +8,6 @@ from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
 from core.routing.source_selection import select_source
 
-
 logger = logging.getLogger(__name__)
 SOURCE_CLARIFICATION = 'source_clarification'
 SOURCES = {QueryRoute.DOCUMENTARY.value, QueryRoute.ERP_DATA.value}
@@ -17,17 +16,15 @@ SOURCES = {QueryRoute.DOCUMENTARY.value, QueryRoute.ERP_DATA.value}
 def route(state: RAGState) -> dict:
     started = time.perf_counter()
     source_mode = state.get('source_mode')
-    confidence = 1.0
     if source_mode in SOURCES:
-        selected = source_mode
+        decision, confidence = source_mode, 1.0
     elif source_mode:
-        selected, confidence = 'uncertain', 0.0
+        decision, confidence = SOURCE_CLARIFICATION, 0.0
     else:
         selection = select_source(state.get('question', ''))
-        selected, confidence = selection.source, selection.confidence
-    decision = selected if selected in SOURCES else SOURCE_CLARIFICATION
-    if source_mode not in SOURCES and confidence < SOURCE_SELECTION_MIN_CONFIDENCE:
-        decision = SOURCE_CLARIFICATION
+        confident = selection.confidence >= SOURCE_SELECTION_MIN_CONFIDENCE
+        decision = selection.source if selection.source in SOURCES and confident else SOURCE_CLARIFICATION
+        confidence = selection.confidence
     timing = dict(state.get('timing') or {})
     timing['routing_time'] = time.perf_counter() - started
     timing['source_selection_confidence'] = confidence
@@ -36,7 +33,7 @@ def route(state: RAGState) -> dict:
         result['response'] = AssistantResponse(
             answer='Would you like an answer based on the system or on the internal documents?',
             sources=[], confidence=0.0)
-    logger.info('Source routing: selected=%s confidence=%.2f route=%s', selected, confidence, decision)
+    logger.info('Source routing: route=%s confidence=%.2f', decision, confidence)
     return result
 
 

@@ -1,20 +1,18 @@
-"""
-core/reasoning_trace_logger.py
-
-Reasoning Path Observability & LLM Call Budget:
-Logs the agent's reasoning path, composite tool calls, and LLM call counts to an
-append-only JSONL log (`captures/reasoning_trace.jsonl`).
-"""
+"""Append-only JSONL log of the agent's reasoning hops and per-question summaries."""
 
 import datetime
 import json
 import logging
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from config.settings import OBSERVATION_PREVIEW_CHARS, QUESTION_PREVIEW_CHARS
+
 _logger = logging.getLogger(__name__)
+
+DEFAULT_LOG_PATH = Path(__file__).resolve().parents[2] / "captures" / "reasoning_trace.jsonl"
 
 
 @dataclass
@@ -29,30 +27,11 @@ class ReasoningHop:
 
 
 @dataclass
-class ReasoningFailure:
-    trace_id: str
-    timestamp: str
-    stage: str  # "tool" | "llm_loop"
-    error_type: str
-    message: str
-    tool_name: Optional[str] = None
-    tool_args: Optional[Dict[str, Any]] = None
-
-
-@dataclass
-class ReasoningRouting:
-    trace_id: str
-    timestamp: str
-    matched_dispatchers: List[str]
-    open_routing: bool
-
-
-@dataclass
 class ReasoningSummary:
     trace_id: str
     timestamp: str
-    branch: str  # "documentation" | "system"
-    question_preview: str  # first ~80 chars only -- log hygiene, never the full question
+    branch: str
+    question_preview: str
     hop_count: int
     llm_call_count: int
     total_time_ms: float
@@ -61,22 +40,37 @@ class ReasoningSummary:
     final_message_preview: Optional[str] = None
 
 
-class ReasoningTraceLogger:
-    """Appends structured per-hop reasoning events + a per-question summary to a JSONL file."""
+def _now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
+
+def new_trace_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
+class ReasoningTraceLogger:
     def __init__(self, log_filepath: Optional[Path] = None):
-        if log_filepath is None:
-            log_filepath = Path(__file__).resolve().parent.parent.parent / "captures" / "reasoning_trace.jsonl"
-        self.log_filepath = Path(log_filepath)
+        self.log_filepath = Path(log_filepath or DEFAULT_LOG_PATH)
         self.log_filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    def _write(self, record: dict) -> None:
+    def _write(self, record_type: str, record: Any) -> None:
         try:
-            line = json.dumps(record, ensure_ascii=False, default=str)
-            with open(self.log_filepath, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
-        except Exception as e:
-            _logger.error("Failed to write reasoning trace record: %s", e)
+            line = json.dumps({"record_type": record_type, **asdict(record)}, ensure_ascii=False, default=str)
+            with open(self.log_filepath, "a", encoding="utf-8") as file:
+                file.write(line + "\n")
+        except Exception as error:
+            _logger.error("Failed to write reasoning trace record: %s", error)
+
+    def _read_records(self) -> List[Dict[str, Any]]:
+        records: List[Dict[str, Any]] = []
+        if not self.log_filepath.exists():
+            return records
+        try:
+            with open(self.log_filepath, "r", encoding="utf-8") as file:
+                records.extend(json.loads(line) for line in file if line.strip())
+        except (OSError, ValueError) as error:
+            _logger.error("Failed to read reasoning trace log: %s", error)
+        return records
 
     def log_hop(
         self,
@@ -90,60 +84,15 @@ class ReasoningTraceLogger:
         hop = ReasoningHop(
             trace_id=trace_id,
             hop_index=hop_index,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=_now(),
             tool_name=tool_name,
             tool_args=tool_args,
-            observation_summary=(observation or "")[:300],
+            observation_summary=(observation or "")[:OBSERVATION_PREVIEW_CHARS],
             elapsed_ms=round(elapsed_ms, 3),
         )
-        self._write({"record_type": "HOP", **asdict(hop)})
-        _logger.info(
-            "Reasoning hop [%s] #%d: %s(%s) -> %.2fms",
-            trace_id, hop_index, tool_name, tool_args, elapsed_ms,
-        )
+        self._write("HOP", hop)
+        _logger.info("Reasoning hop [%s] #%d: %s(%s) -> %.2fms", trace_id, hop_index, tool_name, tool_args, elapsed_ms)
         return hop
-
-    def log_failure(
-        self,
-        trace_id: str,
-        stage: str,
-        error: BaseException,
-        tool_name: Optional[str] = None,
-        tool_args: Optional[Dict[str, Any]] = None,
-    ) -> ReasoningFailure:
-        failure = ReasoningFailure(
-            trace_id=trace_id,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            stage=stage,
-            error_type=type(error).__name__,
-            message=str(error)[:300],
-            tool_name=tool_name,
-            tool_args=tool_args,
-        )
-        self._write({"record_type": "FAILURE", **asdict(failure)})
-        return failure
-
-    def log_routing(self, trace_id: str, matched_dispatchers: List[str]) -> ReasoningRouting:
-        """logs, once per question
-        turn, whether deterministic predispatch matched anything -- and if
-        so, which dispatcher(s) -- or whether routing was left fully open to
-        the LLM's free ReAct choice. Previously this transition was silent;
-        this makes it an explicit, queryable record instead (never a silent
-        skip), matching the same record/read_recent pattern as log_hop and
-        log_summary above.
-        """
-        routing = ReasoningRouting(
-            trace_id=trace_id,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            matched_dispatchers=list(matched_dispatchers),
-            open_routing=not matched_dispatchers,
-        )
-        self._write({"record_type": "ROUTING", **asdict(routing)})
-        _logger.info(
-            "Reasoning trace [%s] ROUTING: matched=%s open_routing=%s",
-            trace_id, matched_dispatchers, not matched_dispatchers,
-        )
-        return routing
 
     def log_summary(
         self,
@@ -159,9 +108,9 @@ class ReasoningTraceLogger:
     ) -> ReasoningSummary:
         summary = ReasoningSummary(
             trace_id=trace_id,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            timestamp=_now(),
             branch=branch,
-            question_preview=(question or "")[:80],
+            question_preview=(question or "")[:QUESTION_PREVIEW_CHARS],
             hop_count=hop_count,
             llm_call_count=llm_call_count,
             total_time_ms=round(total_time_ms, 3),
@@ -169,7 +118,7 @@ class ReasoningTraceLogger:
             fallback_reason=fallback_reason,
             final_message_preview=final_message_preview,
         )
-        self._write({"record_type": "SUMMARY", **asdict(summary)})
+        self._write("SUMMARY", summary)
         _logger.info(
             "Reasoning trace [%s] SUMMARY: branch=%s hops=%d/%s llm_calls=%d total=%.2fms fallback=%s",
             trace_id, branch, hop_count, hop_cap, llm_call_count, total_time_ms, fallback_reason,
@@ -177,44 +126,8 @@ class ReasoningTraceLogger:
         return summary
 
     def read_recent(self, limit: int = 20, record_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Read the N most recent records, optionally filtered to 'HOP' or 'SUMMARY'."""
-        if not self.log_filepath.exists():
-            return []
-        records = []
-        try:
-            with open(self.log_filepath, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    rec = json.loads(line)
-                    if record_type is None or rec.get("record_type") == record_type:
-                        records.append(rec)
-        except Exception as e:
-            _logger.error("Failed to read reasoning trace log: %s", e)
+        records = [r for r in self._read_records() if record_type is None or r.get("record_type") == record_type]
         return records[-limit:]
 
     def read_trace(self, trace_id: str) -> List[Dict[str, Any]]:
-        """Read all records (hops + summary) for one specific trace_id, in order -- the
-        full post-hoc-debuggable reasoning path for a single question."""
-        if not self.log_filepath.exists():
-            return []
-        records = []
-        try:
-            with open(self.log_filepath, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    rec = json.loads(line)
-                    if rec.get("trace_id") == trace_id:
-                        records.append(rec)
-        except Exception as e:
-            _logger.error("Failed to read reasoning trace log: %s", e)
-        return records
-
-
-def new_trace_id() -> str:
-    """Short (12-char) uuid4-derived identifier, unique enough per question
-    for post-hoc lookup without bloating every JSONL line."""
-    return uuid.uuid4().hex[:12]
+        return [r for r in self._read_records() if r.get("trace_id") == trace_id]

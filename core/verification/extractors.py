@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-from core.verification.claims import ClaimType
+from core.schemas import ClaimType
 
 GROUP_XMLID_RE = re.compile(r"\b[a-z][a-z0-9_]*\.group_[a-z0-9_]+\b")
 METHOD_CALL_RE = re.compile(r"(?<![\w.])((?:[a-z][a-z0-9_]*\.)*)(_*[a-z][a-z0-9_]*)\(\)")

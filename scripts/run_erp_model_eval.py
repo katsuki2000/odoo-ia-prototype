@@ -14,8 +14,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from config import settings
-from core.evaluation import run_store
-from core.evaluation.bench_common import (
+from evaluation import run_store
+from evaluation.bench_common import (
     contains_fact,
     execute_runs,
     latency_percentiles,
@@ -26,8 +26,8 @@ from core.evaluation.bench_common import (
     run_on_model,
     seconds_text,
 )
-from core.evaluation.erp_model_worker import run_question as run_question_worker
-from core.evaluation.preflight import BackendUnavailable, probe_llm
+from evaluation.erp_model_worker import run_question as run_question_worker
+from evaluation.preflight import BackendUnavailable, probe_llm
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
 
 QUESTIONS_PATH = project_root / "tests" / "benchmark_questions.json"

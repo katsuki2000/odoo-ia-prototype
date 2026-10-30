@@ -217,6 +217,7 @@ odoo-ia-prototype/
 │   ├── graph/                  # Main LangGraph pipeline, routing and final verification
 │   └── evidence/                # Observations collected from tools
 ├── document_rag/               # Internal-document ingestion, retrieval and generation
+├── evaluation/                 # Model comparison benches: server control, run store, inference fingerprint
 ├── erp_data/runtime/           # Typed, read-only Odoo ORM tools
 ├── odoo_addons/miro_ai/        # Odoo 17 chat interface and authenticated backend client
 ├── scripts/                    # Setup and evaluation utilities

@@ -6,8 +6,8 @@ from typing import Any, List, NamedTuple, Optional
 
 from langchain_core.messages import ToolMessage
 
-from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA
-from core.guardrails import REACT_RECURSION_LIMIT, refusal_message
+from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA, REACT_RECURSION_LIMIT
+from core.guardrails import PROMPT_INJECTION_REFUSAL_MSG, is_prompt_injection
 from core.llm.llm_client import invoke_llm
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
@@ -85,11 +85,10 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     trace_logger = ReasoningTraceLogger()
     trace_id = new_trace_id()
-    refusal = refusal_message(question)
-    if refusal:
-        logger.info("Node [orm_agent_loop]: Early refusal, no LLM call.")
-        result = ReactResult(refusal, [], 0, 0)
-        response = AssistantResponse(answer=refusal, sources=[], confidence=0.0)
+    if is_prompt_injection(question):
+        logger.info("Node [orm_agent_loop]: Prompt injection refused, no LLM call.")
+        result = ReactResult(PROMPT_INJECTION_REFUSAL_MSG, [], 0, 0)
+        response = AssistantResponse(answer=PROMPT_INJECTION_REFUSAL_MSG, sources=[], confidence=0.0)
     else:
         result = _run_react(question, state.get("chat_history", []), trace_logger, trace_id)
         response = _build_response(result)
