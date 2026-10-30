@@ -66,7 +66,6 @@ def reindex_v1(request: ReindexRequestV1):
                 collection_name=manager.collection_name,
             ).clear_and_reingest(
                 docs_dir=docs_dir.parent if docs_dir.is_file() else docs_dir,
-                incremental=False,
             )
     except Exception as exc:
         logger.exception("Reindex failed.")
