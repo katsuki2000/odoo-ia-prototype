@@ -10,7 +10,7 @@ from config.settings import DOCS_COLLECTION_NAME, RAG_CHUNK_OVERLAP, RAG_CHUNK_S
 from document_rag.ingestion.ingest_handlers_doc import ingest_documents_dir
 from document_rag.ingestion.logging_utils import LOGS_DIR
 from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
-from document_rag.ingestion.scan_root import DOCS_DIR, resolve_scan_root
+from document_rag.ingestion.scan_root import DOCS_DIR, ensure_docs_dir, resolve_scan_root
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -43,6 +43,8 @@ class IngestionOrchestrator:
         """Index all supported documents directly under docs_dir."""
         docs_dir_path = Path(docs_dir) if str(docs_dir) else None
         self.last_docs_dir = docs_dir
+        if docs_dir_path == DOCS_DIR:
+            ensure_docs_dir()
         logger.info("Starting document ingestion from %s", docs_dir)
 
         if docs_dir_path is None:

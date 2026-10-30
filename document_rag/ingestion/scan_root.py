@@ -52,3 +52,9 @@ def compute_source(file_path: Path, scan_root: Path | None) -> str:
         except ValueError:
             pass
     return str(path)
+
+
+def ensure_docs_dir() -> Path:
+    """Create the configured document root when ingestion or scanning starts."""
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    return DOCS_DIR
