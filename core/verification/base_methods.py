@@ -3,16 +3,15 @@ import builtins
 import logging
 from functools import lru_cache
 from pathlib import Path
-from typing import FrozenSet
 
 from config.settings import ODOO_SOURCE_PATH
 
 logger = logging.getLogger(__name__)
 
-BUILTIN_NAMES: FrozenSet[str] = frozenset(dir(builtins))
+BUILTIN_NAMES: frozenset[str] = frozenset(dir(builtins))
 
 
-def load_base_model_methods(models_source: Path) -> FrozenSet[str]:
+def load_base_model_methods(models_source: Path) -> frozenset[str]:
     try:
         tree = ast.parse(Path(models_source).read_text(encoding="utf-8"))
     except (OSError, SyntaxError) as error:
@@ -28,5 +27,5 @@ def load_base_model_methods(models_source: Path) -> FrozenSet[str]:
 
 
 @lru_cache(maxsize=1)
-def default_base_model_methods() -> FrozenSet[str]:
+def default_base_model_methods() -> frozenset[str]:
     return load_base_model_methods(Path(ODOO_SOURCE_PATH) / "odoo" / "models.py")

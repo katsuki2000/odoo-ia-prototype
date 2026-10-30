@@ -1,7 +1,6 @@
 import logging
 import re
 from collections import Counter
-from typing import Dict, List, Tuple
 
 from core.verification.checkers import CHECKERS
 from core.schemas import ClaimType, UnsupportedClaim, VerificationReport, VerifierMode
@@ -14,12 +13,12 @@ logger = logging.getLogger(__name__)
 RETIREMENT_NOTICE = "[DETERMINISTIC VERIFICATION] Claim(s) removed for lack of evidence in this turn's data: "
 
 
-def _by_type(claims: List[Claim]) -> Dict[ClaimType, int]:
+def _by_type(claims: list[Claim]) -> dict[ClaimType, int]:
     return dict(Counter(claim.claim_type for claim in claims))
 
 
-def _merge_spans(spans: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-    merged: List[Tuple[int, int]] = []
+def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    merged: list[tuple[int, int]] = []
     for start, end in sorted(spans):
         if merged and start <= merged[-1][1]:
             merged[-1] = (merged[-1][0], max(merged[-1][1], end))
@@ -36,7 +35,7 @@ def _with_notice(text: str, notice: str) -> str:
     return text[:cut].rstrip() + "\n\n" + notice + "\n\n" + text[cut:]
 
 
-def _retire(answer: str, claims: List[Claim]) -> str:
+def _retire(answer: str, claims: list[Claim]) -> str:
     spans = _merge_spans([
         expand_to_sentence_bounds(answer, start, end)
         for claim in claims
@@ -55,7 +54,7 @@ def _retire(answer: str, claims: List[Claim]) -> str:
 
 def verify_answer_claims(
     answer: str, context: VerificationContext, mode: VerifierMode,
-) -> Tuple[str, VerificationReport]:
+) -> tuple[str, VerificationReport]:
     if mode is VerifierMode.OFF:
         return answer, VerificationReport(mode=mode)
     claims = extract_claims(answer)

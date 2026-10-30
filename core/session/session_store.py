@@ -2,15 +2,14 @@
 
 import threading
 from collections import OrderedDict
-from typing import List, Union
 
 from langchain_core.messages import BaseMessage
 
 from config.settings import CHAT_HISTORY_MAX_MESSAGES, SESSION_MAX_COUNT
 
-OwnerUid = Union[int, str]
+OwnerUid = int | str
 
-_SESSIONS: "OrderedDict[tuple[OwnerUid, str], List[BaseMessage]]" = OrderedDict()
+_SESSIONS: "OrderedDict[tuple[OwnerUid, str], list[BaseMessage]]" = OrderedDict()
 _LOCK = threading.Lock()
 
 
@@ -20,13 +19,13 @@ def _owned_key(session_id: str, owner_uid: OwnerUid) -> tuple[OwnerUid, str]:
     return owner_uid, session_id
 
 
-def get_session(session_id: str, owner_uid: OwnerUid) -> List[BaseMessage]:
+def get_session(session_id: str, owner_uid: OwnerUid) -> list[BaseMessage]:
     """Return a copy of this owner's chat history, empty if the session is unknown."""
     with _LOCK:
         return list(_SESSIONS.get(_owned_key(session_id, owner_uid), ()))
 
 
-def update_session(session_id: str, chat_history: List[BaseMessage], *, owner_uid: OwnerUid) -> None:
+def update_session(session_id: str, chat_history: list[BaseMessage], *, owner_uid: OwnerUid) -> None:
     """Overwrite this owner's chat history, keeping its last messages; the least recently updated sessions are evicted."""
     key = _owned_key(session_id, owner_uid)
     with _LOCK:

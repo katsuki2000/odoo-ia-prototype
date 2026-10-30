@@ -1,7 +1,6 @@
 """LLM client factory and the single call site for chat completions."""
 
 import logging
-from typing import Optional
 
 from config.settings import (
     LLM_BASE_URL,
@@ -17,14 +16,14 @@ logger = logging.getLogger(__name__)
 
 def get_chat_llm(
     *,
-    model: Optional[str] = None,
-    base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
+    model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
     temperature: float = 0.0,
-    max_tokens: Optional[int] = None,
+    max_tokens: int | None = None,
     max_retries: int = LLM_MAX_RETRIES,
-    reasoning_effort: Optional[str] = None,
-    model_kwargs: Optional[dict] = None,
+    reasoning_effort: str | None = None,
+    model_kwargs: dict | None = None,
 ):
     """Build the chat client for the configured Ollama server (OpenAI-compatible API)."""
     from langchain_openai import ChatOpenAI

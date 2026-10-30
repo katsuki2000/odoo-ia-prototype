@@ -1,9 +1,4 @@
-"""
-core/verification/
-
-Deterministic answer verification: no LLM,
-claims are extracted by lexical form and checked against tool evidence and the code graph.
-"""
+"""Deterministic answer verification: no LLM, claims are extracted by lexical form and checked against this turn's evidence."""
 
 from core.schemas import ClaimType, UnsupportedClaim, VerificationReport, VerifierMode
 

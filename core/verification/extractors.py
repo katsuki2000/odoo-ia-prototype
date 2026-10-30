@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
 
 from core.schemas import ClaimType
 
@@ -45,7 +44,7 @@ class NumberToken:
     raw: str
     start: int
     end: int
-    readings: Tuple[NumberReading, ...]
+    readings: tuple[NumberReading, ...]
 
 
 @dataclass(frozen=True)
@@ -53,8 +52,8 @@ class Claim:
     claim_type: ClaimType
     text: str
     key: str
-    spans: Tuple[Tuple[int, int], ...]
-    readings: Tuple[NumberReading, ...] = ()
+    spans: tuple[tuple[int, int], ...]
+    readings: tuple[NumberReading, ...] = ()
     owner: str = ""
     name: str = ""
 
@@ -78,7 +77,7 @@ def _reading(plain: str) -> NumberReading:
     return NumberReading(float(plain), decimals)
 
 
-def _read_number(raw: str) -> Tuple[NumberReading, ...]:
+def _read_number(raw: str) -> tuple[NumberReading, ...]:
     text = raw.replace("\u00a0", " ").replace("\u202f", " ")
     space_grouped = " " in text or "'" in text
     compact = text.replace(" ", "").replace("'", "")
@@ -100,15 +99,15 @@ def _read_number(raw: str) -> Tuple[NumberReading, ...]:
     return (as_decimal,)
 
 
-def find_number_tokens(text: str) -> List[NumberToken]:
+def find_number_tokens(text: str) -> list[NumberToken]:
     return [
         NumberToken(match.group(), match.start(), match.end(), _read_number(match.group()))
         for match in _NUMBER_RE.finditer(text)
     ]
 
 
-def _merge(claims: List[Claim]) -> List[Claim]:
-    merged: Dict[Tuple[ClaimType, str], Claim] = {}
+def _merge(claims: list[Claim]) -> list[Claim]:
+    merged: dict[tuple[ClaimType, str], Claim] = {}
     for claim in claims:
         known = merged.get((claim.claim_type, claim.key))
         if known is None:
@@ -121,7 +120,7 @@ def _merge(claims: List[Claim]) -> List[Claim]:
     return list(merged.values())
 
 
-def extract_claims(answer: str) -> List[Claim]:
+def extract_claims(answer: str) -> list[Claim]:
     visible = _mask(answer, (_FENCED_CODE_RE, _LINK_TARGET_RE, SOURCE_FOOTER_RE, SYSTEM_BLOCK_RE))
     claims = [
         Claim(ClaimType.GROUP, match.group(), match.group(), ((match.start(), match.end()),))

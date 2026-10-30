@@ -6,7 +6,7 @@ import logging
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from config.settings import OBSERVATION_PREVIEW_CHARS, QUESTION_PREVIEW_CHARS
 
@@ -21,7 +21,7 @@ class ReasoningHop:
     hop_index: int
     timestamp: str
     tool_name: str
-    tool_args: Dict[str, Any]
+    tool_args: dict[str, Any]
     observation_summary: str
     elapsed_ms: float
 
@@ -36,8 +36,8 @@ class ReasoningSummary:
     llm_call_count: int
     total_time_ms: float
     hop_cap_hit: bool
-    fallback_reason: Optional[str] = None
-    final_message_preview: Optional[str] = None
+    fallback_reason: str | None = None
+    final_message_preview: str | None = None
 
 
 def _now() -> str:
@@ -49,7 +49,7 @@ def new_trace_id() -> str:
 
 
 class ReasoningTraceLogger:
-    def __init__(self, log_filepath: Optional[Path] = None):
+    def __init__(self, log_filepath: Path | None = None):
         self.log_filepath = Path(log_filepath or DEFAULT_LOG_PATH)
         self.log_filepath.parent.mkdir(parents=True, exist_ok=True)
 
@@ -61,8 +61,8 @@ class ReasoningTraceLogger:
         except Exception as error:
             _logger.error("Failed to write reasoning trace record: %s", error)
 
-    def _read_records(self) -> List[Dict[str, Any]]:
-        records: List[Dict[str, Any]] = []
+    def _read_records(self) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
         if not self.log_filepath.exists():
             return records
         try:
@@ -77,7 +77,7 @@ class ReasoningTraceLogger:
         trace_id: str,
         hop_index: int,
         tool_name: str,
-        tool_args: Dict[str, Any],
+        tool_args: dict[str, Any],
         observation: str,
         elapsed_ms: float,
     ) -> ReasoningHop:
@@ -102,9 +102,9 @@ class ReasoningTraceLogger:
         hop_count: int,
         llm_call_count: int,
         total_time_ms: float,
-        hop_cap: Optional[int] = None,
-        fallback_reason: Optional[str] = None,
-        final_message_preview: Optional[str] = None,
+        hop_cap: int | None = None,
+        fallback_reason: str | None = None,
+        final_message_preview: str | None = None,
     ) -> ReasoningSummary:
         summary = ReasoningSummary(
             trace_id=trace_id,
@@ -125,9 +125,9 @@ class ReasoningTraceLogger:
         )
         return summary
 
-    def read_recent(self, limit: int = 20, record_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    def read_recent(self, limit: int = 20, record_type: str | None = None) -> list[dict[str, Any]]:
         records = [r for r in self._read_records() if record_type is None or r.get("record_type") == record_type]
         return records[-limit:]
 
-    def read_trace(self, trace_id: str) -> List[Dict[str, Any]]:
+    def read_trace(self, trace_id: str) -> list[dict[str, Any]]:
         return [r for r in self._read_records() if r.get("trace_id") == trace_id]

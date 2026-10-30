@@ -1,7 +1,6 @@
 """Verify answers against this request's evidence."""
 
 import logging
-from typing import Tuple
 
 from config.settings import ANSWER_VERIFIER_MODE
 from core.evidence.disclosure import filter_disclosed_evidence
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 VERIFIER_MODE = VerifierMode.parse(ANSWER_VERIFIER_MODE)
 
 
-def _evidence(state: RAGState) -> Tuple[Tuple[str, ...], Tuple[float, ...]]:
+def _evidence(state: RAGState) -> tuple[tuple[str, ...], tuple[float, ...]]:
     if answered_by_documents(state):
         return tuple(chunk.get('document', '') for chunk in state.get('retrieved_chunks') or []), ()
     turn_evidence = filter_disclosed_evidence(peek_turn_evidence())

@@ -1,8 +1,4 @@
-"""
-core/graph/__init__.py
-
-Regroupement : graph_nodes.py, graph.py.
-"""
+"""LangGraph pipeline: nodes and graph builder."""
 
 from .graph_nodes import (
     retrieve,

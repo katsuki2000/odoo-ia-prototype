@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, FrozenSet, Iterable, Tuple
+from typing import Any, Iterable
 
 from core.verification.base_methods import BUILTIN_NAMES
 from core.verification.extractors import find_number_tokens
@@ -21,16 +21,16 @@ def flatten_numeric_values(value: Any) -> Iterable[float]:
 
 @dataclass
 class VerificationContext:
-    texts: Tuple[str, ...] = ()
-    numeric_values: Tuple[float, ...] = ()
-    base_methods: FrozenSet[str] = frozenset()
+    texts: tuple[str, ...] = ()
+    numeric_values: tuple[float, ...] = ()
+    base_methods: frozenset[str] = frozenset()
 
     @cached_property
     def evidence_text(self) -> str:
         return "\n".join(self.texts)
 
     @cached_property
-    def evidence_numbers(self) -> Tuple[float, ...]:
+    def evidence_numbers(self) -> tuple[float, ...]:
         from_text = (
             reading.value
             for token in find_number_tokens(self.evidence_text)
@@ -39,5 +39,5 @@ class VerificationContext:
         return tuple(self.numeric_values) + tuple(from_text)
 
     @cached_property
-    def native_method_names(self) -> FrozenSet[str]:
+    def native_method_names(self) -> frozenset[str]:
         return BUILTIN_NAMES | self.base_methods

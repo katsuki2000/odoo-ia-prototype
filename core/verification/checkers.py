@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 from core.schemas import ClaimType
 from core.verification.context import VerificationContext
@@ -14,7 +13,7 @@ def _contains_token(text: str, token: str) -> bool:
     return re.search(rf"(?<!\w){re.escape(token)}(?!\w)", text) is not None
 
 
-def check_number(claim: Claim, context: VerificationContext) -> Optional[str]:
+def check_number(claim: Claim, context: VerificationContext) -> str | None:
     for reading in claim.readings:
         tolerance = 0.5 * 10 ** -reading.decimals + 1e-9
         if any(abs(reading.value - known) <= tolerance for known in context.evidence_numbers):
@@ -22,13 +21,13 @@ def check_number(claim: Claim, context: VerificationContext) -> Optional[str]:
     return REASON_NO_MATCHING_VALUE
 
 
-def check_group(claim: Claim, context: VerificationContext) -> Optional[str]:
+def check_group(claim: Claim, context: VerificationContext) -> str | None:
     if _contains_token(context.evidence_text, claim.key):
         return None
     return REASON_NOT_IN_EVIDENCE
 
 
-def check_method(claim: Claim, context: VerificationContext) -> Optional[str]:
+def check_method(claim: Claim, context: VerificationContext) -> str | None:
     if claim.name in context.native_method_names:
         return None
     if _contains_token(context.evidence_text, claim.name):
