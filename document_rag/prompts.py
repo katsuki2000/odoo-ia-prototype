@@ -35,7 +35,7 @@ Si une information n'est pas soutenue par les extraits documentaires fournis, in
 6. Si les preuves documentaires sont insuffisantes, indique clairement que la question n'est pas résolue.
 7. Si aucune information pertinente n'est disponible dans le contexte documentaire, réponds exactement :
 
-"Je n'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable pour plus de détails."
+"{no_documents_answer}"
 
 8. Si la question est hors périmètre Odoo ou ERP, réponds exactement :
 
