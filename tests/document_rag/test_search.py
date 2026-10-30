@@ -403,3 +403,29 @@ def test_vector_search_lets_a_backend_failure_reach_the_caller():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_hybrid_search_applies_metadata_filters_to_bm25_candidates():
+    manager = Mock()
+    manager.query.return_value = {"results": [], "count": 0}
+    manager.collection.get.return_value = {"ids": ["allowed"]}
+    bm25 = Mock()
+    bm25.search.return_value = [
+        {"id": "allowed", "document": "matching allowed chunk", "metadata": {"module": "account"}, "score": 2.0},
+        {"id": "blocked", "document": "matching blocked chunk", "metadata": {"module": "sale"}, "score": 1.0},
+    ]
+
+    results = hybrid_search(
+        manager, bm25, "matching", where={"module": {"$eq": "account"}}, relevance_threshold=0.0
+    )
+
+    assert [item["id"] for item in results] == ["allowed"]
+    manager.collection.get.assert_called_once_with(where={"module": {"$eq": "account"}}, include=[])
+
+
+def test_bm25_index_build_propagates_collection_read_failures():
+    manager = Mock()
+    manager.collection.get.side_effect = RuntimeError("collection unavailable")
+
+    with pytest.raises(RuntimeError, match="collection unavailable"):
+        BM25Index().build_from_chroma(manager)
