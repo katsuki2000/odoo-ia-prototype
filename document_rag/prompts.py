@@ -11,6 +11,8 @@ from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from core.guardrails import OUT_OF_SCOPE_ANSWER
 
 
+NO_DOCUMENTS_ANSWER = "{no_documents_answer}"
+
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
 Tu es un assistant IA interne spécialisé dans la documentation et les procédures de l'ERP Odoo.
 
@@ -111,7 +113,11 @@ def build_rag_messages(
     if chat_history is None:
         chat_history = []
 
-    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context=context_text, out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
+    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(
+        context=context_text,
+        out_of_scope_answer=OUT_OF_SCOPE_ANSWER,
+        no_documents_answer=NO_DOCUMENTS_ANSWER,
+    )
     messages = [SystemMessage(content=system_prompt)]
 
     messages.extend(chat_history[-CHAT_HISTORY_MAX_MESSAGES:])
@@ -121,6 +127,7 @@ def build_rag_messages(
 
 __all__ = [
     "DOCUMENTARY_RAG_SYSTEM_PROMPT",
+    "NO_DOCUMENTS_ANSWER",
     "build_rag_messages",
 ]
 
