@@ -99,3 +99,38 @@ def test_directory_ingestion_uses_injected_loaders_and_tracks_stats(tmp_path):
     assert stats["total_chunks"] == 4
     assert stats["by_type"] == {"doc_pdf": 1, "doc_wiki": 3}
     assert set(stats["by_source"]) == {"one.pdf", "two.txt", "three.md", "four.docx"}
+
+
+def test_pdf_loader_initialization_failure_does_not_block_text_documents(tmp_path):
+    (tmp_path / "one.pdf").write_text("placeholder", encoding="utf-8")
+    (tmp_path / "two.md").write_text("# Title", encoding="utf-8")
+
+    class Manager:
+        def add_chunks(self, chunks, metadatas):
+            return ["chunk"]
+
+    class FailingPdfLoader:
+        def __init__(self, chunk_size, chunk_overlap):
+            raise RuntimeError("PDF support unavailable")
+
+    class FakeWikiLoader:
+        def __init__(self, chunk_size, chunk_overlap):
+            pass
+
+        def load_markdown_file(self, path, scan_root=None):
+            return {"chunks": ["markdown"], "metadatas": [{"source": path.name}]}
+
+    stats = {}
+    ingest_documents_dir(
+        tmp_path,
+        Manager(),
+        stats,
+        chunk_size=100,
+        chunk_overlap=10,
+        pdf_loader_cls=FailingPdfLoader,
+        wiki_loader_cls=FakeWikiLoader,
+    )
+
+    assert stats["total_chunks"] == 1
+    assert stats["by_source"] == {"two.md": 1}
+    assert stats["by_type"] == {"doc_wiki": 1}

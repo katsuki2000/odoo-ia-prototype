@@ -36,11 +36,22 @@ def ingest_documents_dir(
     pdf_files = [path for path in files if path.suffix.lower() == ".pdf"]
     wiki_files = [path for path in files if path.suffix.lower() in {".txt", ".md", ".docx"}]
 
-    pdf_loader = pdf_loader_cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap) if pdf_files else None
-    wiki_loader = wiki_loader_cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap) if wiki_files else None
+    loader_groups = (
+        ("pdfs", pdf_files, pdf_loader_cls),
+        ("wiki", wiki_files, wiki_loader_cls),
+    )
+    for group, selected_files, loader_cls in loader_groups:
+        if not selected_files:
+            continue
 
-    for group, selected_files in (("pdfs", pdf_files), ("wiki", wiki_files)):
         started_at = time.perf_counter()
+        try:
+            loader = loader_cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        except Exception:
+            logger.exception("Could not initialize %s document loader.", group)
+            stats.setdefault("load_times", {})[group] = time.perf_counter() - started_at
+            continue
+
         for file_path in selected_files:
             _ingest_file(
                 file_path,
@@ -49,8 +60,8 @@ def ingest_documents_dir(
                 stats,
                 chunk_size,
                 chunk_overlap,
-                pdf_loader,
-                wiki_loader,
+                loader if group == "pdfs" else None,
+                loader if group == "wiki" else None,
             )
         stats.setdefault("load_times", {})[group] = time.perf_counter() - started_at
 
