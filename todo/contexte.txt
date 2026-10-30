@@ -6100,3 +6100,14 @@ Date : 30/10/2026. Dernière section lue avant écriture : 1693.
 - `tests/document_rag/test_embedding_functions.py` : le test sans serveur vérifie maintenant que le client se construit, puis que l'appel d'embedding échoue avec le message de configuration attendu.
 
 **Vérification** : la CI de la première passe a exécuté 488 tests avec succès et 31 ignorés, mais 30 tests ont échoué sur l'absence de `OLLAMA_HOST`. La même liste de 30 échecs existait sur le commit de départ (485 passés, 31 ignorés). Le correctif vise cette cause commune ; nouvelle exécution CI requise avant validation.
+
+
+## Section 1695 : retrait de l'index ChromaDB local obsolète (30/10/2026)
+
+Date : 30/10/2026. Dernière section lue avant écriture : 1694.
+
+**Constat** : `document_rag/vectorstore/chroma_db_1024/` contient une base SQLite et des fichiers HNSW persistés, mais aucun code de la branche ne la référence. La configuration active pointe vers `document_rag/vectorstore/chroma_db`. Le motif Git ignore ne couvrait que ce nom exact, ce qui a laissé l'ancien index de dimension 1024 versionné.
+
+**Modifications** : suppression de la base ChromaDB générée et obsolète ; généralisation du motif `.gitignore` à `document_rag/vectorstore/chroma_db*/` afin que les variantes locales ne soient plus suivies. Les documents sources et le code de création de collection restent versionnés ; l'index est régénéré depuis les documents.
+
+**Vérification** : aucune référence au nom `chroma_db_1024` n'a été trouvée dans le code indexé de la branche ; la configuration active confirme l'utilisation de `CHROMA_PATH` sous `chroma_db`. Aucun test logiciel requis pour la suppression de cet artefact.
