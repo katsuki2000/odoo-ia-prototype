@@ -40,7 +40,7 @@ def generate(state: RAGState) -> dict:
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
         response = AssistantResponse(
-            answer="I have no reliable source to answer this question.",
+            answer=NO_DOCUMENTS_ANSWER,
             sources=[],
             confidence=0.0,
         )
@@ -52,7 +52,7 @@ def generate(state: RAGState) -> dict:
         )
         return {"response": response, "timing": timing}
 
-    from document_rag.prompts import build_rag_messages as build_messages
+    from document_rag.prompts import NO_DOCUMENTS_ANSWER, build_rag_messages as build_messages
 
     alias_map = _build_source_aliases(chunks)
     context_text = _format_context(alias_map)
@@ -86,7 +86,7 @@ def generate(state: RAGState) -> dict:
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
-                answer=f"Sorry, an error occurred during generation. Details: {str(e2)}",
+                answer="Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer.",
                 sources=[],
                 confidence=0.0,
             )
