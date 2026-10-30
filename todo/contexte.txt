@@ -42,3 +42,9 @@ La PR reste non fusionnée : https://github.com/katsuki2000/odoo-ia-prototype/pu
 - Le cas est couvert par un test dédié, ainsi que la récupération multi-collections.
 
 - L'expansion dominante et l'expansion contiguë regroupent maintenant les résultats par source et collection, pas seulement par nom de fichier. Le chunk candidat sert à retrouver la collection propriétaire avant de charger les voisins ; cela évite de mélanger deux fichiers homonymes indexés dans des collections distinctes.
+
+### Génération documentaire
+
+- Le message de repli sans résultat est maintenant défini une seule fois dans `document_rag/prompts.py` et partagé par le prompt et le nœud de génération. Le comportement ne diverge plus entre le cas sans chunks et les instructions données au LLM.
+- Les détails d'une exception de génération restent dans les journaux serveur ; ils ne sont plus renvoyés dans la réponse utilisateur.
+- Tests adaptés/ajoutés pour le message sans preuve et l'absence de fuite du détail d'exception.
