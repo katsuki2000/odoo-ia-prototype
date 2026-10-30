@@ -464,4 +464,4 @@ def test_fetch_source_chunks_uses_the_collection_containing_the_seed_chunk():
     chunks = fetch_source_chunks([first, second], "manual.pdf", chunk_id="chunk-0")
 
     assert list(chunks) == [0]
-    second.collection.get.assert_called_once_with(ids=["chunk-0"], include=["metadatas"])
+    second.collection.get.assert_not_called()
