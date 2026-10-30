@@ -236,7 +236,7 @@ class TestIngestionPipeline(unittest.TestCase):
             initial_count = len(ids)
 
             # Delete by source
-            source_name = str(txt_path)
+            source_name = metadatas[0]["source"]
             deleted = self.orchestrator.docs_manager.delete_by_source(source_name)
 
             self.assertEqual(deleted, initial_count)

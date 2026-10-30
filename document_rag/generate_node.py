@@ -37,10 +37,12 @@ def generate(state: RAGState) -> dict:
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
 
+    from document_rag.prompts import NO_DOCUMENTS_ANSWER
+
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
         response = AssistantResponse(
-            answer="I have no reliable source to answer this question.",
+            answer=NO_DOCUMENTS_ANSWER,
             sources=[],
             confidence=0.0,
         )
@@ -86,7 +88,7 @@ def generate(state: RAGState) -> dict:
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
-                answer=f"Sorry, an error occurred during generation. Details: {str(e2)}",
+                answer="Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer.",
                 sources=[],
                 confidence=0.0,
             )

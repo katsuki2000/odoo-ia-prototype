@@ -32,8 +32,8 @@ class Collection:
         return {'ids': keys, 'metadatas': [dict(self.rows[key]) for key in keys]}
 
     def update(self, ids, metadatas):
-        for key, patch in zip(ids, metadatas):
-            self.rows[key].update(patch)
+        for key, metadata in zip(ids, metadatas):
+            self.rows[key] = dict(metadata)
 
 
 class Manager:
@@ -136,7 +136,11 @@ class SharedDriveSyncTests(unittest.TestCase):
         self.manager.collection.fail_deletes = True
         with self.assertRaises(RuntimeError):
             self.sync()
-        self.assertIs(self.manager.collection.rows['old']['drive_active'], False)
+        metadata = self.manager.collection.rows['old']
+        self.assertIs(metadata['drive_active'], False)
+        self.assertEqual(metadata['origin'], 'google_drive')
+        self.assertEqual(metadata['drive_file_id'], 'old_file')
+        self.assertEqual(metadata['source'], 'old_source')
         self.assertEqual(filter_current_drive_chunks([candidate()], self.manager), [])
 
     def test_current_documents_are_indexed(self):

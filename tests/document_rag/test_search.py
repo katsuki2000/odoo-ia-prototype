@@ -31,6 +31,7 @@ from document_rag.vectorstore.search import (
     vector_search,
 )
 from document_rag.vectorstore.chroma_manager import ChromaManager
+from document_rag.vectorstore.search_contiguous import fetch_source_chunks
 
 
 class TestTokenizer(unittest.TestCase):
@@ -399,6 +400,67 @@ def test_vector_search_lets_a_backend_failure_reach_the_caller():
     manager.query.side_effect = ConnectionError("embedding server unreachable")
     with pytest.raises(ConnectionError):
         vector_search(manager, "question")
+
+
+def test_hybrid_search_applies_metadata_filters_to_bm25_candidates():
+    manager = Mock()
+    manager.query.return_value = {"results": [], "count": 0}
+    manager.collection.get.return_value = {"ids": ["allowed"]}
+    bm25 = Mock()
+    bm25.search.return_value = [
+        {"id": "allowed", "document": "matching allowed chunk", "metadata": {"module": "account"}, "score": 2.0},
+        {"id": "blocked", "document": "matching blocked chunk", "metadata": {"module": "sale"}, "score": 1.0},
+    ]
+
+    results = hybrid_search(
+        manager, bm25, "matching", where={"module": {"$eq": "account"}}, relevance_threshold=0.0
+    )
+
+    assert [item["id"] for item in results] == ["allowed"]
+    manager.collection.get.assert_called_once_with(where={"module": {"$eq": "account"}}, include=[])
+
+
+def test_bm25_index_build_propagates_collection_read_failures():
+    manager = Mock()
+    manager.collection.get.side_effect = RuntimeError("collection unavailable")
+
+    with pytest.raises(RuntimeError, match="collection unavailable"):
+        BM25Index().build_from_chroma(manager)
+
+
+def test_fetch_source_chunks_reads_all_configured_collections():
+    first = Mock()
+    first.collection.get.return_value = {
+        "ids": ["chunk-0"], "documents": ["first"],
+        "metadatas": [{"source": "manual.pdf", "chunk_index": 0}],
+    }
+    second = Mock()
+    second.collection.get.return_value = {
+        "ids": ["chunk-1"], "documents": ["second"],
+        "metadatas": [{"source": "manual.pdf", "chunk_index": 1}],
+    }
+
+    chunks = fetch_source_chunks([first, second], "manual.pdf")
+
+    assert [chunks[index]["id"] for index in sorted(chunks)] == ["chunk-0", "chunk-1"]
+
+
+def test_fetch_source_chunks_uses_the_collection_containing_the_seed_chunk():
+    first = Mock()
+    first.collection.get.side_effect = [
+        {"ids": ["chunk-0"], "metadatas": [{"source": "manual.pdf", "chunk_index": 0}]},
+        {"ids": ["chunk-0"], "documents": ["first"],
+         "metadatas": [{"source": "manual.pdf", "chunk_index": 0}]},
+    ]
+    second = Mock()
+    second.collection.get.return_value = {
+        "ids": ["chunk-1"], "metadatas": [{"source": "manual.pdf", "chunk_index": 1}],
+    }
+
+    chunks = fetch_source_chunks([first, second], "manual.pdf", chunk_id="chunk-0")
+
+    assert list(chunks) == [0]
+    second.collection.get.assert_not_called()
 
 
 if __name__ == "__main__":

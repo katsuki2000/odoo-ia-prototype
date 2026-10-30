@@ -75,6 +75,7 @@ GOOGLE_DRIVE_FOLDER_IDS = tuple(dict.fromkeys(
     value.strip() for value in os.getenv('GOOGLE_DRIVE_FOLDER_IDS', '').split(',') if value.strip()))
 GOOGLE_DRIVE_APPROVED_FOR_RAG = os.getenv('GOOGLE_DRIVE_APPROVED_FOR_RAG', '').lower() == 'true'
 RAG_DOCS_PATH = str(_ROOT / 'document_rag' / 'documents')
+RAG_LOGS_PATH = str(_ROOT / 'document_rag' / 'ingestion' / 'logs')
 RAG_CHUNK_SIZE = 512
 RAG_CHUNK_OVERLAP = 50
 DOCUMENT_MAX_TOKENS = 2048

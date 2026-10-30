@@ -11,6 +11,8 @@ from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from core.guardrails import OUT_OF_SCOPE_ANSWER
 
 
+NO_DOCUMENTS_ANSWER = "Je n'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails."
+
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
 Tu es un assistant IA interne spécialisé dans la documentation et les procédures de l'ERP Odoo.
 
@@ -33,7 +35,7 @@ Si une information n'est pas soutenue par les extraits documentaires fournis, in
 6. Si les preuves documentaires sont insuffisantes, indique clairement que la question n'est pas résolue.
 7. Si aucune information pertinente n'est disponible dans le contexte documentaire, réponds exactement :
 
-"Je n'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable pour plus de détails."
+"{no_documents_answer}"
 
 8. Si la question est hors périmètre Odoo ou ERP, réponds exactement :
 
@@ -111,7 +113,11 @@ def build_rag_messages(
     if chat_history is None:
         chat_history = []
 
-    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context=context_text, out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
+    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(
+        context=context_text,
+        out_of_scope_answer=OUT_OF_SCOPE_ANSWER,
+        no_documents_answer=NO_DOCUMENTS_ANSWER,
+    )
     messages = [SystemMessage(content=system_prompt)]
 
     messages.extend(chat_history[-CHAT_HISTORY_MAX_MESSAGES:])
@@ -121,6 +127,7 @@ def build_rag_messages(
 
 __all__ = [
     "DOCUMENTARY_RAG_SYSTEM_PROMPT",
+    "NO_DOCUMENTS_ANSWER",
     "build_rag_messages",
 ]
 

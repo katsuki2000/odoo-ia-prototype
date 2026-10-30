@@ -12,7 +12,7 @@ from document_rag.generate_helpers import verify_used_sources
 def test_generate_without_context_returns_no_source_answer():
     state = {'question': 'Où est le bureau ?', 'chat_history': [], 'retrieved_chunks': []}
     result = generate(state)
-    assert result['response'].answer == "I have no reliable source to answer this question."
+    assert result['response'].answer == "Je n'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails."
     assert result['response'].confidence == 0.0
     assert not result['response'].sources
 
@@ -84,3 +84,21 @@ def test_used_sources_deduplicate_same_document():
     result = verify_used_sources(['S1', 'S2'], alias_map)
     assert len(result) == 1
     assert result[0].snippet == 'Première section'
+
+
+@patch('document_rag.generate_node._build_llm')
+def test_generation_failure_does_not_expose_internal_exception(mock_build_llm):
+    llm = MagicMock()
+    mock_build_llm.return_value = llm
+    llm.with_structured_output.return_value.invoke.side_effect = RuntimeError('internal endpoint secret')
+    llm.invoke.side_effect = RuntimeError('internal endpoint secret')
+    state = {
+        'question': 'Comment faire ?',
+        'chat_history': [],
+        'retrieved_chunks': [{'document': 'context', 'metadata': {'source': 'guide.md'}}],
+    }
+
+    result = generate(state)
+
+    assert result['response'].answer == "Une erreur est survenue lors de la génération de la réponse. Veuillez réessayer."
+    assert 'internal endpoint secret' not in result['response'].answer
