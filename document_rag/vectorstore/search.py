@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
-from config.settings import RAG_BM25_WEIGHT, RAG_RELEVANCE_THRESHOLD, RAG_VECTOR_WEIGHT, VECTOR_SIMILARITY_FLOOR
+from config.settings import (
+    QUESTION_PREVIEW_CHARS,
+    RAG_BM25_WEIGHT,
+    RAG_RELEVANCE_THRESHOLD,
+    RAG_VECTOR_WEIGHT,
+    VECTOR_SIMILARITY_FLOOR,
+)
 from document_rag.vectorstore.bm25_index import _STOP_WORDS, _tokenize, BM25Index, bm25_search
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search_hybrid import hybrid_search, vector_search
@@ -31,12 +37,12 @@ def retrieve(query: str, top_k: int = 5, chroma_manager: ChromaManager | list[Ch
                                    relevance_threshold=relevance_threshold, min_similarity=min_similarity, where=where)
     fused_results = filter_current_drive_chunks(fused_results, chroma_manager)
     if not fused_results:
-        logger.warning('No results after hybrid search for query: %s', query[:100])
+        logger.warning('No results after hybrid search for query: %s', query[:QUESTION_PREVIEW_CHARS])
         return []
     final_results = expand_dominant_documents(fused_results[:top_k], chroma_manager=chroma_manager)
     final_results = expand_contiguous_chunks(final_results, chroma_manager=chroma_manager)
     final_results = filter_current_drive_chunks(final_results, chroma_manager)
-    logger.info("Retrieval complete: %d results for query '%s'", len(final_results), query[:80])
+    logger.info("Retrieval complete: %d results for query '%s'", len(final_results), query[:QUESTION_PREVIEW_CHARS])
     top1_excerpt = None
     if final_results:
         top1 = final_results[0]
@@ -45,7 +51,7 @@ def retrieve(query: str, top_k: int = 5, chroma_manager: ChromaManager | list[Ch
                         'score': top1.get('rrf_score', top1.get('score')),
                         'text_excerpt': (top1.get('document') or '')[:400]}
     try:
-        logger.info(json.dumps({'event': 'retrieval_trace', 'question': query, 'vector_weight': vector_weight,
+        logger.info(json.dumps({'event': 'retrieval_trace', 'question': query[:QUESTION_PREVIEW_CHARS], 'vector_weight': vector_weight,
                                 'bm25_weight': bm25_weight, 'fused_count': len(fused_results),
                                 'final_count': len(final_results),
                                 'top1': top1_excerpt, 'results': [

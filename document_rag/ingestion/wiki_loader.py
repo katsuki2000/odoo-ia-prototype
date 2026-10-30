@@ -12,6 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.docx_reader import docx_to_markdown
+from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
@@ -159,17 +160,19 @@ def load_wiki_directory(
     loader = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
 
+    load_methods = {
+        ".txt": loader.load_text_file,
+        ".md": loader.load_markdown_file,
+        ".docx": loader.load_docx_file,
+    }
     for path in sorted(directory.iterdir()):
-        if not path.is_file():
+        method = load_methods.get(path.suffix.lower())
+        if not path.is_file() or method is None or not is_supported_document(path):
             continue
-        suffix = path.suffix.lower()
         try:
-            if suffix == ".txt":
-                documents.append(loader.load_text_file(path, scan_root=root))
-            elif suffix == ".md":
-                documents.append(loader.load_markdown_file(path, scan_root=root))
-        except Exception as e:
-            logger.error("Error processing %s: %s", path, e)
+            documents.append(method(path, scan_root=root))
+        except Exception:
+            logger.exception("Failed to process document: %s", path.name)
 
-    logger.info("Loaded %d wiki files from %s", len(documents), directory)
+    logger.info("Loaded %d text-based documents from %s", len(documents), directory)
     return documents

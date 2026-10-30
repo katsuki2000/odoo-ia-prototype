@@ -6067,3 +6067,33 @@ Date : 30/10/2026. Dernier numéro lu avant écriture : 1691. Sauvegardes : `.sc
 4. *Constantes* : `QUESTION_PREVIEW_CHARS` et `OBSERVATION_PREVIEW_CHARS` dans `config/settings.py` ; trace logger, `graph.py` et `test_query_graph.py` importent de là.
 **Vérification (exécutions réelles)** : `py_compile` et `pyflakes` propres (`core`, `evaluation`, `api`, fichiers modifiés) ; `pytest tests erp_data/tests -m "not integration" -n auto` : 515 passés, 31 ignorés (serveur d'embeddings injoignable cette fois), 0 échec. Non exécuté : l'addon dans Odoo (voir « A faire par pmm » de la 1692). Aucun commit.
 **Revue de `core/`** : plus aucun point ouvert dans la liste de la 1689.
+
+
+## Section 1693 : refactoring du pipeline documentaire pour le PoC (plan, journal avant code, 30/10/2026)
+
+Date : 30/10/2026. Branche de travail : `refactor/document-rag-poc`, créée depuis `memoire-final` (`b6542435ffa5e40d014380116bd04888ec51b6cc`). Branche source laissée intacte. Dernière section lue avant toute modification : 1692.
+**Mandat (pmm)** : « tu peux créer une branche où tu vas refactoriser document_rag ? faut que ça respecte rules et les bonnes pratiques de codage avec des fichiers bien structurés ».
+**Constat** : le découpage global `document_rag/{ingestion,vectorstore}` + génération est déjà compréhensible et correspond à `architecture.md`; un déplacement massif de fichiers ajouterait des imports et de la maintenance sans valeur pour le PoC. Les causes concrètes retenues : (1) les chargements complets et incrémentaux réimplémentent le dispatch PDF/TXT/MD/DOCX ; Google Drive dépend du chargeur privé d'`incremental.py` ; (2) `ingest_handlers_doc.py` inspecte `sys.modules` pour récupérer des classes patchées au lieu de recevoir ses dépendances explicitement ; (3) `ingest_config.py` duplique les chemins de journaux, crée les répertoires à l'import et expose une constante vide ; (4) `ingest_all(incremental=...)` mémorise une option que son traitement n'utilise pas ; (5) `load_wiki_directory` ignore DOCX alors que le reste de l'ingestion l'accepte ; (6) `reindex_if_changed` résout les chemins relatifs uniquement avec le dossier par défaut, même pour un dossier racine personnalisé ; (7) `vectorstore/search.py` journalise la question documentaire complète dans `retrieval_trace`, alors que `QUESTION_PREVIEW_CHARS` existe.
+**Plan avant code** : ajouter un unique `document_loader.py` pour le dispatch des formats, partagé par ingestion complète, incrémentale et Google Drive ; simplifier le gestionnaire d'ingestion avec injection explicite des classes de chargement ; déplacer les chemins de logs dans `logging_utils.py`, supprimer la configuration d'ingestion redondante et ses effets à l'import ; retirer le paramètre incrémental inopérant de l'orchestrateur (l'API conserve le chemin incrémental dédié) ; aligner DOCX et la résolution des racines personnalisées ; tronquer les traces de recherche ; ajouter des tests ciblés. Conserver les contrats utilisés par l'API, ChromaDB, Google Drive et les tests existants ; ne pas modifier le RAG de génération ni le scoring hybride.
+**Vérification prévue** : tests ciblés `tests/document_rag`, tests Google Drive et tests incrémentaux ; compilation et lint ; CI complète. Aucun test n'est encore déclaré réussi.
+
+
+## Section 1693 (suite) : refactoring du RAG documentaire réalisé et vérifié (30/10/2026)
+
+Date : 30/10/2026. Branche : \`refactor/document-rag-poc\`, créée depuis \`memoire-final\`. La branche source reste inchangée. Dernier numéro lu avant l'exécution : 1693 (plan).
+
+**Fait** :
+1. Nouveau \`document_rag/ingestion/document_loader.py\` : dispatch partagé pour PDF, TXT, Markdown et DOCX ; contrôle de cohérence entre chunks et métadonnées.
+2. \`ingest_handlers_doc.py\` : dispatch commun, dépendances injectées explicitement (plus d'inspection de \`sys.modules\`), isolation par fichier et par format ; l'échec d'initialisation d'un chargeur ne bloque pas l'autre famille de documents.
+3. \`incremental.py\` et \`google_drive_sync.py\` : réutilisent le chargeur partagé ; suppression du chargeur privé du module incrémental. Les racines fournies par l'appelant sont utilisées pour résoudre les sources relatives.
+4. \`wiki_loader.py\` : \`load_wiki_directory\` accepte maintenant DOCX et ignore les fichiers non pris en charge / fichiers temporaires Office.
+5. \`ingest_all.py\`, \`ingest_cli.py\`, \`logging_utils.py\`, \`scan_root.py\`, \`scheduler.py\` : orchestration simplifiée ; chemins DOCS/LOGS définis dans leurs modules responsables ; \`ingest_config.py\` supprimé (configuration dupliquée, constante vide et création de répertoires à l'import). Le dossier documentaire par défaut est créé au démarrage de l'ingestion ou du scan via \`ensure_docs_dir\`, sans effet de bord à l'import. Le paramètre \`incremental\` inopérant de l'orchestrateur est retiré ; l'API continue d'utiliser \`reindex_if_changed\` pour l'actualisation incrémentale.
+6. \`api/routes_ingestion.py\` : retrait du paramètre devenu inutile lors du reindex complet.
+7. \`vectorstore/search.py\` : la trace de récupération conserve le champ \`question\` pour compatibilité, mais ne journalise plus que \`QUESTION_PREVIEW_CHARS\`.
+8. Tests ajoutés / complétés : dispatch et validation du chargeur commun ; injection des chargeurs dans le gestionnaire ; DOCX dans le chargement de répertoire ; racines incrémentales personnalisées ; création du dossier documentaire à la demande ; absence de la question complète dans les traces.
+
+**Conservation du périmètre** : aucune modification du RAG de génération, du modèle d'embedding, de la configuration de ChromaDB, de l'algorithme de recherche hybride ou du scoring BM25/vectoriel. Les callbacks de chargement personnalisés de Google Drive restent acceptés.
+
+**Vérification CI** : workflow \`Python Tests and OCA Coverage\`, commit \`d1f141a89292c3c576a1065caf771a9d4aacd042\` : **499 passés, 31 ignorés, 30 échecs, 18 sous-tests passés**. Les 30 échecs sont tous des erreurs \`ValueError: No inference server configured: set OLLAMA_HOST in .env\` lors de l'initialisation de ChromaManager. Le workflow du commit de base de cette branche (avant le refactoring) présentait déjà les mêmes 30 erreurs ; aucun des nouveaux tests du refactoring ne figure dans la liste des échecs. L'étape de couverture n'a pas été exécutée à la suite de l'échec de la suite. Aucun résultat de lint indépendant n'est revendiqué.
+
+**Limite de validation** : la CI ne dispose pas d'un serveur d'embeddings ; l'intégration RAG réelle doit toujours être rejouée dans l'environnement MIRO avec le serveur configuré. Aucun test n'a été exécuté contre l'instance Odoo de l'utilisateur pendant cette session.

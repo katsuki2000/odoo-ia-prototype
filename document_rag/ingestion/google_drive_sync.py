@@ -8,6 +8,7 @@ from urllib.error import HTTPError
 
 from config.google_drive import DEFAULT_MAX_FILES
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
+from document_rag.ingestion.document_loader import load_document
 from document_rag.ingestion.google_drive import document_suffix, validate_drive_id
 
 
@@ -90,8 +91,7 @@ def _refresh_document(client, record, manager, loader, chunk_size, chunk_overlap
 def refresh_documents(client, records, manager, loader=None, chunk_size=RAG_CHUNK_SIZE, chunk_overlap=RAG_CHUNK_OVERLAP):
     """Index new and changed readable documents; a failed document keeps its previous chunks."""
     if loader is None:
-        from document_rag.ingestion.incremental import _load_file
-        loader = _load_file
+        loader = load_document
     result = {'added': [], 'updated': [], 'skipped': [], 'failed': {}, 'chunks_added': 0, 'chunks_deleted': 0}
     profile = f'google-drive-v1:{chunk_size}:{chunk_overlap}'
     for record in records:

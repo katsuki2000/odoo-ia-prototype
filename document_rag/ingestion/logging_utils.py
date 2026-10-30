@@ -13,8 +13,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
+LOGS_DIR = Path(__file__).resolve().parent / "logs"
 INGESTION_LOG = LOGS_DIR / "ingestion.log"
 
 
@@ -58,8 +57,8 @@ def write_ingestion_event(
         LOGS_DIR.mkdir(parents=True, exist_ok=True)
         with open(INGESTION_LOG, "a", encoding="utf-8") as log_file:
             log_file.write(json.dumps(event, ensure_ascii=False) + "\n")
-    except Exception as exc:
-        logger.error("Failed writing ingestion event log: %s", exc)
+    except (OSError, TypeError, ValueError) as exc:
+        logger.error("Failed writing ingestion event log: %s", type(exc).__name__)
 
     return event
 

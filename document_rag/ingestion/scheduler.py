@@ -9,7 +9,7 @@ from config.settings import SCHEDULER_INTERVAL_HOURS
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.ingestion.periodic import run_periodically
-from document_rag.ingestion.scan_root import DOCS_DIR
+from document_rag.ingestion.scan_root import DOCS_DIR, ensure_docs_dir
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,10 @@ INGESTION_STATUS: dict[str, Any] = {
 
 def run_scan(scan_type, roots=None, docs_manager=None, status_dict=None):
     started_at = start_timer()
-    result = reindex_if_changed(roots if roots is not None else [DOCS_DIR], docs_manager=docs_manager or ChromaManager())
+    if roots is None:
+        ensure_docs_dir()
+        roots = [DOCS_DIR]
+    result = reindex_if_changed(roots, docs_manager=docs_manager or ChromaManager())
     if status_dict is not None:
         status_dict["last_ingestion_time"] = now_iso()
         status_dict["last_result"] = result

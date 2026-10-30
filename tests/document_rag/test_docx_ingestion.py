@@ -6,7 +6,7 @@ from document_rag.ingestion import ingest_handlers_doc
 from document_rag.ingestion.docx_reader import docx_to_markdown
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.incremental import _scan_supported_files
-from document_rag.ingestion.wiki_loader import WikiLoader
+from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 
 
 def set_list_level(paragraph, level):
@@ -85,3 +85,13 @@ def test_ingest_documents_dir_indexes_docx_and_skips_lock_files(docs_dir):
     ingest_handlers_doc.ingest_documents_dir(docs_dir, Manager(), stats, chunk_size=200, chunk_overlap=20)
     assert sorted(stats["by_source"]) == ["notes.txt", "plan.docx"]
     assert stats["by_type"]["doc_wiki"] == stats["total_chunks"]
+
+
+def test_wiki_directory_loader_includes_docx_and_skips_office_lock_files(docs_dir):
+    documents = load_wiki_directory(docs_dir, chunk_size=200, chunk_overlap=20, scan_root=docs_dir)
+    sources = {
+        metadata["source"]
+        for document in documents
+        for metadata in document["metadatas"]
+    }
+    assert sources == {"notes.txt", "plan.docx"}

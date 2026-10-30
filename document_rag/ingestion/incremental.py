@@ -8,11 +8,10 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlsplit
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
+from document_rag.ingestion.document_loader import load_document
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
-from document_rag.ingestion.pdf_loader import PDFLoader
-from document_rag.ingestion.scan_root import DEFAULT_SCAN_ROOT_CANDIDATES, compute_source, resolve_scan_root
-from document_rag.ingestion.wiki_loader import WikiLoader
+from document_rag.ingestion.scan_root import compute_source, resolve_scan_root
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ def reindex_if_changed(roots: Iterable[str | Path], docs_manager: ChromaManager 
     result = IncrementalResult()
     root_paths = [Path(root).resolve() for root in roots if root is not None and str(root)]
     current_files = _scan_supported_files(root_paths)
-    current_scan_roots = {file_path: resolve_scan_root(file_path, DEFAULT_SCAN_ROOT_CANDIDATES) for file_path in current_files}
+    current_scan_roots = {file_path: resolve_scan_root(file_path, root_paths) for file_path in current_files}
     current_sources = {compute_source(file_path, scan_root) for file_path, scan_root in current_scan_roots.items()}
     for source in sorted(_get_existing_sources(docs_manager)):
         if not _is_under_roots(source, root_paths) or source in current_sources:
@@ -57,7 +56,7 @@ def reindex_if_changed(roots: Iterable[str | Path], docs_manager: ChromaManager 
         scan_root = current_scan_roots[file_path]
         source = compute_source(file_path, scan_root)
         try:
-            chunks, metadatas = _load_file(file_path, chunk_size, chunk_overlap, scan_root)
+            chunks, metadatas = load_document(file_path, chunk_size, chunk_overlap, scan_root)
             if not chunks:
                 result.skipped_files.append(source)
                 continue
@@ -108,21 +107,6 @@ def _is_supported_file(file_path: Path) -> bool:
     return is_supported_document(file_path)
 
 
-def _load_file(file_path: Path, chunk_size: int, chunk_overlap: int, scan_root: Path | None = None) -> tuple[list[str], list[dict[str, Any]]]:
-    suffix = file_path.suffix.lower()
-    if suffix == '.pdf':
-        loaded = PDFLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_and_chunk(file_path, scan_root=scan_root)
-    elif suffix == '.txt':
-        loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_text_file(file_path, scan_root=scan_root)
-    elif suffix == '.md':
-        loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_markdown_file(file_path, scan_root=scan_root)
-    elif suffix == '.docx':
-        loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_docx_file(file_path, scan_root=scan_root)
-    else:
-        raise ValueError(f'Unsupported file type: {file_path.suffix}')
-    return loaded.get('chunks', []), loaded.get('metadatas', [])
-
-
 def _get_existing_sources(manager: ChromaManager) -> set[str]:
     try:
         existing = manager.collection.get(include=['metadatas'])
@@ -156,7 +140,7 @@ def _is_under_roots(source: str, roots: list[Path]) -> bool:
     if urlsplit(source).scheme in {'http', 'https'}:
         return False
     source_path = Path(source)
-    candidates = [source_path] if source_path.is_absolute() else [candidate_root / source_path for candidate_root in DEFAULT_SCAN_ROOT_CANDIDATES]
+    candidates = [source_path] if source_path.is_absolute() else [root / source_path for root in roots if root.is_dir()]
     for candidate in candidates:
         try:
             candidate_resolved = candidate.resolve()
