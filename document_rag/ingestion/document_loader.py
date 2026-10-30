@@ -29,12 +29,12 @@ def load_document(
         result = loader.load_and_chunk(path, scan_root=scan_root)
     else:
         loader = wiki_loader or WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        method = {
-            ".txt": loader.load_text_file,
-            ".md": loader.load_markdown_file,
-            ".docx": loader.load_docx_file,
-        }[suffix]
-        result = method(path, scan_root=scan_root)
+        if suffix == ".txt":
+            result = loader.load_text_file(path, scan_root=scan_root)
+        elif suffix == ".md":
+            result = loader.load_markdown_file(path, scan_root=scan_root)
+        else:
+            result = loader.load_docx_file(path, scan_root=scan_root)
 
     chunks = result.get("chunks") or []
     metadatas = result.get("metadatas") or []

@@ -31,5 +31,5 @@ def test_retrieval_trace_logs_only_a_question_preview(monkeypatch, caplog):
     )
     payload = json.loads(trace)
     assert payload["question"] == query[:QUESTION_PREVIEW_CHARS]
-    assert "question" not in payload
+    assert payload["question"] == query[:QUESTION_PREVIEW_CHARS]
     assert sensitive_suffix not in trace
