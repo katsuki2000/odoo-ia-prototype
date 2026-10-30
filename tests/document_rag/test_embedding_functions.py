@@ -25,10 +25,12 @@ def test_resolve_embedding_function_explicit_model_wins():
         assert resolve_embedding_function(embedding_model="bge-m3").model == "bge-m3"
 
 
-def test_resolve_embedding_function_without_server_raises():
+def test_resolve_embedding_function_does_not_require_a_server_until_embedding():
     with patch("config.settings.EMBEDDING_BASE_URL", ""):
+        fn = resolve_embedding_function()
+        assert isinstance(fn, OllamaEmbeddingFunction)
         with pytest.raises(ValueError, match="No inference server configured"):
-            resolve_embedding_function()
+            fn(["document"])
 
 
 def test_ollama_embedding_function_openai_format():

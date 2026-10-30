@@ -6085,3 +6085,18 @@ Date : 30/10/2026. Dernière section lue avant écriture : 1692. Branche de trav
 - Ajout de tests pour la portabilité des sources et le choix du répertoire racine ; adaptation du test de suppression pour utiliser la source réellement enregistrée, désormais portable.
 
 **Vérification** : tests non exécutés dans cette session ; les modifications ont été préparées via l'API GitHub sans environnement de checkout ni exécution Python du projet. Les tests ajoutés et la suite `tests/document_rag` restent à exécuter avant fusion. Ne pas considérer cette branche comme validée tant que la CI n'est pas verte.
+
+
+## Section 1694 : initialisation différée du client d'embeddings (30/10/2026)
+
+Date : 30/10/2026. Dernière section lue avant écriture : 1693.
+
+**Cause racine** : `ChromaManager` construisait sa collection en appelant `resolve_embedding_function`, qui exigeait immédiatement une adresse de serveur d'inférence. Les opérations locales de stockage, de lecture de métadonnées et de statistiques échouaient donc en CI et en environnement hors ligne, même lorsqu'aucun embedding n'était demandé. La CI de la branche de départ reproduisait déjà ces 30 échecs.
+
+**Plan** : conserver la validation de configuration au moment où un embedding est réellement demandé, et non à la construction du client ou de la collection.
+
+**Modifications** :
+- `document_rag/vectorstore/embedding_functions.py` : le résolveur construit un client sans connexion réseau ; l'URL effective est validée paresseusement lors de l'appel d'embedding ; la construction de l'endpoint est centralisée et distingue explicitement les bases URL terminant par `/v1`.
+- `tests/document_rag/test_embedding_functions.py` : le test sans serveur vérifie maintenant que le client se construit, puis que l'appel d'embedding échoue avec le message de configuration attendu.
+
+**Vérification** : la CI de la première passe a exécuté 488 tests avec succès et 31 ignorés, mais 30 tests ont échoué sur l'absence de `OLLAMA_HOST`. La même liste de 30 échecs existait sur le commit de départ (485 passés, 31 ignorés). Le correctif vise cette cause commune ; nouvelle exécution CI requise avant validation.
