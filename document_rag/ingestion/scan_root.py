@@ -1,82 +1,45 @@
-"""
-Canonical scan-root definitions and helpers shared by the ingestion
-pipeline (ingest_all.py, incremental.py) and loaders
-(wiki_loader.py, pdf_loader.py).
-"""
+"""Portable source identifiers and path validation for document ingestion."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable
 
 from config.settings import RAG_DOCS_PATH
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-
 DOCS_DIR = Path(RAG_DOCS_PATH)
-
-# The root the ingestion pipeline scans. Used as the
-# default candidate list for resolve_scan_root() wherever a caller doesn't
-# know (or care) which specific root a file belongs under.
-DEFAULT_SCAN_ROOT_CANDIDATES: list[Path] = [DOCS_DIR]
+DEFAULT_SCAN_ROOT_CANDIDATES = [DOCS_DIR]
 
 
-def resolve_scan_root(file_path: Path, candidate_roots: Iterable[Path]) -> Optional[Path]:
-    """Return the most specific candidate root that contains file_path.
-
-    Picks the candidate with the longest resolved path (most specific
-    ancestor), so a module directory nested under a broader watched root
-    still resolves against the tightest applicable match. Returns None if
-    no candidate root actually contains file_path (caller should then fall
-    back to an absolute `source`, e.g. compute_source() below).
-    """
+def resolve_scan_root(file_path: Path, candidate_roots: Iterable[Path]) -> Path | None:
+    """Return the most specific configured root containing the file."""
     resolved_file = Path(file_path).resolve()
-    best: Optional[Path] = None
-    for candidate in candidate_roots:
-        candidate = Path(candidate).resolve()
-        if resolved_file == candidate:
-            continue
-        try:
-            resolved_file.relative_to(candidate)
-        except ValueError:
-            continue
-        if best is None or len(candidate.parts) > len(best.parts):
-            best = candidate
-    return best
+    roots = (Path(root).resolve() for root in candidate_roots)
+    matches = (root for root in roots if resolved_file != root and resolved_file.is_relative_to(root))
+    return max(matches, key=lambda root: len(root.parts), default=None)
 
 
 def confine_to_scan_roots(
     path: Path | str,
     candidate_roots: Iterable[Path] = DEFAULT_SCAN_ROOT_CANDIDATES,
 ) -> Path:
-    """Resolve path and accept it only if it lies under a configured scan root.
-
-    The root comes from the settings (RAG_DOCS_PATH). Symlinks are followed via resolve() so a link inside
-    a root cannot escape to the rest of the filesystem.
-    """
+    """Resolve a path and reject files outside configured ingestion roots."""
     resolved = Path(path).resolve()
-    for candidate in candidate_roots:
-        root = Path(candidate).resolve()
-        try:
-            resolved.relative_to(root)
-            return resolved
-        except ValueError:
-            continue
+    if any(resolved.is_relative_to(Path(root).resolve()) for root in candidate_roots):
+        return resolved
     raise ValueError("Path is outside configured ingestion roots.")
 
 
-def compute_source(file_path: Path, scan_root: Optional[Path]) -> str:
-    """Return the `source` metadata value for a loaded file.
+def compute_source(file_path: Path, scan_root: Path | None = None) -> str:
+    """Return a portable source path, relative to its ingestion root when known.
 
-    Relative to scan_root when one is given and file_path is actually
-    under it (portable, machine-independent). Falls back to the absolute
-    path otherwise -- unchanged legacy behavior for callers that don't
-    know their scan root (e.g. a loader called directly in a unit test).
+    Direct loader calls without a root use the filename; batch ingestion must
+    provide its root to distinguish files with the same name.
     """
+    path = Path(file_path).resolve()
     if scan_root is not None:
         try:
-            return str(Path(file_path).resolve().relative_to(Path(scan_root).resolve()))
+            return str(path.relative_to(Path(scan_root).resolve()))
         except ValueError:
             pass
-    return str(file_path)
+    return path.name

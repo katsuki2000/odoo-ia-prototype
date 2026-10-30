@@ -15,9 +15,9 @@ from api.schemas import (
 )
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.incremental import reindex_if_changed
-from document_rag.ingestion.ingest_all import DOCS_DIR, IngestionOrchestrator
+from document_rag.ingestion.ingest_all import IngestionOrchestrator
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
-from document_rag.ingestion.scan_root import confine_to_scan_roots
+from document_rag.ingestion.scan_root import DOCS_DIR, confine_to_scan_roots
 from document_rag.ingestion.scheduler import INGESTION_STATUS, PERIODIC_SCAN, run_scan
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -64,10 +64,7 @@ def reindex_v1(request: ReindexRequestV1):
             result = IngestionOrchestrator(
                 chroma_db_path=manager.db_path,
                 collection_name=manager.collection_name,
-            ).clear_and_reingest(
-                docs_dir=docs_dir.parent if docs_dir.is_file() else docs_dir,
-                incremental=False,
-            )
+            ).clear_and_reingest(docs_dir=docs_dir.parent if docs_dir.is_file() else docs_dir)
     except Exception as exc:
         logger.exception("Reindex failed.")
         write_ingestion_event(

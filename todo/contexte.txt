@@ -6067,3 +6067,21 @@ Date : 30/10/2026. Dernier numéro lu avant écriture : 1691. Sauvegardes : `.sc
 4. *Constantes* : `QUESTION_PREVIEW_CHARS` et `OBSERVATION_PREVIEW_CHARS` dans `config/settings.py` ; trace logger, `graph.py` et `test_query_graph.py` importent de là.
 **Vérification (exécutions réelles)** : `py_compile` et `pyflakes` propres (`core`, `evaluation`, `api`, fichiers modifiés) ; `pytest tests erp_data/tests -m "not integration" -n auto` : 515 passés, 31 ignorés (serveur d'embeddings injoignable cette fois), 0 échec. Non exécuté : l'addon dans Odoo (voir « A faire par pmm » de la 1692). Aucun commit.
 **Revue de `core/`** : plus aucun point ouvert dans la liste de la 1689.
+
+
+## Section 1693 : simplification de l'ingestion documentaire (plan et modifications, 30/10/2026)
+
+Date : 30/10/2026. Dernière section lue avant écriture : 1692. Branche de travail : `refactor/document-rag-cleanup`, créée depuis `memoire-final`.
+
+**Objectif** : réduire les responsabilités du pipeline d'ingestion documentaire, supprimer les effets de bord à l'import et garantir que les métadonnées de source restent portables.
+
+**Modifications** :
+- `document_rag/ingestion/scan_root.py` : suppression de la racine de projet inutilisée ; sélection du répertoire racine le plus spécifique simplifiée ; `compute_source` renvoie un chemin relatif au répertoire d'ingestion ou, pour un appel direct sans racine, le nom du fichier. Aucun chemin absolu de machine n'est enregistré comme source.
+- `document_rag/ingestion/ingest_handlers_doc.py` : remplacement des trois parcours et du mécanisme `sys.modules` par un seul parcours récursif trié ; chargement PDF, TXT, Markdown et DOCX ; injection explicite des classes de loaders ; échec isolé par fichier.
+- `document_rag/ingestion/ingest_all.py` : l'orchestrateur ne réexporte plus des utilitaires sans rapport avec sa responsabilité ; les dépendances de loaders sont transmises explicitement ; validation des paramètres de découpage ; conservation du répertoire précédent pour la réindexation complète.
+- `document_rag/ingestion/ingest_cli.py` et `api/routes_ingestion.py` : imports directs depuis les modules propriétaires.
+- `document_rag/ingestion/logging_utils.py` et `config/settings.py` : chemin de journalisation défini à un seul endroit dans la configuration ; création du répertoire uniquement au moment d'écrire, plus à l'import.
+- Suppression de `document_rag/ingestion/ingest_config.py`, devenu inutile après déplacement des imports.
+- Ajout de tests pour la portabilité des sources et le choix du répertoire racine.
+
+**Vérification** : tests non exécutés dans cette session ; les modifications ont été préparées via l'API GitHub sans environnement de checkout ni exécution Python du projet. Les tests ajoutés et la suite `tests/document_rag` restent à exécuter avant fusion. Ne pas considérer cette branche comme validée tant que la CI n'est pas verte.
