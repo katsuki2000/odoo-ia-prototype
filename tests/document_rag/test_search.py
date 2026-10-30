@@ -31,6 +31,7 @@ from document_rag.vectorstore.search import (
     vector_search,
 )
 from document_rag.vectorstore.chroma_manager import ChromaManager
+from document_rag.vectorstore.search_contiguous import fetch_source_chunks
 
 
 class TestTokenizer(unittest.TestCase):
@@ -429,3 +430,20 @@ def test_bm25_index_build_propagates_collection_read_failures():
 
     with pytest.raises(RuntimeError, match="collection unavailable"):
         BM25Index().build_from_chroma(manager)
+
+
+def test_fetch_source_chunks_reads_all_configured_collections():
+    first = Mock()
+    first.collection.get.return_value = {
+        "ids": ["chunk-0"], "documents": ["first"],
+        "metadatas": [{"source": "manual.pdf", "chunk_index": 0}],
+    }
+    second = Mock()
+    second.collection.get.return_value = {
+        "ids": ["chunk-1"], "documents": ["second"],
+        "metadatas": [{"source": "manual.pdf", "chunk_index": 1}],
+    }
+
+    chunks = fetch_source_chunks([first, second], "manual.pdf")
+
+    assert [chunks[index]["id"] for index in sorted(chunks)] == ["chunk-0", "chunk-1"]
