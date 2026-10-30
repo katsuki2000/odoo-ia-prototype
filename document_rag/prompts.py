@@ -11,7 +11,7 @@ from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from core.guardrails import OUT_OF_SCOPE_ANSWER
 
 
-NO_DOCUMENTS_ANSWER = "{no_documents_answer}"
+NO_DOCUMENTS_ANSWER = "Je n'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails."
 
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
 Tu es un assistant IA interne spécialisé dans la documentation et les procédures de l'ERP Odoo.
