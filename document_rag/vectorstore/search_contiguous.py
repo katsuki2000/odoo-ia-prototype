@@ -37,7 +37,12 @@ def fetch_source_chunks(chroma_manager: Any, source: str, chunk_id: str | None =
                 seed = manager.collection.get(ids=[chunk_id], include=["metadatas"])
             except Exception:
                 continue
-            if chunk_id in seed.get("ids", []) and seed.get("metadatas", [{}])[0].get("source") == source:
+            seed_metadata = next(
+                (metadata for found_id, metadata in zip(seed.get("ids", []), seed.get("metadatas", []))
+                 if found_id == chunk_id),
+                None,
+            )
+            if seed_metadata and seed_metadata.get("source") == source:
                 managers = [manager]
                 break
         else:
