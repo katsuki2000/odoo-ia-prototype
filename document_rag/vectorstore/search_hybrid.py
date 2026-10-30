@@ -33,7 +33,16 @@ def hybrid_search(chroma_manager: ChromaManager | list[ChromaManager], bm25_inde
                   relevance_threshold: float = RAG_RELEVANCE_THRESHOLD, min_similarity: float = VECTOR_SIMILARITY_FLOOR,
                   where: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     vec_results = vector_search(chroma_manager, query, top_k=top_k, where=where, min_similarity=min_similarity)
-    bm25_results_ = filter_current_drive_chunks(bm25_search(bm25_index, query, top_k=top_k), chroma_manager)
+    bm25_results_ = bm25_search(bm25_index, query, top_k=top_k)
+    if where:
+        managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
+        allowed_ids = {
+            chunk_id
+            for manager in managers
+            for chunk_id in manager.collection.get(where=where, include=[]).get('ids', [])
+        }
+        bm25_results_ = [item for item in bm25_results_ if item.get('id') in allowed_ids]
+    bm25_results_ = filter_current_drive_chunks(bm25_results_, chroma_manager)
     logger.info('Hybrid search: %d vector results, %d BM25 results', len(vec_results), len(bm25_results_))
     fused = reciprocal_rank_fusion(vec_results, bm25_results_, vector_weight=vector_weight, bm25_weight=bm25_weight,
                                    relevance_threshold=relevance_threshold)
