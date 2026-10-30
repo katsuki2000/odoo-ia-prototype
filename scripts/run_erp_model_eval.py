@@ -23,22 +23,24 @@ from evaluation.bench_common import (
     normalize,
     pct,
     rescore_runs,
+    result_label,
     run_on_model,
     seconds_text,
 )
+from evaluation.erp_expectations import NotApplicable, compute_expected
 from evaluation.erp_model_worker import run_question as run_question_worker
 from evaluation.preflight import BackendUnavailable, probe_llm
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
 
-QUESTIONS_PATH = project_root / "tests" / "benchmark_questions.json"
+QUESTIONS_PATH = project_root / "tests" / "erp_eval_questions.json"
 RESULTS_PATH = project_root / "captures" / "erp_model_eval.jsonl"
 QUESTION_TIMEOUT_SECONDS = settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS
+ODOO_ERRORS = (BackendUnavailable, OSError, xmlrpc.client.Error, OdooConnectorError)
 
 
 def load_questions(ids):
     with QUESTIONS_PATH.open(encoding="utf-8") as file:
         questions = json.load(file)["questions"]
-    questions = [item for item in questions if item["category"] == "erp_chiffre"]
     return [item for item in questions if not ids or item["id"] in ids]
 
 
@@ -50,12 +52,49 @@ def authenticate_odoo(login, password):
     return uid
 
 
-def _run_isolated_question(question, uid, password, model, timeout_seconds):
+def odoo_executor(uid, password):
+    models = xmlrpc.client.ServerProxy(f"{settings.ODOO_URL}/xmlrpc/2/object")
+    return lambda model, method, args, kwargs=None: models.execute_kw(
+        settings.ODOO_DB, uid, password, model, method, args, kwargs or {},
+    )
+
+
+def connect(login, password):
+    try:
+        uid = authenticate_odoo(login, password)
+    except ODOO_ERRORS as error:
+        print(f"[ERROR] Odoo authentication/preflight failed: {type(error).__name__}: {error}")
+        return None
+    print(f"Authenticated to Odoo as {login} (uid {uid}).")
+    return uid, odoo_executor(uid, password)
+
+
+def attach_expected(todo, execute):
+    applicable = set()
+    for item in {item["id"]: item for item, _ in todo}.values():
+        try:
+            item["expected"] = compute_expected(execute, item)
+            applicable.add(item["id"])
+        except NotApplicable as reason:
+            print(f'[SKIP] {item["id"]}: {reason}')
+    return [(item, pass_number) for item, pass_number in todo if item["id"] in applicable]
+
+
+def show_expected(questions, execute):
+    for item in questions:
+        try:
+            expected = " & ".join(" / ".join(group) for group in compute_expected(execute, item))
+        except NotApplicable as reason:
+            expected = f"skipped ({reason})"
+        print(f'{item["id"]}: {expected}\n    {item["question"]}')
+
+
+def _run_isolated_question(question, uid, password, model, reasoning_effort, timeout_seconds):
     context = multiprocessing.get_context("spawn")
     result_queue = context.Queue()
     process = context.Process(
         target=run_question_worker,
-        args=(question, uid, password, settings.ODOO_DB, model, result_queue),
+        args=(question, uid, password, settings.ODOO_DB, model, reasoning_effort, result_queue),
     )
     try:
         process.start()
@@ -118,14 +157,10 @@ def _run_isolated_question(question, uid, password, model, timeout_seconds):
         result_queue.join_thread()
 
 
-def score(item, answer):
+def score(expected, answer):
     folded_answer = normalize(answer)
-    facts = item["expected_answer_contains"]
-    found = sum(contains_fact(folded_answer, fact) for fact in facts)
-    return {
-        "fact_recall": found / len(facts) if facts else None,
-        "complete": found == len(facts) if facts else None,
-    }
+    found = sum(any(contains_fact(folded_answer, fact) for fact in group) for group in expected)
+    return {"fact_recall": found / len(expected), "complete": found == len(expected)}
 
 
 def _is_backend_error(error):
@@ -135,10 +170,10 @@ def _is_backend_error(error):
     ) or error.get("module", "").startswith(("httpx", "httpcore", "requests", "urllib3"))
 
 
-def run_once(item, uid, password, model):
+def run_once(item, uid, password, model, reasoning_effort=None):
     started_at = time.monotonic()
     result = _run_isolated_question(
-        item["question"], uid, password, model, QUESTION_TIMEOUT_SECONDS,
+        item["question"], uid, password, model, reasoning_effort, QUESTION_TIMEOUT_SECONDS,
     )
     seconds = round(time.monotonic() - started_at, 1)
     answer = result.get("answer", "")
@@ -166,7 +201,7 @@ def run_once(item, uid, password, model):
         "seconds": seconds,
         "timed_out": timed_out,
         "error": error,
-        **score(item, answer),
+        **score(item["expected"], answer),
     }
 
 
@@ -175,7 +210,7 @@ def load_scored_runs():
     return rescore_runs(
         run_store.load_runs(RESULTS_PATH),
         questions,
-        lambda item, record: score(item, record["answer"]),
+        lambda _, record: score(record["expected"], record["answer"]),
     )
 
 
@@ -187,15 +222,18 @@ def describe(record):
     return f'facts {pct(record["fact_recall"])}, tools {record["tool_call_count"]}'
 
 
-def execute(todo, runs, model, server_info, uid, password):
+def run_questions(todo, runs, model, reasoning_effort, server_info, uid, password):
+    label = result_label(model, reasoning_effort)
+
     def build_record(item, pass_number):
         return {
-            "model": model,
+            "model": label,
             "question_id": item["id"],
             "pass_number": pass_number,
             "question": item["question"],
+            "expected": item["expected"],
             **server_info,
-            **run_once(item, uid, password, model),
+            **run_once(item, uid, password, model, reasoning_effort),
         }
 
     return execute_runs(todo, runs, RESULTS_PATH, build_record, describe)
@@ -271,19 +309,21 @@ def main(argv=None):
     parser.add_argument("--model", help="Ollama model name, as listed by `ollama list`")
     parser.add_argument("--ids", nargs="+", help="restrict to ERP question ids")
     parser.add_argument("--passes", type=int, default=3, help="repetitions per question (default: 3)")
+    parser.add_argument("--reasoning-effort", help="reasoning effort sent with each request (ERP_REASONING_EFFORT; `none` switches the reasoning off); recorded as <model>+reasoning_<value>")
     parser.add_argument("--context-length", type=int, default=32768, help="required Ollama context length")
     parser.add_argument("--login", help="Odoo user login for the benchmark (required for a run)")
     parser.add_argument("--retry-errors", action="store_true", help="rerun recorded backend/worker errors")
     parser.add_argument("--fresh", action="store_true", help="discard recorded runs for this model first")
     parser.add_argument("--keep-loaded", action="store_true", help="do not unload the model at the end")
     parser.add_argument("--report", action="store_true", help="report saved results and exit")
+    parser.add_argument("--show-expected", action="store_true", help="print the expected values computed on the instance and exit")
     args = parser.parse_args(argv)
 
     if args.report:
         print_report(load_scored_runs())
         return 0
-    if not args.model:
-        parser.error("--model is required unless --report is given")
+    if not args.model and not args.show_expected:
+        parser.error("--model is required unless --report or --show-expected is given")
     if not args.login:
         parser.error("--login is required for an Odoo evaluation")
     if args.passes < 1:
@@ -297,28 +337,37 @@ def main(argv=None):
     questions = load_questions(args.ids)
     if not questions:
         parser.error("No ERP question matches the filters.")
+    if args.show_expected:
+        session = connect(args.login, password)
+        if session is None:
+            return 2
+        show_expected(questions, session[1])
+        return 0
+    label = result_label(args.model, args.reasoning_effort)
     if args.fresh:
-        run_store.discard_model(RESULTS_PATH, args.model)
+        run_store.discard_model(RESULTS_PATH, label)
     runs = load_scored_runs()
     todo = list(run_store.pending_runs(
-        args.model, questions, args.passes, runs,
+        label, questions, args.passes, runs,
         lambda previous: args.retry_errors and bool(previous["error"]),
     ))
     if not todo:
         print_report(runs)
         return 0
 
-    try:
-        uid = authenticate_odoo(args.login, password)
-    except (BackendUnavailable, OSError, xmlrpc.client.Error, OdooConnectorError) as error:
-        print(f"[ERROR] Odoo authentication/preflight failed: {type(error).__name__}: {error}")
+    session = connect(args.login, password)
+    if session is None:
         return 2
-    print(f"Authenticated to Odoo as {args.login} (uid {uid}).")
+    uid, execute = session
+    todo = attach_expected(todo, execute)
+    if not todo:
+        print_report(runs)
+        return 0
     exit_code = run_on_model(
         args.model,
         args.context_length,
         args.keep_loaded,
-        lambda server_info: execute(todo, runs, args.model, server_info, uid, password),
+        lambda server_info: run_questions(todo, runs, args.model, args.reasoning_effort, server_info, uid, password),
         probes={"llm": probe_llm},
     )
     print_report(runs)

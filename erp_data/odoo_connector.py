@@ -14,7 +14,7 @@ from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_co
 
 logger = logging.getLogger(__name__)
 
-_MODEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_.]*$")
+MODEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_.]*$")
 
 _METHOD_FAILURE_PREFIX = {
     "search_read": "Failed to read from",
@@ -116,7 +116,7 @@ class OdooConnector:
 
     def _check_whitelist(self, model: str):
         """Apply optional deployment restrictions before Odoo's own access checks."""
-        if not _MODEL_NAME_RE.fullmatch(model):
+        if not MODEL_NAME_RE.fullmatch(model):
             raise OdooConnectorError(f"Model {model} is not a valid Odoo model name.")
         if self.technical and model in TECHNICAL_ONLY_MODELS:
             return
@@ -124,15 +124,12 @@ class OdooConnector:
             raise OdooConnectorError(f"Model {model} is not allowed by ODOO_ALLOWED_MODELS.")
 
     def _session_orm_context(self) -> dict:
+        """Odoo 17 takes the first allowed company as the active one."""
         company_id = odoo_company_id_ctx.get()
-        company_ids = odoo_company_ids_ctx.get()
-        ctx: dict = {}
-        if company_ids:
-            ctx["allowed_company_ids"] = [int(x) for x in company_ids]
+        ids = [int(x) for x in odoo_company_ids_ctx.get() or []]
         if company_id is not None:
-            ctx["force_company"] = int(company_id)
-            ctx.setdefault("allowed_company_ids", [int(company_id)])
-        return ctx
+            ids = [int(company_id)] + [x for x in ids if x != int(company_id)]
+        return {"allowed_company_ids": ids} if ids else {}
 
     def _execute_kw(self, uid: int, model: str, method: str, args: list, kwargs: dict | None = None):
         self._check_whitelist(model)
@@ -225,14 +222,14 @@ class OdooConnector:
             uid, model, "read_group", [domain, fields, groupby], extra_kwargs or {}
         )
 
-    def fields_get(self, uid: int, model: str) -> dict:
+    def fields_get(self, uid: int, model: str, field_names: list | None = None) -> dict:
         """
-        Retrieve schema information for a model.
+        Retrieve schema information for a model, or only for the given fields.
         """
         return self._execute_kw(
             uid,
             model,
             "fields_get",
-            [],
+            [field_names] if field_names else [],
             {"attributes": ["string", "type", "help", "relation", "selection", "required", "readonly", "store"]},
         )

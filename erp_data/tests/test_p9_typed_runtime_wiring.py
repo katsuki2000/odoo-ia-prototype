@@ -115,3 +115,55 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
     result = node.orm_agent_loop({"question": "Combien de partenaires ?"})
     assert calls["n"] == 2
     assert result["response"].answer == "Il y a 2 partenaires."
+
+
+def test_prompt_has_no_model_discovery_tool_and_trusts_fields_get():
+    assert "find_models" not in ORM_AGENT_SYSTEM_PROMPT
+    assert "inconnu jusqu'à" not in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_fields_get_wrapper_shows_every_field_of_a_large_model():
+    from erp_data.runtime.langchain_tools import fields_get
+
+    connector = MagicMock()
+    connector.fields_get.return_value = {
+        **{f"field_{number:03d}": {"type": "char", "string": f"Label {number}"} for number in range(170)},
+        "state": {"type": "selection", "string": "Status"},
+    }
+    read_tools._connector = connector
+    token = odoo_uid_ctx.set(11)
+    start_evidence_collection()
+    try:
+        text = fields_get.invoke({"model": "sale.order"})
+    finally:
+        odoo_uid_ctx.reset(token)
+    collect_and_clear_evidence()
+
+    assert "display_truncated" not in text
+    assert "field_169" in text and "state" in text
+    assert "field_names" in fields_get.args
+
+
+def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.prompts import EMPTY_REPLY_REMINDER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([AIMessage(content="  "), AIMessage(content="Il y a 2 partenaires.")])
+    seen = []
+
+    def fake_invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    result = node.orm_agent_loop({"question": "Combien de partenaires ?"})
+    assert result["response"].answer == "Il y a 2 partenaires."
+    assert seen[1] == EMPTY_REPLY_REMINDER
+    assert result["timing"]["llm_call_count"] == 2

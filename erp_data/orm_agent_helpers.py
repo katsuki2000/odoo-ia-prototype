@@ -5,11 +5,13 @@ from typing import Any, List, Tuple
 
 from langchain_core.messages import HumanMessage
 
+from config import settings
 from core.llm.llm_client import get_chat_llm, invoke_llm
 
 logger = logging.getLogger(__name__)
 
-_build_llm = get_chat_llm
+def _build_llm(**kwargs):
+    return get_chat_llm(reasoning_effort=settings.ERP_REASONING_EFFORT, **kwargs)
 
 
 def resolve_orm_tools() -> List[Any]:
@@ -54,6 +56,6 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
     except Exception as exc:
         logger.error("Forced synthesis failed: %s", exc)
         return (
-            "I could not obtain a complete answer from the available observations.",
+            "Je n'ai pas pu obtenir de réponse complète à partir des observations disponibles.",
             llm_calls,
         )

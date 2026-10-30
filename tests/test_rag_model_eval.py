@@ -140,7 +140,7 @@ def test_load_contexts_refuses_an_empty_retrieval_and_caches_nothing(monkeypatch
 
 def test_run_once_records_the_answer_sources_and_structured_failure(monkeypatch, bench):
     result = {"response": _response("Validation en 48 heures ouvrées.", ["guide.docx"]), "timing": {"llm_call_count": 2},
-              "sources_fallback_eligible": True}
+              "structured_failed": True}
     monkeypatch.setattr(bench, "generate", lambda state: result)
     record = bench.run_once(_item(), [{"document": "d"}])
     assert (record["error"], record["fact_recall"], record["source_recall"]) == (None, 1.0, 1.0)

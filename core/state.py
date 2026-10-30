@@ -15,7 +15,7 @@ class RAGState(TypedDict, total=False):
     retrieved_chunks: list[dict]
     route: str | None
     response: AssistantResponse | None
-    sources_fallback_eligible: bool | None
+    structured_failed: bool | None
     raw_tool_output: str | None
     source_mode: str | None
     language: str | None

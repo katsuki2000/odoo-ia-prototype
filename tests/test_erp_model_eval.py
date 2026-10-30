@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from evaluation.erp_model_worker import classify_tool_observation
+from evaluation.erp_model_worker import classify_tool_observation, describe_tool_call
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "run_erp_model_eval.py"
 
@@ -22,9 +22,8 @@ def bench(monkeypatch, tmp_path):
 def _item(**changes):
     return {
         "id": "ERP-01",
-        "category": "erp_chiffre",
         "question": "Combien de ventes ?",
-        "expected_answer_contains": ["4", "Société Dupont"],
+        "expected": [["4"], ["Société Dupont"]],
         **changes,
     }
 
@@ -50,29 +49,47 @@ def _record(**changes):
         "error": None,
         "fact_recall": 1.0,
         "complete": True,
+        "expected": [["4"]],
         "vram_fraction": 1.0,
     }
     return {**record, **changes}
 
 
-def test_load_questions_selects_only_the_erp_benchmark(bench):
+def test_load_questions_reads_the_erp_bank_and_filters_by_id(bench):
     questions = bench.load_questions(None)
-    assert len(questions) == 15
-    assert all(item["category"] == "erp_chiffre" for item in questions)
+    assert len(questions) == 16
+    assert all("expectation" in item for item in questions)
     assert [item["id"] for item in bench.load_questions(["ERP-01"])] == ["ERP-01"]
     assert bench.load_questions(["DOC-01"]) == []
 
 
-def test_score_matches_expected_values_without_matching_inside_longer_numbers(bench):
-    item = _item(expected_answer_contains=["4", "Société Dupont"])
-    assert bench.score(item, "24 ventes pour Societe Dupont.") == {
-        "fact_recall": 0.5,
-        "complete": False,
-    }
-    assert bench.score(item, "4 ventes pour Société Dupont.") == {
-        "fact_recall": 1.0,
-        "complete": True,
-    }
+def test_score_needs_one_writing_per_expected_group_without_matching_inside_longer_numbers(bench):
+    expected = [["4"], ["Société Dupont"]]
+    assert bench.score(expected, "24 ventes pour Societe Dupont.") == {"fact_recall": 0.5, "complete": False}
+    assert bench.score(expected, "4 ventes pour Société Dupont.") == {"fact_recall": 1.0, "complete": True}
+    amount = [["120187,11", "120187.11"]]
+    assert bench.score(amount, "Total : 120 187.11 Ar")["complete"] is True
+
+
+def test_attach_expected_keeps_applicable_questions_and_reports_the_others(monkeypatch, bench, capsys):
+    def compute(execute, item):
+        if item["id"] == "ERP-02":
+            raise bench.NotApplicable("module purchase is not installed")
+        return [["4"]]
+
+    monkeypatch.setattr(bench, "compute_expected", compute)
+    first, second = _item(id="ERP-01"), _item(id="ERP-02")
+    todo = [(first, 1), (second, 1), (first, 2), (second, 2)]
+    assert bench.attach_expected(todo, execute=None) == [(first, 1), (first, 2)]
+    assert first["expected"] == [["4"]]
+    assert "[SKIP] ERP-02: module purchase is not installed" in capsys.readouterr().out
+
+
+def test_rescoring_uses_the_value_recorded_with_the_run(bench, tmp_path):
+    record = _record(expected=[["7"]], answer="Il y en a 4.", fact_recall=1.0, complete=True)
+    bench.run_store.append_run(bench.RESULTS_PATH, record)
+    (rescored,) = bench.load_scored_runs().values()
+    assert (rescored["fact_recall"], rescored["complete"]) == (0.0, False)
 
 
 @pytest.mark.parametrize(
@@ -86,6 +103,14 @@ def test_score_matches_expected_values_without_matching_inside_longer_numbers(be
 )
 def test_tool_observation_classification(observation, status):
     assert classify_tool_observation(observation) == status
+
+
+def test_describe_tool_call_keeps_the_arguments_and_the_error_of_refused_calls_only():
+    assert describe_tool_call("search_count", {"model": "m"}, "12 records") == {
+        "name": "search_count", "status": "ok", "args": {"model": "m"}}
+    refused = describe_tool_call("read_group", {"groupby": []}, "ORM read refused: " + "x" * 500)
+    assert refused["status"] == "invalid" and refused["args"] == {"groupby": []}
+    assert refused["error"].startswith("ORM read refused:") and len(refused["error"]) == 300
 
 
 def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):
@@ -173,7 +198,7 @@ def test_worker_timeout_terminates_the_question_process(monkeypatch, bench):
 
     processes = []
     monkeypatch.setattr(bench.multiprocessing, "get_context", lambda method: FakeContext())
-    assert bench._run_isolated_question("question", 7, "secret", "model", 0) == {
+    assert bench._run_isolated_question("question", 7, "secret", "model", None, 0) == {
         "timed_out": True,
         "tool_calls": [],
         "llm_errors": [],
@@ -229,3 +254,19 @@ def test_main_requires_explicit_login_for_a_live_run(bench):
     with pytest.raises(SystemExit) as error:
         bench.main(["--model", "qwen3:8b"])
     assert error.value.code == 2
+
+
+def test_the_reasoning_effort_reaches_the_isolated_worker(monkeypatch, bench):
+    seen = []
+    monkeypatch.setattr(bench, "_run_isolated_question", lambda *args: seen.append(args) or {"answer": ""})
+    bench.run_once(_item(), 7, "secret", "qwen3:14b", "none")
+    assert seen[0][3:5] == ("qwen3:14b", "none")
+
+
+def test_results_are_recorded_under_the_model_and_its_reasoning_effort(monkeypatch, bench):
+    monkeypatch.setattr(bench, "run_once", lambda item, uid, password, model, effort: {"seconds": 1.0})
+    monkeypatch.setattr(bench, "execute_runs", lambda todo, runs, path, build_record, describe: build_record(*todo[0]))
+    record = bench.run_questions([(_item(), 1)], {}, "qwen3:14b", "none", {}, 7, "secret")
+    assert record["model"] == "qwen3:14b+reasoning_none"
+    record = bench.run_questions([(_item(), 1)], {}, "qwen3:14b", None, {}, 7, "secret")
+    assert record["model"] == "qwen3:14b"

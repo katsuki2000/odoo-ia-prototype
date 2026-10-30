@@ -13,12 +13,12 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Utilise uniquement les primitives ORM en lecture seule disponibles : fields_get, "
     "name_search, search, read, search_read, search_count et read_group. "
     "Ne suppose jamais qu'un modèle, champ, module, statut ou processus métier existe. "
-    "Découvre d'abord le schéma avec fields_get, puis vérifie les noms et types de champs "
+    "Découvre d'abord le schéma avec fields_get, qui liste tous les champs du modèle, puis demande "
+    "avec field_names le détail (relation, valeurs de sélection) des champs à utiliser "
     "avant de construire un domaine ou une agrégation. Les noms techniques doivent venir "
     "des observations de l'instance, pas de ta mémoire. "
-    "Les modules personnalisés sont possibles : traite chaque modèle comme inconnu jusqu'à "
-    "ce que l'instance le confirme. Utilise les résultats d'outils comme seule source de faits "
-    "sur cette instance ; n'invente jamais de valeurs. "
+    "Les modules personnalisés sont possibles : fields_get confirme qu'un modèle existe. "
+    "Utilise les résultats d'outils comme seule source de faits sur cette instance ; n'invente jamais de valeurs. "
     "Toute lecture s'exécute sous l'identité du demandeur et les règles d'accès Odoo s'appliquent. "
     "Demande une précision lorsque le terme métier, le modèle, le statut ou la période est ambigu. "
     "N'assimile pas automatiquement les ventes aux commandes, factures ou paiements. "
@@ -40,6 +40,12 @@ def build_orm_synthesis_prompt(question: str, tool_observations: List[str]) -> s
     )
 
 
+EMPTY_REPLY_REMINDER = (
+    "Ta réponse est vide. Appelle un outil pour lire les données manquantes ou réponds à la question "
+    "à partir des observations obtenues."
+)
+
+
 def build_orm_agent_messages(
     question: str,
     chat_history: Optional[List[BaseMessage]] = None,
@@ -55,6 +61,7 @@ def build_orm_agent_messages(
 
 
 __all__ = [
+    "EMPTY_REPLY_REMINDER",
     "ORM_AGENT_SYSTEM_PROMPT",
     "build_orm_synthesis_prompt",
     "build_orm_agent_messages",

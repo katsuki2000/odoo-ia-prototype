@@ -60,7 +60,9 @@ def expand_dominant_documents(
     A question asking for an exhaustive list (rules, steps) is answered by many chunks of one document, and the
     ranking keeps only the best-scored ones. A document with at least min_chunks chunks among the results is the
     source of the answer: its chunks are returned in document order, where its first chunk was, and the retrieved
-    ones keep their scores. A document of more than max_chunks chunks, or one that cannot be read, is left as is.
+    ones keep their scores. The chunks of the other documents are dropped: the top-k always fills up, so they are
+    the least relevant ones, not evidence. A document of more than max_chunks chunks, or one that cannot be read,
+    is left as is.
     """
     if not results or chroma_manager is None:
         return [dict(item) for item in results]
@@ -80,7 +82,8 @@ def expand_dominant_documents(
     for item in results:
         source = source_of(item)
         if source not in whole_documents:
-            expanded.append(dict(item))
+            if not whole_documents:
+                expanded.append(dict(item))
         elif source not in done:
             done.add(source)
             retrieved = {(chunk.get("metadata") or {}).get("chunk_index"): chunk for chunk in results if source_of(chunk) == source}

@@ -28,9 +28,23 @@ def _indexes(results):
 
 def test_a_document_with_enough_chunks_in_the_results_is_returned_whole_in_document_order():
     manual = [_chunk("manual", index) for index in range(5)]
+    results = [_chunk("manual", 3, 1.0), _chunk("manual", 0, 0.8), _chunk("manual", 1, 0.7)]
+    expanded = expand_dominant_documents(results, _chroma(manual=manual), min_chunks=3, max_chunks=20)
+    assert _indexes(expanded) == [("manual", 0), ("manual", 1), ("manual", 2), ("manual", 3), ("manual", 4)]
+
+
+def test_the_chunks_of_minority_documents_are_dropped_when_a_document_dominates():
+    manual = [_chunk("manual", index) for index in range(5)]
     results = [_chunk("manual", 3, 1.0), _chunk("faq", 0, 0.9), _chunk("manual", 0, 0.8), _chunk("manual", 1, 0.7)]
     expanded = expand_dominant_documents(results, _chroma(manual=manual, faq=[_chunk("faq", 0)]), min_chunks=3, max_chunks=20)
-    assert _indexes(expanded) == [("manual", 0), ("manual", 1), ("manual", 2), ("manual", 3), ("manual", 4), ("faq", 0)]
+    assert {source for source, _ in _indexes(expanded)} == {"manual"}
+
+
+def test_two_dominant_documents_are_both_kept():
+    results = [_chunk("manual", 0, 1.0), _chunk("guide", 0, 0.9), _chunk("manual", 1, 0.8), _chunk("guide", 1, 0.7), _chunk("manual", 2, 0.6), _chunk("guide", 2, 0.5)]
+    chroma = _chroma(manual=[_chunk("manual", index) for index in range(3)], guide=[_chunk("guide", index) for index in range(3)])
+    expanded = expand_dominant_documents(results, chroma, min_chunks=3, max_chunks=20)
+    assert {source for source, _ in _indexes(expanded)} == {"manual", "guide"}
 
 
 def test_the_chunks_that_were_retrieved_keep_their_scores():

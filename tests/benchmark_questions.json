@@ -2,11 +2,10 @@
   "meta": {
     "description": "Jeu de test pour le benchmark des modèles de langage (S4)",
     "date_created": "2026-07-03",
-    "total_questions": 30,
+    "total_questions": 22,
     "categories": {
       "documentaire": "Questions reposant sur l'index documentaire (PDF, wikis) — 10 questions",
       "code_source": "Questions reposant sur l'index du code source Odoo — 8 questions",
-      "erp_chiffre": "Questions portant sur les données ERP structurées (ventes, tickets) — 8 questions",
       "hors_perimetre": "Questions hors périmètre pour tester le mécanisme de repli — 4 questions"
     }
   },
@@ -154,132 +153,6 @@
       "expected_answer_contains": ["PaymentProvider"],
       "source_reference": "payment_provider.py",
       "type": "code"
-    },
-    {
-      "id": "ERP-01",
-      "category": "erp_chiffre",
-      "question": "Combien de ventes la Société Dupont a-t-elle réalisées ?",
-      "expected_answer_contains": ["4", "Société Dupont"],
-      "source_reference": "fake_data/sales.json — filtrage par client",
-      "type": "erp",
-      "expected_value": "4 ventes, 12 260 000 Ar"
-    },
-    {
-      "id": "ERP-02",
-      "category": "erp_chiffre",
-      "question": "Quel est le montant total des ventes en cours ?",
-      "expected_answer_contains": ["25 900 000", "en cours"],
-      "source_reference": "fake_data/sales.json — filtrage par statut",
-      "type": "erp",
-      "expected_value": "25 900 000 Ar"
-    },
-    {
-      "id": "ERP-03",
-      "category": "erp_chiffre",
-      "question": "Quel est le montant total facturé à ce jour ?",
-      "expected_answer_contains": ["33 720 000", "facturé"],
-      "source_reference": "fake_data/sales.json — agrégation statut facturé",
-      "type": "erp",
-      "expected_value": "33 720 000 Ar"
-    },
-    {
-      "id": "ERP-04",
-      "category": "erp_chiffre",
-      "question": "Combien de tickets de support sont résolus ?",
-      "expected_answer_contains": ["11", "résolu"],
-      "source_reference": "fake_data/tickets.json — comptage par statut",
-      "type": "erp",
-      "expected_value": "11"
-    },
-    {
-      "id": "ERP-05",
-      "category": "erp_chiffre",
-      "question": "Quel est le ticket de support le plus récent de Madagascar Tech ?",
-      "expected_answer_contains": ["Madagascar Tech", "feuilles de temps"],
-      "source_reference": "fake_data/tickets.json — filtrage par client",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-06",
-      "category": "erp_chiffre",
-      "question": "Quel produit a été vendu à Madagascar Tech et pour quel montant ?",
-      "expected_answer_contains": ["Madagascar Tech", "5 300 000"],
-      "source_reference": "fake_data/sales.json — filtrage par client",
-      "type": "erp",
-      "expected_value": "2 ventes — 5 300 000 Ar"
-    },
-    {
-      "id": "ERP-07",
-      "category": "erp_chiffre",
-      "question": "Quels sont les tickets de support encore en cours ?",
-      "expected_answer_contains": ["en cours", "4"],
-      "source_reference": "fake_data/tickets.json — filtrage par statut",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-08",
-      "category": "erp_chiffre",
-      "question": "Quel est le montant total des ventes toutes périodes confondues ?",
-      "expected_answer_contains": ["59 620 000", "Ar"],
-      "source_reference": "fake_data/sales.json — agrégation totale",
-      "type": "erp",
-      "expected_value": "59 620 000 Ar"
-    },
-    {
-      "id": "ERP-09",
-      "category": "erp_chiffre",
-      "question": "Quel est le montant total des ventes du mois de janvier 2025 ?",
-      "expected_answer_contains": ["4 500 000", "janvier"],
-      "source_reference": "fake_data/sales.json",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-10",
-      "category": "erp_chiffre",
-      "question": "Quel est le montant moyen d'une vente pour la Société Dupont ?",
-      "expected_answer_contains": ["3 065 000"],
-      "source_reference": "fake_data/sales.json",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-11",
-      "category": "erp_chiffre",
-      "question": "Combien de produits sont actuellement en rupture de stock ?",
-      "expected_answer_contains": ["0", "Aucun", "rupture"],
-      "source_reference": "ERP Stock",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-12",
-      "category": "erp_chiffre",
-      "question": "Quel est le stock disponible pour le produit 'Formation Odoo 17' ?",
-      "expected_answer_contains": ["pas", "trouvé", "0"],
-      "source_reference": "ERP Stock",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-13",
-      "category": "erp_chiffre",
-      "question": "D'après les procédures, qui doit valider les ventes, et quel est le montant total des ventes en cours ?",
-      "expected_answer_contains": ["valider", "25 900 000"],
-      "source_reference": "Procédures + ERP",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-14",
-      "category": "erp_chiffre",
-      "question": "Quel est le chiffre d'affaires total payé pour l'année 2025 ?",
-      "expected_answer_contains": ["0", "Aucun"],
-      "source_reference": "ERP Factures",
-      "type": "erp"
-    },
-    {
-      "id": "ERP-15",
-      "category": "erp_chiffre",
-      "question": "Quelles sont les coordonnées du client Telma Madagascar et quel est son total de factures ?",
-      "expected_answer_contains": ["contact@telma.mg", "factures"],
-      "source_reference": "ERP Clients",
-      "type": "erp"
     },
     {
       "id": "HORS-01",

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.evidence.evidence import EvidenceSourceType
+from erp_data.odoo_connector import OdooConnectorError
 from erp_data.odoo_context import odoo_uid_ctx
 from erp_data.runtime import read_tools
 from erp_data.runtime.errors import OrmRuntimeError
@@ -23,6 +24,7 @@ from erp_data.runtime.validation import (
     cap_row_limit,
     validate_domain,
     validate_field_list,
+    validate_groupby,
     validate_model_name,
     validate_name_search_operator,
     validate_order,
@@ -32,9 +34,9 @@ from erp_data.runtime.validation import (
 
 @pytest.fixture(autouse=True)
 def _reset_connector():
-    read_tools._connector = None
+    read_tools._connector = read_tools._technical_connector = None
     yield
-    read_tools._connector = None
+    read_tools._connector = read_tools._technical_connector = None
 
 
 @pytest.fixture
@@ -228,6 +230,28 @@ def test_orm_fields_get_and_read_group(requester_uid, mock_connector):
     assert rg.observation.method == "read_group"
 
 
+def test_orm_fields_get_treats_an_empty_name_list_as_the_index(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {"state": {"type": "selection", "string": "Status"}}
+    result = read_tools.orm_fields_get("sale.order", [])
+    mock_connector.fields_get.assert_called_once_with(7, "sale.order", [])
+    assert result.evidence[0].value["fields"] == {"state": "selection: Status"}
+
+
+def test_orm_read_group_without_groupby_returns_one_total(requester_uid, mock_connector):
+    mock_connector.read_group.return_value = [{"__count": 4, "amount_total": 143175.0}]
+    orm_read_group("account.move", domain=[], fields=["amount_total:sum"], groupby=[])
+    orm_read_group("account.move", domain=[], fields=["amount_total:sum"])
+    assert [call.kwargs["groupby"] for call in mock_connector.read_group.call_args_list] == [[], []]
+
+
+def test_validate_groupby_still_rejects_bad_names():
+    assert validate_groupby(None) == []
+    with pytest.raises(OrmRuntimeError):
+        validate_groupby("state")
+    with pytest.raises(OrmRuntimeError):
+        validate_groupby(["state; drop"])
+
+
 def test_orm_read_rejects_too_many_ids(requester_uid, monkeypatch):
     monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 2)
     with pytest.raises(OrmRuntimeError, match="too many record ids"):
@@ -235,10 +259,33 @@ def test_orm_read_rejects_too_many_ids(requester_uid, monkeypatch):
 
 
 def test_connector_error_becomes_orm_runtime_error(requester_uid, mock_connector):
-    from erp_data.odoo_connector import OdooConnectorError
 
     mock_connector.search_count.side_effect = OdooConnectorError(
         "Failed to count res.partner: Access Denied"
     )
     with pytest.raises(OrmRuntimeError, match="Access Denied"):
         orm_search_count("res.partner")
+
+
+def test_orm_fields_get_without_names_returns_a_compact_index(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {
+        "state": {"type": "selection", "string": "Status", "selection": [["draft", "Quotation"]]},
+        "partner_id": {"type": "many2one", "string": "Customer", "relation": "res.partner"},
+    }
+    result = orm_fields_get("sale.order")
+    mock_connector.fields_get.assert_called_once_with(7, "sale.order", [])
+    assert result.evidence[0].value["fields"] == {
+        "partner_id": "many2one(res.partner): Customer",
+        "state": "selection: Status",
+    }
+
+
+def test_orm_fields_get_with_names_returns_details_and_reports_unknown_fields(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {
+        "state": {"type": "selection", "string": "Status", "selection": [["sale", "Sales Order"]], "extra": 1},
+    }
+    result = orm_fields_get("sale.order", ["state", "missing_field"])
+    mock_connector.fields_get.assert_called_once_with(7, "sale.order", ["state", "missing_field"])
+    value = result.evidence[0].value
+    assert value["fields"] == {"state": {"type": "selection", "string": "Status", "selection": [["sale", "Sales Order"]]}}
+    assert value["unknown_fields"] == ["missing_field"]

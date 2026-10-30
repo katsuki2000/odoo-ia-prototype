@@ -55,3 +55,12 @@ def test_bare_alias_forms_are_removed(raw, expected):
 def test_bare_alias_forms_untouched_in_code_blocks():
     text = "Avant.\n```\nvoir (S1) et la source S2\n```\nAprès."
     assert strip_source_aliases(text) == text
+
+
+def test_reference_block_made_of_aliases_is_removed_with_its_heading():
+    raw = "Bonnes pratiques.\n\nRéférences\n\n* Sources S1, S2, S3, S16."
+    assert strip_source_aliases(raw) == "Bonnes pratiques."
+
+
+def test_noun_followed_by_an_alias_list_keeps_only_the_noun():
+    assert strip_source_aliases("Voir les sources S1, S2 et S3 ici.") == "Voir les sources ici."

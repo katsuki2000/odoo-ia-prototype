@@ -31,13 +31,14 @@ LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollama_url)
 LLM_MODEL = 'qwen3:14b'
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
 # Reasoning effort sent with the request: 'none' switches the reasoning off on models that support it, None keeps
-# the model default. The ERP tool-calling agent has no setting and keeps the model default.
+# the model default.
 RAG_REASONING_EFFORT = None
+ERP_REASONING_EFFORT = None
 ROUTING_REASONING_EFFORT = None
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
 LLM_MAX_RETRIES = 1
 SCHEDULER_INTERVAL_HOURS = 6
-ERP_MODEL_EVAL_TIMEOUT_SECONDS = 90
+ERP_MODEL_EVAL_TIMEOUT_SECONDS = 180
 EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollama_url)
 EMBEDDING_MODEL = 'bge-m3:latest'
 EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
@@ -103,6 +104,8 @@ QUESTION_PREVIEW_CHARS = 80
 OBSERVATION_PREVIEW_CHARS = 300
 CHAT_HISTORY_MAX_MESSAGES = 10
 ORM_RUNTIME_MAX_ROWS = 100
+ORM_OBSERVATION_MAX_CHARS = 4000
+ORM_FIELDS_INDEX_MAX_CHARS = 12000
 REACT_RECURSION_LIMIT = 6
 ORM_NAME_SEARCH_LIMIT = 20
 EMBEDDING_TIMEOUT = 30.0

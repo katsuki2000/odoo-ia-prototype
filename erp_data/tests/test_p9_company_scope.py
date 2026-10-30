@@ -103,5 +103,16 @@ def test_connector_injects_allowed_company_ids():
         odoo_company_ids_ctx.reset(cids_t)
 
     kwargs = recorder.execute_kw.call_args[0][6]
-    assert kwargs["context"]["force_company"] == 5
-    assert kwargs["context"]["allowed_company_ids"] == [5]
+    assert kwargs["context"] == {"allowed_company_ids": [5]}
+
+
+def test_connector_puts_the_active_company_first():
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
+    cid_t = odoo_company_id_ctx.set(3)
+    cids_t = odoo_company_ids_ctx.set([1, 3, 7])
+    try:
+        context = connector._session_orm_context()
+    finally:
+        odoo_company_id_ctx.reset(cid_t)
+        odoo_company_ids_ctx.reset(cids_t)
+    assert context == {"allowed_company_ids": [3, 1, 7]}

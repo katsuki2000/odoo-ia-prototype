@@ -2,9 +2,9 @@ import re
 from typing import Any, Optional
 
 from config import settings
+from erp_data.odoo_connector import MODEL_NAME_RE
 from erp_data.runtime.errors import OrmRuntimeError
 
-_MODEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_.]*$")
 _DOMAIN_OPS = frozenset({"&", "|", "!"})
 _DOMAIN_LEAF_OPS = frozenset({
     "=", "!=", ">", ">=", "<", "<=", "like", "not like", "ilike",
@@ -40,7 +40,7 @@ def cap_name_search_limit(limit: Optional[int]) -> int:
 
 
 def validate_model_name(model: str) -> str:
-    if not isinstance(model, str) or not _MODEL_NAME_RE.fullmatch(model):
+    if not isinstance(model, str) or not MODEL_NAME_RE.fullmatch(model):
         raise OrmRuntimeError(f"invalid model name: {model!r}")
     return model
 
@@ -99,8 +99,11 @@ def validate_record_ids(ids: Any, *, max_rows: int) -> list[int]:
 
 
 def validate_groupby(groupby: Any) -> list[str]:
-    if not isinstance(groupby, list) or not groupby:
-        raise OrmRuntimeError("groupby must be a non-empty list of strings")
+    """An empty groupby is valid: read_group then returns one aggregate row for the whole domain."""
+    if groupby is None:
+        return []
+    if not isinstance(groupby, list):
+        raise OrmRuntimeError("groupby must be a list of strings")
     for name in groupby:
         if not isinstance(name, str) or not _GROUPBY_RE.fullmatch(name):
             raise OrmRuntimeError(f"invalid groupby field: {name!r}")

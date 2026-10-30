@@ -6,9 +6,7 @@ collection only) against the benchmark question set from
 tests/benchmark_questions.json.
 
 todo/contexte.txt sections 349-354: Code Intelligence now owns code
-questions exclusively, RAG is docs-only (there is no code collection). "code_source" benchmark questions are therefore skipped here,
-the same way "erp_chiffre" questions already were -- both are owned by
-other subsystems, not by this retrieval pipeline.
+questions exclusively, RAG is docs-only (there is no code collection). "code_source" benchmark questions are therefore skipped here, being owned by another subsystem, not by this retrieval pipeline.
 
 Computes:
 - recall@5 for document questions
@@ -29,6 +27,7 @@ from pathlib import Path
 # Add parent directory for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.schemas import source_display_title
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search import BM25Index, retrieve
 
@@ -114,7 +113,7 @@ def evaluate_recall(
 
         # Check recall: did any expected source appear in results?
         retrieved_sources = [
-            r.get("metadata", {}).get("source", "") for r in retrieved
+            source_display_title(r.get("metadata") or {}) for r in retrieved
         ]
         retrieved_docs = [r.get("document", "") for r in retrieved]
 

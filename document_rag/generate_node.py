@@ -61,10 +61,10 @@ def generate(state: RAGState) -> dict:
     messages = build_messages(question, context_text, chat_history)
 
     _llm_call_count = 0
-    sources_fallback_eligible = False
+    structured_failed = False
     try:
         llm = _build_answer_llm()
-        llm_resp = invoke_llm(llm.with_structured_output(LLMResponse), messages)
+        llm_resp = invoke_llm(llm.with_structured_output(LLMResponse, method='json_schema'), messages)
         _llm_call_count += 1
         response = AssistantResponse(
             answer=_strip_source_aliases(llm_resp.answer),
@@ -82,7 +82,7 @@ def generate(state: RAGState) -> dict:
                 confidence=compute_rag_confidence(chunks),
                 sources=[],
             )
-            sources_fallback_eligible = True
+            structured_failed = True
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
@@ -102,5 +102,5 @@ def generate(state: RAGState) -> dict:
     return {
         "response": response,
         "timing": timing,
-        "sources_fallback_eligible": sources_fallback_eligible,
+        "structured_failed": structured_failed,
     }

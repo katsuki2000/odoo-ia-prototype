@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "language": "fr",
+    "description": "Banc ERP : chaque question decrit un calcul de lecture (modele, filtre, agregat) dont la valeur attendue est calculee sur l'instance evaluee a l'execution (evaluation/erp_expectations.py). Libelles d'interface Odoo 17 en anglais.",
+    "expectation_kinds": {
+      "count": "nombre d'enregistrements (model, domain)",
+      "sum": "somme d'un champ monetaire (model, domain, field, currency_field)",
+      "top": "valeur de groupby au plus haut total (model, domain, groupby, field optionnel, sinon nombre d'enregistrements)"
+    }
+  },
+  "questions": [
+    {
+      "id": "ERP-01",
+      "question": "Combien de commandes de vente sont confirmées (statut « Sales Order ») ?",
+      "requires": ["sale"],
+      "expectation": {"kind": "count", "model": "sale.order", "domain": [["state", "=", "sale"]]}
+    },
+    {
+      "id": "ERP-02",
+      "question": "Quel est le montant total des commandes de vente confirmées (statut « Sales Order ») ?",
+      "requires": ["sale"],
+      "expectation": {"kind": "sum", "model": "sale.order", "domain": [["state", "=", "sale"]], "field": "amount_total", "currency_field": "currency_id"}
+    },
+    {
+      "id": "ERP-03",
+      "question": "Combien de devis sont encore au statut « Quotation » ?",
+      "requires": ["sale"],
+      "expectation": {"kind": "count", "model": "sale.order", "domain": [["state", "=", "draft"]]}
+    },
+    {
+      "id": "ERP-04",
+      "question": "Quel client a le montant total le plus élevé en commandes de vente confirmées (statut « Sales Order ») ?",
+      "requires": ["sale"],
+      "expectation": {"kind": "top", "model": "sale.order", "domain": [["state", "=", "sale"]], "groupby": "partner_id", "field": "amount_total"}
+    },
+    {
+      "id": "ERP-05",
+      "question": "Combien de factures clients sont comptabilisées (statut « Posted ») ?",
+      "requires": ["account"],
+      "expectation": {"kind": "count", "model": "account.move", "domain": [["move_type", "=", "out_invoice"], ["state", "=", "posted"]]}
+    },
+    {
+      "id": "ERP-06",
+      "question": "Quel est le montant total des factures clients comptabilisées (statut « Posted ») ?",
+      "requires": ["account"],
+      "expectation": {"kind": "sum", "model": "account.move", "domain": [["move_type", "=", "out_invoice"], ["state", "=", "posted"]], "field": "amount_total", "currency_field": "currency_id"}
+    },
+    {
+      "id": "ERP-07",
+      "question": "Combien de factures clients comptabilisées ne sont pas payées (statuts de paiement « Not Paid » ou « Partially Paid ») ?",
+      "requires": ["account"],
+      "expectation": {"kind": "count", "model": "account.move", "domain": [["move_type", "=", "out_invoice"], ["state", "=", "posted"], ["payment_state", "in", ["not_paid", "partial"]]]}
+    },
+    {
+      "id": "ERP-08",
+      "question": "Combien de commandes d'achat sont confirmées (statut « Purchase Order ») ?",
+      "requires": ["purchase"],
+      "expectation": {"kind": "count", "model": "purchase.order", "domain": [["state", "=", "purchase"]]}
+    },
+    {
+      "id": "ERP-09",
+      "question": "Quel fournisseur a le montant total le plus élevé en commandes d'achat confirmées (statut « Purchase Order ») ?",
+      "requires": ["purchase"],
+      "expectation": {"kind": "top", "model": "purchase.order", "domain": [["state", "=", "purchase"]], "groupby": "partner_id", "field": "amount_total"}
+    },
+    {
+      "id": "ERP-10",
+      "question": "Combien d'opportunités sont ouvertes, c'est-à-dire ni gagnées ni perdues ?",
+      "requires": ["crm"],
+      "expectation": {"kind": "count", "model": "crm.lead", "domain": [["type", "=", "opportunity"], ["active", "=", true], ["probability", "<", 100]]}
+    },
+    {
+      "id": "ERP-11",
+      "question": "Combien de projets sont actifs ?",
+      "requires": ["project"],
+      "expectation": {"kind": "count", "model": "project.project", "domain": [["active", "=", true]]}
+    },
+    {
+      "id": "ERP-12",
+      "question": "Combien de transferts de stock sont terminés (statut « Done ») ?",
+      "requires": ["stock"],
+      "expectation": {"kind": "count", "model": "stock.picking", "domain": [["state", "=", "done"]]}
+    },
+    {
+      "id": "ERP-13",
+      "question": "Combien de fiches article (hors variantes) de type « Storable Product » y a-t-il ?",
+      "requires": ["stock"],
+      "expectation": {"kind": "count", "model": "product.template", "domain": [["detailed_type", "=", "product"]]}
+    },
+    {
+      "id": "ERP-14",
+      "question": "Combien d'employés sont actifs ?",
+      "requires": ["hr"],
+      "expectation": {"kind": "count", "model": "hr.employee", "domain": [["active", "=", true]]}
+    },
+    {
+      "id": "ERP-15",
+      "question": "Combien d'équipements de maintenance sont enregistrés ?",
+      "requires": ["maintenance"],
+      "expectation": {"kind": "count", "model": "maintenance.equipment", "domain": [["active", "=", true]]}
+    },
+    {
+      "id": "ERP-16",
+      "question": "Combien de biens immobiliers sont enregistrés ?",
+      "requires": ["estate"],
+      "expectation": {"kind": "count", "model": "estate.property", "domain": []}
+    }
+  ]
+}

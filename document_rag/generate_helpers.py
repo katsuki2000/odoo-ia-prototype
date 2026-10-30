@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 _ALIAS = r"S\d{1,2}"
 _ALIAS_LIST = rf"{_ALIAS}(?:\s*(?:,|;|/|&|-|–|—|et|and|à|to)\s*{_ALIAS})*"
 _ALIAS_PATTERNS = [
+    # line made only of aliases, optionally led by a bullet and a label: "* Sources S1, S2"
+    re.compile(rf"^[ \t]*(?:[*\-•][ \t]*)?(?:(?:Références?|Sources?|Documents?)[ \t]*[:,]?[ \t]*)?{_ALIAS_LIST}[ \t]*\.?[ \t]*$", re.IGNORECASE | re.MULTILINE),
     # [Source S2](http://...) or [S2](...): a link whose text is only an alias
     re.compile(rf"^[ \t]*\[\s*(?:sources?\s*)?{_ALIAS_LIST}\s*\]\([^)]*\)[ \t]*|[ \t]*\[\s*(?:sources?\s*)?{_ALIAS_LIST}\s*\]\([^)]*\)", re.IGNORECASE | re.MULTILINE),
     # [Source S2], [Sources S2, S3], [S2]
@@ -26,10 +28,12 @@ _ALIAS_PATTERNS = [
     # reference lines: "- S3 : ...", "Source S1 : Titre"
     re.compile(rf"\b(?:[Ss]ources?[ \t]+)?{_ALIAS}[ \t]*:[ \t]*"),
     # noun followed by an alias: "la source S2", "le document S1" -> keep the noun
-    re.compile(rf"\b([Ss]ources?|[Dd]ocuments?)[ \t]+{_ALIAS}\b"),
+    re.compile(rf"\b([Ss]ources?|[Dd]ocuments?)[ \t]+{_ALIAS_LIST}\b"),
     # "page 1 de S1"
     re.compile(rf"(?<=\d)[ \t]+de[ \t]+{_ALIAS}\b"),
 ]
+# heading left empty once its alias lines are removed
+_EMPTY_TRAILING_HEADING = re.compile(r"\s*\n[ \t]*(?:#+[ \t]*)?\*{0,2}(?:Références?|Sources?)\*{0,2}[ \t]*:?\s*\Z", re.IGNORECASE)
 
 
 def strip_source_aliases(answer: str) -> str:
@@ -46,7 +50,7 @@ def strip_source_aliases(answer: str) -> str:
         for pattern in _ALIAS_PATTERNS:
             text = pattern.sub(lambda m: m.group(1) if m.re.groups else "", text)
         parts[index] = text
-    return "```".join(parts)
+    return _EMPTY_TRAILING_HEADING.sub("", "```".join(parts))
 
 
 def build_source_aliases(chunks: list) -> dict:
@@ -74,6 +78,7 @@ def verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
             valid_aliases.append(alias)
             seen.add(alias)
 
+    logger.info("used_sources declared=%s valid=%s", list(used_source_aliases), valid_aliases)
     if invalid_aliases:
         logger.warning(
             "invalid_used_sources: LLM cited unknown source alias(es) %s (available aliases: %s)",

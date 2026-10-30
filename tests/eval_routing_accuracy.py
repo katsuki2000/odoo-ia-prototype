@@ -9,21 +9,25 @@ from document_rag.vectorstore.search import get_retriever, retrieve as search_re
 logging.basicConfig(level=logging.WARNING)
 
 
+def load_routing_cases():
+    """(question, expected route): ERP questions come from the ERP bench, all others are documentary."""
+    with open("tests/benchmark_questions.json", "r", encoding="utf-8") as f:
+        cases = [(q["question"], QueryRoute.DOCUMENTARY.value) for q in json.load(f)["questions"]]
+    with open("tests/erp_eval_questions.json", "r", encoding="utf-8") as f:
+        cases += [(q["question"], QueryRoute.ERP_DATA.value) for q in json.load(f)["questions"]]
+    return cases
+
+
 def test_routing_accuracy():
-    with open("tests/benchmark_questions.json", "r") as f:
-        data = json.load(f)
-        
+    cases = load_routing_cases()
     correct = 0
-    total = len(data["questions"])
+    total = len(cases)
     
     print(f"Testing {total} questions for routing accuracy...\n")
     
     chroma_manager, bm25_index = get_retriever()
 
-    for q in data["questions"]:
-        question = q["question"]
-        category = q["category"]
-        
+    for question, expected_route in cases:
         state = {
             "question": question,
             "chat_history": [],
@@ -46,9 +50,6 @@ def test_routing_accuracy():
             # 2. Route
             state.update(route(state))
             chosen_route = state.get("route")
-            
-            # Determine expected route
-            expected_route = QueryRoute.ERP_DATA.value if category == "erp_chiffre" else QueryRoute.DOCUMENTARY.value
             
             is_correct = (chosen_route == expected_route)
             if is_correct:

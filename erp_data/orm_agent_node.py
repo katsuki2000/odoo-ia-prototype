@@ -4,7 +4,7 @@ import logging
 import time
 from typing import Any, List, NamedTuple, Optional
 
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA, REACT_RECURSION_LIMIT
 from core.guardrails import PROMPT_INJECTION_REFUSAL_MSG, is_prompt_injection
@@ -18,11 +18,11 @@ from erp_data.orm_agent_helpers import (
     force_final_synthesis,
     resolve_orm_tools,
 )
-from erp_data.prompts import build_orm_agent_messages
+from erp_data.prompts import EMPTY_REPLY_REMINDER, build_orm_agent_messages
 
 logger = logging.getLogger(__name__)
 
-NO_DATA_ANSWER = "I have no data available to answer this question."
+NO_DATA_ANSWER = "Je n'ai pas de données disponibles pour répondre à cette question."
 
 
 class ReactResult(NamedTuple):
@@ -51,7 +51,10 @@ def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLo
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
-            return ReactResult(ai_msg.content, observations, llm_calls, hops)
+            if str(ai_msg.content).strip():
+                return ReactResult(ai_msg.content, observations, llm_calls, hops)
+            messages.append(HumanMessage(content=EMPTY_REPLY_REMINDER))
+            continue
 
         for tool_call in ai_msg.tool_calls:
             started = time.time()

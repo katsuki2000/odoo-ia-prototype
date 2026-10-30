@@ -108,26 +108,38 @@ def _run_validated(call: Callable[[], Any]) -> Any:
         raise OrmRuntimeError(str(exc)) from exc
 
 
-def orm_fields_get(model: str) -> OrmToolResult:
+def _field_summary(metadata: dict) -> str:
+    relation = f"({metadata['relation']})" if metadata.get("relation") else ""
+    return f"{metadata.get('type')}{relation}: {metadata.get('string')}"
+
+
+def orm_fields_get(model: str, field_names: Optional[list] = None) -> OrmToolResult:
     model = validate_model_name(model)
+    names = validate_field_list(field_names or None)
     uid = require_execution_uid()
-    request = {"model": model}
-    fields_info = _run_validated(lambda: _get_connector().fields_get(uid, model))
+    request = {"model": model, "field_names": names}
+    fields_info = _run_validated(lambda: _get_connector().fields_get(uid, model, names))
+    described = {
+        name: metadata for name, metadata in sorted(fields_info.items()) if isinstance(metadata, dict)
+    } if isinstance(fields_info, dict) else {}
     fields = {
         name: {
             key: metadata[key]
             for key in ("string", "type", "help", "relation", "selection", "required", "readonly", "store")
             if key in metadata
-        }
-        for name, metadata in sorted(fields_info.items())
-        if isinstance(metadata, dict)
-    } if isinstance(fields_info, dict) else {}
+        } if names else _field_summary(metadata)
+        for name, metadata in described.items()
+    }
+    value = {"field_count": len(fields), "fields": fields}
+    unknown = [name for name in names if name not in fields]
+    if unknown:
+        value["unknown_fields"] = unknown
     return _build_result(
         tool="fields_get",
         method="fields_get",
         model=model,
         request=request,
-        value={"field_count": len(fields), "fields": fields},
+        value=value,
         claim=f"{model}: {len(fields)} fields described by fields_get",
         row_count=len(fields),
         truncated=False,
@@ -282,7 +294,7 @@ def orm_read_group(
     model: str,
     domain: Optional[list],
     fields: list[str],
-    groupby: list[str],
+    groupby: Optional[list[str]] = None,
     lazy: bool = True,
 ) -> OrmToolResult:
     model = validate_model_name(model)

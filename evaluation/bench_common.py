@@ -34,6 +34,14 @@ def contains_fact(folded_answer, fact):
     return re.search(before + '\n?'.join(map(re.escape, needle)) + after, folded_answer) is not None
 
 
+REASONING_SUFFIX = "+reasoning_"
+
+
+def result_label(model, reasoning_effort):
+    """Name under which the results are recorded: the Ollama model, suffixed when a reasoning effort is set."""
+    return model + REASONING_SUFFIX + reasoning_effort if reasoning_effort else model
+
+
 def mean(values):
     return statistics.mean(values) if values else None
 

@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from langchain_core.tools import tool
 
+from config import settings
 from core.evidence.evidence_collector import record_evidence
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.read_tools import (
@@ -21,8 +22,6 @@ from erp_data.runtime.read_tools import (
 )
 from erp_data.runtime.types import OrmToolResult
 
-_OBS_VALUE_CHARS = 4000
-
 
 def _format_observation(result: OrmToolResult) -> str:
     payload = {
@@ -32,20 +31,24 @@ def _format_observation(result: OrmToolResult) -> str:
         "truncated": result.observation.truncated,
         "value": deepcopy(result.evidence[0].value) if result.evidence else None,
     }
+    limit = (
+        settings.ORM_FIELDS_INDEX_MAX_CHARS if result.observation.tool == "fields_get"
+        else settings.ORM_OBSERVATION_MAX_CHARS
+    )
     body = json.dumps(payload, ensure_ascii=False, default=str)
-    output_truncated = len(body) > _OBS_VALUE_CHARS
+    output_truncated = len(body) > limit
     if output_truncated:
         payload["display_truncated"] = True
         value = payload.get("value")
         if isinstance(value, dict) and isinstance(value.get("fields"), dict):
             fields = value["fields"]
-            while fields and len(json.dumps(payload, ensure_ascii=False, default=str)) > _OBS_VALUE_CHARS:
+            while fields and len(json.dumps(payload, ensure_ascii=False, default=str)) > limit:
                 fields.pop(next(reversed(fields)))
         elif isinstance(value, list):
-            while value and len(json.dumps(payload, ensure_ascii=False, default=str)) > _OBS_VALUE_CHARS:
+            while value and len(json.dumps(payload, ensure_ascii=False, default=str)) > limit:
                 value.pop()
         body = json.dumps(payload, ensure_ascii=False, default=str)
-        if len(body) > _OBS_VALUE_CHARS:
+        if len(body) > limit:
             body = json.dumps({
                 "tool": result.observation.tool,
                 "model": result.observation.model,
@@ -66,9 +69,10 @@ def _invoke(call) -> str:
 
 
 @tool
-def fields_get(model: str) -> str:
-    """Inspect field names and types for an Odoo model (schema only)."""
-    return _invoke(lambda: _fields_get(model))
+def fields_get(model: str, field_names: Optional[list] = None) -> str:
+    """List every field of an Odoo model as name -> type and label. Pass field_names to get the full
+    details (relation, selection values) of those fields."""
+    return _invoke(lambda: _fields_get(model, field_names))
 
 
 @tool
@@ -127,11 +131,11 @@ def search_count(model: str, domain: Optional[list] = None) -> str:
 def read_group(
     model: str,
     fields: list[str],
-    groupby: list[str],
+    groupby: Optional[list[str]] = None,
     domain: Optional[list] = None,
     lazy: bool = True,
 ) -> str:
-    """Aggregate with read_group. fields may use aggregates like amount_total:sum."""
+    """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total."""
     return _invoke(
         lambda: _read_group(
             model,

@@ -43,7 +43,8 @@ sys.path.insert(0, str(project_root))
 import config.settings as settings
 from evaluation import run_store
 from evaluation.bench_common import (
-    contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, run_on_model, seconds_text,
+    contains_fact, execute_runs, latency_percentiles, mean, normalize, pct, rescore_runs, result_label, run_on_model,
+    seconds_text,
 )
 from evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
@@ -53,7 +54,6 @@ QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
 GENERATION_ERROR_PREFIX = 'Sorry, an error'
-REASONING_SUFFIX = '+reasoning_'
 
 
 # Matched on normalize() output: lowercase, no accent, no space. Models word a refusal in their own way
@@ -113,7 +113,7 @@ def run_once(item, chunks):
         answer, confidence = response.answer, response.confidence
         cited_sources = [source.title for source in response.sources]
         llm_calls = result['timing'].get('llm_call_count', 0)
-        structured_failed = bool(result.get('sources_fallback_eligible'))
+        structured_failed = bool(result.get('structured_failed'))
         error = answer if answer.startswith(GENERATION_ERROR_PREFIX) else None
     except Exception as exc:
         error = f'{type(exc).__name__}: {exc}'
@@ -136,11 +136,6 @@ def describe(record):
     if record['fact_recall'] is None:
         return 'abstained' if record['abstained'] else 'ANSWERED (unanswerable question)'
     return f'facts {record["fact_recall"]:.0%}, sources {record["source_recall"]:.0%}'
-
-
-def result_label(model, reasoning_effort):
-    """Name under which the results are recorded: the Ollama model, suffixed when a reasoning effort is set."""
-    return model + REASONING_SUFFIX + reasoning_effort if reasoning_effort else model
 
 
 def execute(todo, runs, model, server_info, chunks_by_id, reasoning_effort=None):

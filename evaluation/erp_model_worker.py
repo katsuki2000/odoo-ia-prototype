@@ -21,8 +21,19 @@ def classify_tool_observation(observation):
     return "ok"
 
 
-def run_question(question, uid, api_key, db, model, result_queue):
+def describe_tool_call(name, arguments, observation):
+    """Benchmark record of a tool call: its arguments, and the error when it was refused or unknown."""
+    from config import settings
+
+    call = {"name": name, "status": classify_tool_observation(observation), "args": arguments}
+    if call["status"] != "ok":
+        call["error"] = str(observation)[:settings.OBSERVATION_PREVIEW_CHARS]
+    return call
+
+
+def run_question(question, uid, api_key, db, model, reasoning_effort, result_queue):
     """Execute one question and return only benchmark-safe metadata to the parent."""
+    from config import settings
     from erp_data.odoo_context import request_identity
     import erp_data.orm_agent_helpers as helpers
     import erp_data.orm_agent_node as agent
@@ -38,7 +49,7 @@ def run_question(question, uid, api_key, db, model, result_queue):
 
     def tracked_tool_call(tool_call, all_tools):
         name, arguments, observation = execute_tool_call(tool_call, all_tools)
-        call = {"name": name, "status": classify_tool_observation(observation)}
+        call = describe_tool_call(name, arguments, observation)
         tool_calls.append(call)
         result_queue.put({"event": "tool_call", "call": call})
         return name, arguments, observation
@@ -60,6 +71,7 @@ def run_question(question, uid, api_key, db, model, result_queue):
             stack.enter_context(patch.object(
                 agent, "invoke_llm", lambda *args, **kwargs: tracked_invoke(invoke_llm, *args, **kwargs)))
             stack.enter_context(patch.object(agent, "ReasoningTraceLogger", _SilentTraceLogger))
+            stack.enter_context(patch.object(settings, "ERP_REASONING_EFFORT", reasoning_effort))
             stack.enter_context(patch.object(
                 helpers, "invoke_llm", lambda *args, **kwargs: tracked_invoke(helper_invoke_llm, *args, **kwargs)))
             start_evidence_collection()
