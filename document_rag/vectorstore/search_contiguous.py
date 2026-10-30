@@ -58,7 +58,7 @@ def _source_key(item: Mapping[str, Any], chroma_manager: Any) -> tuple[Any, int 
 def fetch_source_chunks(chroma_manager: Any, source: str, chunk_id: str | None = None) -> dict[int, dict[str, Any]]:
     """Fetch and index all chunks of a source by chunk_index."""
     managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
-    if chunk_id:
+    if chunk_id and isinstance(chroma_manager, list):
         manager = _manager_for_chunk(chroma_manager, source, chunk_id)
         managers = [manager] if manager is not None else []
     by_index = {}
