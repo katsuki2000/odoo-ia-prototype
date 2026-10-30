@@ -35,3 +35,8 @@ La PR reste non fusionnée : https://github.com/katsuki2000/odoo-ia-prototype/pu
 - Dernière exécution CI observée avant les changements de recherche : suite hors ligne réussie (518 passed, 31 skipped).
 - L'étape CI suivante échoue après la suite de tests car le workflow appelle `scripts/run_oca_coverage.py`, fichier absent de la branche de base également. Ce défaut du workflow est distinct de la suite de tests et n'a pas été masqué par un changement sans rapport.
 - Les tests des changements de recherche doivent être relancés par GitHub Actions après publication de ce commit.
+
+### Complément — isolation des collections pour l'expansion
+
+- Lorsqu'une même valeur `source` existe dans plusieurs collections, l'expansion identifie d'abord la collection qui contient le chunk candidat (`chunk_id`) avant de charger ses voisins. Cela évite de mélanger des fragments provenant de documents homonymes de collections différentes.
+- Le cas est couvert par un test dédié, ainsi que la récupération multi-collections.
