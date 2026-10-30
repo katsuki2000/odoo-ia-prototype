@@ -48,3 +48,5 @@ La PR reste non fusionnée : https://github.com/katsuki2000/odoo-ia-prototype/pu
 - Le message de repli sans résultat est maintenant défini une seule fois dans `document_rag/prompts.py` et partagé par le prompt et le nœud de génération. Le comportement ne diverge plus entre le cas sans chunks et les instructions données au LLM.
 - Les détails d'une exception de génération restent dans les journaux serveur ; ils ne sont plus renvoyés dans la réponse utilisateur.
 - Tests adaptés/ajoutés pour le message sans preuve et l'absence de fuite du détail d'exception.
+
+- Validation intermédiaire du regroupement multi-collections : deux tests ont révélé que les mocks de collection unique n'implémentaient pas la recherche par ID utilisée pour départager les collections. Le chemin à collection unique conserve donc son accès direct ; la recherche par ID n'est requise que lorsqu'une liste de gestionnaires est réellement fournie.
