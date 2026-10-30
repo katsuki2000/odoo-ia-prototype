@@ -26,9 +26,22 @@ def contains_list_or_table(text: str) -> bool:
     return bool(LIST_OR_TABLE_RE.search(text))
 
 
-def fetch_source_chunks(chroma_manager: Any, source: str) -> dict[int, dict[str, Any]]:
+def fetch_source_chunks(chroma_manager: Any, source: str, chunk_id: str | None = None) -> dict[int, dict[str, Any]]:
     """Fetch and index all chunks of a source by chunk_index."""
     managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
+    if chunk_id:
+        for manager in managers:
+            if not manager or not hasattr(manager, "collection"):
+                continue
+            try:
+                seed = manager.collection.get(ids=[chunk_id], include=["metadatas"])
+            except Exception:
+                continue
+            if chunk_id in seed.get("ids", []) and seed.get("metadatas", [{}])[0].get("source") == source:
+                managers = [manager]
+                break
+        else:
+            return {}
     by_index = {}
     for manager in managers:
         if not manager or not hasattr(manager, "collection"):
@@ -73,7 +86,8 @@ def expand_dominant_documents(
     whole_documents = {}
     for source, count in counts.items():
         if source and count >= min_chunks:
-            available = fetch_source_chunks(chroma_manager, source)
+            seed = next(item for item in results if source_of(item) == source)
+            available = fetch_source_chunks(chroma_manager, source, chunk_id=seed.get("id"))
             if available and len(available) <= max_chunks:
                 whole_documents[source] = available
 
@@ -130,7 +144,7 @@ def expand_contiguous_chunks(
             continue
 
         if source not in source_cache:
-            source_cache[source] = fetch_source_chunks(chroma_manager, source)
+            source_cache[source] = fetch_source_chunks(chroma_manager, source, chunk_id=item.get("id"))
         available = source_cache[source]
 
         for adjacent_idx in (idx - 1, idx + 1):
