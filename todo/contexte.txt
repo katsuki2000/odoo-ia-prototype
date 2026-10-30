@@ -55,3 +55,5 @@ La PR reste non fusionnée : https://github.com/katsuki2000/odoo-ia-prototype/pu
 
 - La désactivation des chunks Drive récupère et conserve désormais les métadonnées existantes avant de poser `drive_active=false`. Une mise à jour Chroma peut remplacer l'objet de métadonnées ; envoyer uniquement le champ de tombstone ferait perdre `origin`, `drive_file_id` et `source`, empêchant le garde de disponibilité de reconnaître un chunk Drive si sa suppression physique échoue.
 - Le test de nettoyage simule le remplacement des métadonnées (et non une fusion permissive) et vérifie que l'identité Drive est conservée et que le chunk reste exclu de la recherche en cas d'échec de suppression.
+
+- Les nouveaux tests de recherche sont placés avant le point d'entrée `unittest.main()`, afin qu'ils soient aussi découverts lors d'une exécution directe du fichier.
