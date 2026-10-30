@@ -447,3 +447,21 @@ def test_fetch_source_chunks_reads_all_configured_collections():
     chunks = fetch_source_chunks([first, second], "manual.pdf")
 
     assert [chunks[index]["id"] for index in sorted(chunks)] == ["chunk-0", "chunk-1"]
+
+
+def test_fetch_source_chunks_uses_the_collection_containing_the_seed_chunk():
+    first = Mock()
+    first.collection.get.side_effect = [
+        {"ids": ["chunk-0"], "metadatas": [{"source": "manual.pdf", "chunk_index": 0}]},
+        {"ids": ["chunk-0"], "documents": ["first"],
+         "metadatas": [{"source": "manual.pdf", "chunk_index": 0}]},
+    ]
+    second = Mock()
+    second.collection.get.return_value = {
+        "ids": ["chunk-1"], "metadatas": [{"source": "manual.pdf", "chunk_index": 1}],
+    }
+
+    chunks = fetch_source_chunks([first, second], "manual.pdf", chunk_id="chunk-0")
+
+    assert list(chunks) == [0]
+    second.collection.get.assert_called_once_with(ids=["chunk-0"], include=["metadatas"])
