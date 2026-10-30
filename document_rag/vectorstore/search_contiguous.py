@@ -28,24 +28,25 @@ def contains_list_or_table(text: str) -> bool:
 
 def fetch_source_chunks(chroma_manager: Any, source: str) -> dict[int, dict[str, Any]]:
     """Fetch and index all chunks of a source by chunk_index."""
-    if not chroma_manager or not hasattr(chroma_manager, "collection"):
-        return {}
-    try:
-        results = chroma_manager.collection.get(where={"source": source})
-        if not results or not results.get("ids"):
-            return {}
-        by_index = {}
-        for cid, doc, meta in zip(results["ids"], results["documents"], results["metadatas"]):
-            if meta and "chunk_index" in meta:
-                by_index[meta["chunk_index"]] = {
-                    "id": cid,
-                    "document": doc,
-                    "metadata": meta,
-                }
-        return by_index
-    except Exception as e:
-        logger.warning("Failed to fetch contiguous chunks for %s: %s", source, e)
-        return {}
+    managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
+    by_index = {}
+    for manager in managers:
+        if not manager or not hasattr(manager, "collection"):
+            continue
+        try:
+            results = manager.collection.get(where={"source": source})
+            for chunk_id, document, metadata in zip(
+                results.get("ids", []), results.get("documents", []), results.get("metadatas", [])
+            ):
+                if metadata and "chunk_index" in metadata:
+                    by_index.setdefault(metadata["chunk_index"], {
+                        "id": chunk_id,
+                        "document": document,
+                        "metadata": metadata,
+                    })
+        except Exception as error:
+            logger.warning("Failed to fetch contiguous chunks for %s: %s", source, error)
+    return by_index
 
 
 def expand_dominant_documents(
