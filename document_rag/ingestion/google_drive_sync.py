@@ -45,7 +45,14 @@ def drive_inventory(manager):
 def deactivate_chunks(manager, chunk_ids):
     if not chunk_ids:
         return 0
-    manager.collection.update(ids=chunk_ids, metadatas=[{'drive_active': False} for _ in chunk_ids])
+    rows = manager.collection.get(ids=chunk_ids, include=['metadatas'])
+    ids, metadatas = rows.get('ids', []), rows.get('metadatas', [])
+    if len(ids) != len(metadatas):
+        raise ValueError('Drive chunk metadata inventory is incomplete.')
+    manager.collection.update(
+        ids=ids,
+        metadatas=[{**(metadata or {}), 'drive_active': False} for metadata in metadatas],
+    )
     return manager.delete_by_ids(chunk_ids)
 
 
