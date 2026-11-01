@@ -6341,3 +6341,12 @@ Avec le raisonnement par défaut, `qwen3:14b` réussit 13 questions sur 16 (81 %
 Pour ton `grep` en début de message : `ingestion.log` n'existe pas, car aucun code de `api/`, `config/`, `document_rag/` ou `core/` n'écrit de fichier de log. Les lignes `used_sources declared` sortent sur la console du serveur ; pour les garder dans un fichier, redirige avec `2>&1 | tee ingestion.log`.
 
 Constat en section 1715, aucun fichier de code modifié. Quelles options (A, B, C) veux-tu que j'applique ou que tu lances ?
+
+## Section 1729 : memoire : relecture depuis la page de couverture, corrections de contenu (01/11/2026)
+
+Date : 01/11/2026, branche `memoire-final`. Dernier numero lu avant ecriture : 1715 sur cette branche ; les sections 1716 a 1728 sont sur `feat/odoo-embedded` (numerotation reprise a 1729 pour eviter les collisions). Sauvegardes : `.scratch/MASTER_ENI.avant_1729.docx`, `.scratch/contexte.avant_1729.txt`. Script : `.scratch/patch_1729.py`.
+**Mandat (pmm)** : revoir le memoire depuis le debut, page de couverture comprise ; nouvelle regle dans `todo/rules.md` : pmm s'occupe de la forme et de la mise en page, l'assistant du contenu seulement ; question de pmm : les accents sur les majuscules sont-ils necessaires (oui en francais ecrit : usage de l'Academie francaise et de l'Imprimerie nationale ; la couverture accentue deja UNIVERSITE et ECOLE).
+**Fait** : correction du texte dans `word/document.xml` par remplacement exact (une occurrence verifiee par motif, aucun autre fichier du docx touche, aucune mise en forme modifiee) : « MEMOIRE DE FIN D'ETUDES » en « MEMOIRE ... ETUDES » accentues ; « 3 decembre  2026 » en « 3 decembre 2026 » avec accent et espace unique ; espace avant virgule retiree chez les deux rapporteurs. Verification : zip valide, 819 paragraphes, 44 tableaux et 12 images comme avant.
+**Constat non corrige (a trancher par pmm)** : le nom RAKOTOASIMBAHIAKA (couverture) s'ecrit RAKOTOASIMBAHOAKA ailleurs dans le document (responsable de parcours) ; civilite « Monsieur » de la couverture ; casse du nom de M. Tahinjanahary Maminirina ; date de soutenance du 3 decembre 2026.
+**Non touche (forme, a pmm)** : alignements, gras, soulignement, tampon MIRO pale en bas de la couverture, logos.
+**Fichiers modifies** : `todo/MASTER_ENI.docx`, `todo/contexte.txt`. `todo/rules.md` (ajout de pmm) non commite.
