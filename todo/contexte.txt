@@ -6350,3 +6350,12 @@ Date : 01/11/2026, branche `memoire-final`. Dernier numero lu avant ecriture : 1
 **Constat non corrige (a trancher par pmm)** : le nom RAKOTOASIMBAHIAKA (couverture) s'ecrit RAKOTOASIMBAHOAKA ailleurs dans le document (responsable de parcours) ; civilite « Monsieur » de la couverture ; casse du nom de M. Tahinjanahary Maminirina ; date de soutenance du 3 decembre 2026.
 **Non touche (forme, a pmm)** : alignements, gras, soulignement, tampon MIRO pale en bas de la couverture, logos.
 **Fichiers modifies** : `todo/MASTER_ENI.docx`, `todo/contexte.txt`. `todo/rules.md` (ajout de pmm) non commite.
+
+
+## Section 1730 : memoire : date de soutenance, civilite et tampon de la couverture (01/11/2026)
+
+Date : 01/11/2026, branche `memoire-final`. Dernier numero lu avant ecriture : 1729. Sauvegardes : `.scratch/MASTER_ENI.avant_1730.docx`, `.scratch/contexte.avant_1730.txt`. Script : `.scratch/patch_1730.py`.
+**Mandat (pmm)** : mettre la date au 24 novembre ; la civilite « Monsieur » est correcte ; le tampon MIRO de la couverture est le seul disponible, on le garde.
+**Fait** : couverture : « Presente le 3 decembre 2026 » remplace par « Presente le 24 novembre 2026 » (une seule occurrence de la date dans tout le docx, verifiee dans tous les fichiers `word/*.xml`). Verification : 819 paragraphes, 44 tableaux, 12 images comme avant.
+**Reste a trancher par pmm** : orthographe du nom de la rapporteuse (RAKOTOASIMBAHIAKA sur la couverture, RAKOTOASIMBAHOAKA pour le responsable de parcours) ; casse du nom de M. Tahinjanahary Maminirina.
+**Fichiers modifies** : `todo/MASTER_ENI.docx`, `todo/contexte.txt`.
