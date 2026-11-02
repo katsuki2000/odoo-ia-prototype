@@ -7,24 +7,24 @@ node "Poste utilisateur" as Poste <<device>> {
   }
 }
 
-node "Serveur applicatif\n(Odoo et backend IA côte à côte)" as Srv <<device>> {
+node "Serveur ERP" as Srv <<device>> {
   node "Processus Odoo 17" <<execution environment>> {
     component "Addon miro_ai\n(contrôleur, modèles)" as Addon
     component "Moteur Odoo 17\n(ORM, droits d'accès, XML-RPC)\nport 8069" as Odoo
   }
-  node "Processus uvicorn" <<execution environment>> {
+  node "Serveur PostgreSQL" <<execution environment>> {
+    database "Base Odoo\nport 5432" as Pg
+  }
+  node "Conteneur Docker\nmiddleware IA" <<container>> {
     component "Backend FastAPI et LangGraph\nport 8000 (API_HOST 127.0.0.1 par défaut)" as Api
     database "ChromaDB\n(fichiers, embeddings bge-m3)" as Chroma
     folder "Corpus documentaire\n(PDF, Markdown, DOCX)" as Docs
   }
-  node "Serveur PostgreSQL" <<execution environment>> {
-    database "Base Odoo" as Pg
-  }
 }
 
-node "Serveur d'inférence LLM\n(cible aws ou kaggle)" as Llm <<device>> {
-  node "Ollama" <<execution environment>> {
-    component "API compatible OpenAI (/v1)\nmodèle qwen3:14b\nembeddings bge-m3" as Ollama
+node "Instance AWS g6.2xlarge\n(8 vCPU, 32 Gio, GPU NVIDIA L4 24 Go)" as Llm <<device>> {
+  node "Conteneur Docker\nOllama (GPU exposé)" <<container>> {
+    component "API compatible OpenAI (/v1)\nmodèle qwen3:14b\nembeddings bge-m3\nport 11434" as OllamaApi
   }
 }
 
@@ -35,11 +35,11 @@ Api -- Odoo : XML-RPC /xmlrpc/2/object\nlecture seule, uid demandeur\n(clé API 
 Odoo -- Pg : SQL TCP 5432
 Api -- Chroma : requêtes vectorielles
 Api -- Docs : ingestion et découpage
-Api -- Ollama : HTTPS /v1\n(génération et embeddings)
+Api -- OllamaApi : HTTPS /v1\n(génération et embeddings)
 
 note bottom of Llm
-  Hébergement réel selon LLM_TARGET : aws (par défaut)
-  ou kaggle (tunnel ngrok). Aucun Dockerfile ni docker-compose
-  dans le dépôt.
+  Hébergement selon LLM_TARGET : aws (par défaut).
+  Pendant le développement, le modèle est servi
+  par un hôte Kaggle temporaire (tunnel ngrok).
 end note
 @enduml

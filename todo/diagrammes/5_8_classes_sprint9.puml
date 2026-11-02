@@ -14,14 +14,14 @@ class MiroAiSettings <<models.Model>> {
 class MiroAiLog <<models.Model>> {
   +question : Text
   +answer : Text
-  +user_id : Many2one(res.users)
-  +company_id : Many2one(res.company)
+  {field} +user_id : Many2one(res.users)
+  {field} +company_id : Many2one(res.company)
   +session_id : Char
   +response_time_ms : Integer
-  +sources_text : Text (JSON)
+  {field} +sources_text : Text (JSON)
   +sources_count : Integer
-  +metadata_text : Text (JSON)
-  +state : Selection (success / error)
+  {field} +metadata_text : Text (JSON)
+  {field} +state : Selection (success / error)
   +log_query(question, answer, session_id, response_time_ms, sources, state, metadata) : record
   +get_sessions(limit : int) : list
   +get_session_history(session_id : str) : list
@@ -72,7 +72,22 @@ class OdooConnector {
   -_execute_kw(uid, model, method, args, kwargs) : Any
 }
 
+class "discovery" as Discovery <<module erp_data.runtime>> {
+  +mark_described(model : str) : void
+  +require_described(model : str) : void
+  +is_undescribed(model : str) : bool
+}
+
+class OrmRuntimeError <<exception>>
+
+class SchemaNotReadError <<exception>> {
+  +model : str
+}
+
 OrmRuntimeReadTools ..> OrmToolResult : retourne
 OrmToolResult "1" *-- "1" OrmObservation
 OrmRuntimeReadTools --> OdooConnector : exécute sous l'uid demandeur
+OrmRuntimeReadTools ..> Discovery : refuse tout modèle dont\nles champs n'ont pas été lus
+Discovery ..> SchemaNotReadError : lève
+OrmRuntimeError <|-- SchemaNotReadError
 @enduml
