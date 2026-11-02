@@ -30,6 +30,8 @@ from erp_data.runtime.validation import (
     validate_record_ids,
 )
 
+MODEL_NOT_FOUND_HINT = " Find the right model with list_models and one keyword."
+
 _connector: Optional[OdooConnector] = None
 _field_cache: dict[tuple[str, str], Optional[dict]] = {}
 
@@ -43,6 +45,11 @@ def _get_connector() -> OdooConnector:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _window(rows: list, capped: int) -> tuple[list, bool]:
+    """Cut rows fetched with capped + 1 to capped; truncated only when a further row exists."""
+    return rows[:capped], len(rows) > capped
 
 
 def _build_result(
@@ -171,7 +178,10 @@ def _run_validated(call: Callable[[], Any]) -> Any:
     except OrmRuntimeError:
         raise
     except OdooConnectorError as exc:
-        raise OrmRuntimeError(_short_odoo_error(str(exc))) from exc
+        message = _short_odoo_error(str(exc))
+        if "doesn't exist" in message:
+            message += MODEL_NOT_FOUND_HINT
+        raise OrmRuntimeError(message) from exc
 
 
 def _field_summary(metadata: dict) -> str:
@@ -242,12 +252,11 @@ def orm_search(
         "order": order,
         "offset": offset,
     }
-    ids = _run_validated(
+    ids, truncated = _window(_run_validated(
         lambda: _get_connector().search(
-            uid, model, domain=domain, limit=capped, order=order, offset=offset
+            uid, model, domain=domain, limit=capped + 1, order=order, offset=offset
         )
-    )
-    truncated = len(ids) >= capped
+    ), capped)
     return _build_result(
         tool="search",
         method="search",
@@ -319,18 +328,17 @@ def orm_search_read(
     if context:
         request["context"] = context
     extra = {"context": context} if context else {}
-    records = _run_validated(
+    records, truncated = _window(_run_validated(
         lambda: _get_connector().search_read(
             uid=uid,
             model=model,
             domain=domain,
             fields=fields,
-            limit=capped,
+            limit=capped + 1,
             order=order,
             **extra,
         )
-    )
-    truncated = len(records) >= capped
+    ), capped)
     return _build_result(
         tool="search_read",
         method="search_read",
@@ -398,8 +406,7 @@ def orm_read_group(
             lazy=lazy,
         )
     )
-    capped = cap_row_limit(None)
-    truncated = len(rows) >= capped
+    rows, truncated = _window(rows, cap_row_limit(None))
     return _build_result(
         tool="read_group",
         method="read_group",
@@ -434,12 +441,11 @@ def orm_name_search(
         "operator": operator,
         "limit": capped,
     }
-    pairs = _run_validated(
+    pairs, truncated = _window(_run_validated(
         lambda: _get_connector().name_search(
-            uid, model, name=name, domain=domain, operator=operator, limit=capped
+            uid, model, name=name, domain=domain, operator=operator, limit=capped + 1
         )
-    )
-    truncated = len(pairs) >= capped
+    ), capped)
     return _build_result(
         tool="name_search",
         method="name_search",
@@ -453,7 +459,35 @@ def orm_name_search(
     )
 
 
+def orm_list_models(query: str) -> OrmToolResult:
+    if not isinstance(query, str) or not query.strip():
+        raise OrmRuntimeError("query must be a keyword of the model name or label")
+    words = query.lower().split()
+    uid = require_execution_uid()
+    rows = _run_validated(lambda: _get_connector().available_models(uid))
+    matches = sorted(
+        (row["model"], row["display_name"])
+        for row in rows
+        if all(word in f"{row['model']} {row['display_name']}".lower() for word in words)
+    )
+    shown, truncated = _window(matches, cap_row_limit(None))
+    return _build_result(
+        tool="list_models",
+        method="get_available_models",
+        model="ir.model",
+        request={"query": query},
+        value=shown,
+        claim=f"models matching {query!r} -> {len(shown)} models",
+        row_count=len(shown),
+        truncated=truncated,
+        uid=uid,
+    )
+
+
+SCHEMA_METHODS = frozenset({"fields_get", "get_available_models"})
+
 READ_ONLY_ORM_TOOLS: dict[str, Callable[..., OrmToolResult]] = {
+    "list_models": orm_list_models,
     "fields_get": orm_fields_get,
     "search": orm_search,
     "read": orm_read,

@@ -193,10 +193,12 @@ def test_orm_loop_returns_the_tool_observations(monkeypatch):
     monkeypatch.setattr(orm_agent_node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(orm_agent_node, "_build_llm", lambda **_kwargs: FakeLlm())
     monkeypatch.setattr(orm_agent_node, "invoke_llm", fake_invoke)
-    monkeypatch.setattr(
-        orm_agent_node, "execute_tool_call",
-        lambda tool_call, _tools: (tool_call["name"], tool_call["args"], next(observations)),
-    )
+    def fake_execute(tool_call, _tools):
+        observation = next(observations)
+        record_evidence(make_evidence(EvidenceSourceType.ORM, claim=observation, source="orm_runtime.search_count"))
+        return tool_call["name"], tool_call["args"], observation
+
+    monkeypatch.setattr(orm_agent_node, "execute_tool_call", fake_execute)
     result = orm_agent_node.orm_agent_loop({"question": "Combien en stock ?"})
     assert result["raw_tool_output"] == "Il y a 7.0 unites de a.\n\nIl y a 3.0 unites de b."
     assert result["response"].answer == "Stock a=7, b=3."

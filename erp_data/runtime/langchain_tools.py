@@ -16,6 +16,7 @@ from core.evidence.evidence_collector import record_evidence
 from erp_data.runtime.errors import OrmRuntimeError, SchemaNotReadError
 from erp_data.runtime.read_tools import (
     orm_fields_get as _fields_get,
+    orm_list_models as _list_models,
     orm_name_search as _name_search,
     orm_read as _read,
     orm_read_group as _read_group,
@@ -100,7 +101,10 @@ def _format_observation(result: OrmToolResult) -> str:
                 "display_truncated": True,
                 "value_summary": "Output too large to display; narrow fields or reduce the record limit.",
             }, ensure_ascii=False)
-    notice = "\nDisplayed output is truncated; omitted fields or records are not evidence." if output_truncated else ""
+    notice = (
+        "\nDisplayed output is truncated; omitted fields or records are not evidence. "
+        "Ask the user for a row limit or a narrower filter."
+    ) if output_truncated else ""
     return f"{result.text}{notice}\n{body}{_schema_hint(result)}"
 
 
@@ -214,7 +218,16 @@ def name_search(
     )
 
 
+@tool
+def list_models(query: str) -> str:
+    """Find the technical name of an Odoo model from one keyword of its name or label (for example
+    'property'). Use it only when the model name is unknown or was refused, not for a standard model you know.
+    Lists only the models the requester may read, with their labels; prefer a business model to a report model."""
+    return _invoke(lambda: _list_models(query))
+
+
 TYPED_ORM_LANGCHAIN_TOOLS: list[Any] = [
+    list_models,
     fields_get,
     search,
     read,

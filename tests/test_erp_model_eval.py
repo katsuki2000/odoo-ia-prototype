@@ -119,6 +119,7 @@ def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):
         "_run_isolated_question",
         lambda *args: {
             "answer": "4 ventes pour Société Dupont.",
+            "model_answer": "Précisez la période.",
             "timing": {"llm_call_count": 3, "hop_count": 2},
             "tool_calls": [
                 {"name": "search_read", "status": "ok"},
@@ -130,6 +131,7 @@ def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):
     )
     result = bench.run_once(_item(), 7, "secret", "qwen3:8b")
     assert result["fact_recall"] == 1.0
+    assert result["model_answer"] == "Précisez la période."
     assert (result["tool_call_count"], result["tool_ok"], result["tool_invalid"], result["tool_unknown"]) == (3, 1, 1, 1)
     assert (result["no_tool"], result["llm_calls"], result["hops"], result["error"]) == (False, 3, 2, None)
 

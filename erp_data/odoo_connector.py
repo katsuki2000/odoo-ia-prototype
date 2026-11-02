@@ -131,8 +131,11 @@ class OdooConnector:
             ids = [int(company_id)] + [x for x in ids if x != int(company_id)]
         return {"allowed_company_ids": ids} if ids else {}
 
-    def _execute_kw(self, uid: int, model: str, method: str, args: list, kwargs: dict | None = None):
-        self._check_whitelist(model)
+    def _execute_kw(
+        self, uid: int, model: str, method: str, args: list, kwargs: dict | None = None, check_model: bool = True,
+    ):
+        if check_model:
+            self._check_whitelist(model)
         kwargs = dict(kwargs or {})
         session_ctx = self._session_orm_context()
         if session_ctx:
@@ -221,6 +224,15 @@ class OdooConnector:
         return self._execute_kw(
             uid, model, "read_group", [domain, fields, groupby], extra_kwargs or {}
         )
+
+    def available_models(self, uid: int) -> list[dict]:
+        """Models the requester may read, with their labels (standard `ir.model.get_available_models`).
+
+        The method is public to every internal user and applies their read rights; the deployment
+        allow-list is applied to its rows, not to `ir.model` itself."""
+        rows = self._execute_kw(uid, "ir.model", "get_available_models", [], check_model=False)
+        allowed = settings.ODOO_ALLOWED_MODELS
+        return [row for row in rows if not allowed or row["model"] in allowed]
 
     def fields_get(self, uid: int, model: str, field_names: list | None = None) -> dict:
         """

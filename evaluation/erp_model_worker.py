@@ -42,10 +42,12 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
 
     tool_calls = []
     llm_errors = []
+    model_answers = []
 
     execute_tool_call = agent.execute_tool_call
     invoke_llm = agent.invoke_llm
     helper_invoke_llm = helpers.invoke_llm
+    build_response = agent._build_response
 
     def tracked_tool_call(tool_call, all_tools):
         name, arguments, observation = execute_tool_call(tool_call, all_tools)
@@ -53,6 +55,10 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
         tool_calls.append(call)
         result_queue.put({"event": "tool_call", "call": call})
         return name, arguments, observation
+
+    def tracked_build_response(question, result):
+        model_answers.append(result.answer)
+        return build_response(question, result)
 
     def tracked_invoke(invoke, *args, **kwargs):
         result_queue.put({"event": "llm_call"})
@@ -70,6 +76,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
             stack.enter_context(patch.object(agent, "execute_tool_call", tracked_tool_call))
             stack.enter_context(patch.object(
                 agent, "invoke_llm", lambda *args, **kwargs: tracked_invoke(invoke_llm, *args, **kwargs)))
+            stack.enter_context(patch.object(agent, "_build_response", tracked_build_response))
             stack.enter_context(patch.object(agent, "ReasoningTraceLogger", _SilentTraceLogger))
             stack.enter_context(patch.object(settings, "ERP_REASONING_EFFORT", reasoning_effort))
             stack.enter_context(patch.object(
@@ -85,6 +92,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
         response = result.get("response")
         result_queue.put({"event": "result", "result": {
             "answer": response.answer if response else "",
+            "model_answer": model_answers[0] if model_answers else None,
             "timing": result.get("timing", {}),
             "tool_calls": tool_calls,
             "llm_errors": llm_errors,

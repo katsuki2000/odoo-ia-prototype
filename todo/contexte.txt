@@ -6699,3 +6699,319 @@ Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture :
 **Mandat (pmm)** : « garde que ce qui est coherent ».
 **Constat** : `todo/diagrammes_memoire/` (non suivi, 8 fichiers `5.1_` a `5.8_`, crees le 02/11 a 05:35, aucune reference dans le depot) est un second jeu de sources PlantUML, incomplet (pas de 5.9, 5.10, 5.11) et different de `todo/diagrammes/` ligne a ligne. Controle contre le code : classes retrouvees 56 sur 67 (les 11 absentes sont les noms francais du modele de domaine 5.2, comme dans le jeu suivi) ; membres retrouves 185 sur 186, **`embed_batch` (5.3) n'existe pas dans le code**. Le jeu suivi (11 figures, commits 31832562 et 8f02116e, images deja dans le docx, membres retrouves 149 sur 149) est conserve.
 **Fait** : `todo/diagrammes_memoire/` supprime. Aucun code ni docx modifie.
+
+
+## Section 1762 : reponse ERP sans lecture reussie, troncature exacte, limites relevees, demande de limite a l'utilisateur (plan, journal avant code, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1761. Sauvegardes : `.scratch/contexte.avant_1762.txt` et `.scratch/avant_1762/` (orm_agent_node.py, orm_agent_helpers.py, prompts.py, read_tools.py, settings.py, test_p9_runtime_read_tools.py, test_p9_typed_runtime_wiring.py, test_t3_verify_node.py).
+**Mandat (pmm)** : sur le constat du fil MIRO AI (rapport de ventes affiche avec des donnees d'exemple alors que les trois lectures `sale.order`, `sale.order.line`, `account.move` avaient ete refusees) : « fais les 4, mais augmente quand meme les limites de troncature et fais demander a l'IA d'imposer une limite a l'utilisateur ». Les quatre : (1) garde structurel, (2) troncature exacte, (3) verificateur en `enforce`, (4) tests. Le gel de l'agent des sections 1754 et 1755 est leve par ce mandat pour ces fichiers ; les mesures ERP anterieures ne sont plus comparables a l'agent modifie.
+**Racine** : (a) `_build_response` (`erp_data/orm_agent_node.py`) traite toute observation comme une donnee : un refus ORM compte dans les sources et donne la confiance `ORM_CONFIDENCE_WITH_DATA` (0,9) ; (b) rien n'empeche une reponse finale apres uniquement des refus ; (c) `ANSWER_VERIFIER_MODE = 'report'` : les nombres sans preuve sont comptes mais jamais retires ; (d) `truncated = len(rows) >= capped` (`read_tools.py`, quatre outils) est vrai des que le nombre de lignes egale la limite demandee, meme sans ligne supplementaire : « cites-en 5 » renvoie 5 lignes marquees `[truncated]` et le modele annonce une liste tronquee a tort ; `read_group` n'applique pas le plafond (aucune coupe), seulement le marqueur.
+**Plan** : (1) `_build_response` : sources et confiance calcules sur les Evidence du tour (lectures reussies uniquement, `peek_turn_evidence`) ; si des outils ont ete appeles et qu'aucune lecture n'a abouti, la reponse du modele est remplacee par un message explicite (lectures refusees, rien d'invente) ; une reponse sans appel d'outil (demande de precision) reste inchangee. (2) `read_tools.py` : helper `_window(rows, capped)` ; `search`, `search_read`, `name_search` demandent `capped + 1` lignes a Odoo, coupent a `capped` et ne marquent `truncated` que s'il en existe davantage ; `read_group` coupe au plafond (meme helper). (3) `config/settings.py` : `ANSWER_VERIFIER_MODE = 'enforce'` ; limites relevees : `ORM_RUNTIME_MAX_ROWS` 100 a 200, `ORM_OBSERVATION_MAX_CHARS` 4000 a 8000, `ORM_FIELDS_INDEX_MAX_CHARS` 12000 a 16000 ; nouvelle constante `ORM_SYNTHESIS_MAX_TOKENS = 1024` (etait 512 en dur dans `force_final_synthesis`). (4) `erp_data/prompts.py` : quand une observation est tronquee (`truncated` ou `display_truncated`), le modele ne presente pas le resultat partiel comme complet, indique combien de lignes il voit, utilise `read_group` ou `search_count` pour les totaux, et demande a l'utilisateur de fixer une limite ou un filtre (nombre de lignes, periode, statut, client). (5) Tests purs mis a jour et ajoutes ; `py_compile`, pytest cible. **Limite connue, non traitee** : le verificateur ne controle que les nombres, les xml_id de groupe et les appels de methode ; un nom invente ou une fonction decrite a tort (bouton « Exporter en PDF ») n'est pas detecte (il faudrait un controle des entites, hors de l'ordinaire : a decider par pmm).
+**Delegue a pmm** : rejeu du banc ERP (`python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3`) et essai dans l'interface (« fais un rapport des ventes realisees »), apres le code.
+
+
+## Section 1763 : execution de la 1762 (02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1762. Sauvegardes : celles de la 1762.
+**Fait** : (1) `erp_data/orm_agent_node.py` : `_build_response` s'appuie sur les Evidence du tour (`peek_turn_evidence`, lectures reussies) : sources = une par lecture reussie (extrait = claim de l'Evidence, l'extrait brut de 150 caracteres est supprime), confiance 0,9 seulement s'il y a une lecture ; si des outils ont ete appeles et qu'aucune lecture n'a abouti, la reponse du modele est remplacee par `NO_READ_ANSWER` (sans source, confiance 0,5) ; une reponse sans appel d'outil (demande de precision) reste inchangee. (2) `erp_data/runtime/read_tools.py` : helper `_window(rows, capped)` ; `search`, `search_read`, `name_search` demandent `capped + 1` lignes et coupent a `capped` ; `read_group` coupe au plafond ; `truncated` n'est vrai que s'il existe une ligne de plus. Verifie sur l'instance `odoo` (78 partenaires, `search_read` sans LLM) : limite 3 : `[truncated]` ; limite 78 : non tronque ; limite 83 : non tronque. (3) `config/settings.py` : `ANSWER_VERIFIER_MODE = 'enforce'` (vaut aussi pour la branche documentaire : `verify_answer` est commun aux deux) ; `ORM_RUNTIME_MAX_ROWS` 100 a 200, `ORM_OBSERVATION_MAX_CHARS` 4000 a 8000, `ORM_FIELDS_INDEX_MAX_CHARS` 12000 a 16000 ; `ORM_SYNTHESIS_MAX_TOKENS = 1024` utilisee par `force_final_synthesis` (`orm_agent_helpers.py`, etait 512 en dur). (4) `erp_data/prompts.py` : si aucune lecture n'a abouti, le modele le dit (ni exemples ni valeurs fictives) ; une observation tronquee est partielle : nombre de lignes vues, `read_group` ou `search_count` pour un total, demande a l'utilisateur de fixer une limite ou un filtre ; liste sans nombre precis : nombre raisonnable de lignes et proposition d'en voir plus. `erp_data/runtime/langchain_tools.py` : l'avis de troncature d'affichage ajoute « Ask the user for a row limit or a narrower filter ». (5) Tests : `test_p9_runtime_read_tools.py` (limite + 1, valeur coupee, cas exactement a la limite non tronque, `read_group` coupe), `test_p9_typed_runtime_wiring.py` (reponse apres refus seuls remplacee, apres lecture reussie conservee, demande de precision conservee, consigne de limite dans le prompt ; fixture de collecte d'Evidence), `test_t3_verify_node.py` (le faux outil enregistre une Evidence).
+**Verification** : `py_compile` et pyflakes propres ; `pytest erp_data/tests tests/test_t3_verify_node.py -m "not integration"` : 107 passes ; `pytest tests erp_data/tests -m "not integration" -n auto` : **590 passes, 31 ignores** (615 en 1756 avec le serveur d'embeddings actif : les ignores sont ceux qui en dependent), 66 s.
+**Non verifie, a lancer par pmm** : `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3` ; essai dans l'interface (« fais un rapport des ventes realisees », puis « cite 5 produits »). Points a surveiller : (a) latence, car les observations peuvent maintenant faire 8 000 caracteres (16 000 pour `fields_get`) ; (b) l'effet de `enforce` sur les scores de faits, ERP et documentaire (un nombre juste mais formate autrement que dans la preuve est retire) ; (c) `NO_READ_ANSWER` apparait si le modele n'obtient que des refus.
+**Limites connues, non traitees** : le verificateur ne controle ni les noms inventes ni les fonctions decrites a tort (bouton « Exporter en PDF ») : un controle des entites est hors de l'ordinaire, decision de pmm ; `read_tools.py` fait 464 lignes (limite de 300), decoupage sur mandat. **Aucun commit** : fichiers modifies : `erp_data/orm_agent_node.py`, `erp_data/orm_agent_helpers.py`, `erp_data/prompts.py`, `erp_data/runtime/read_tools.py`, `erp_data/runtime/langchain_tools.py`, `config/settings.py`, trois fichiers de tests, `todo/contexte.txt`.
+
+
+## Section 1764 : banc ERP apres la 1763, 16 questions (constat, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1763. Sauvegarde : `.scratch/contexte.avant_1764.txt`. Aucun fichier de code modifie par cette section.
+**Mandat (pmm)** : run lance par pmm (`python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3`, sans `--fresh`), sortie collee.
+**Portee des mesures** : le run n'a execute que les passes 2 et 3 (32 executions) ; la passe 1 de `qwen3:14b` et les 16 lignes `qwen3:14b+reasoning_none` viennent de runs anterieurs a la 1763 (la passe 1 montre encore `state = 'confirmed'` accepte, ERP-02 a 0 %). Le tableau final (81 %, p50 63 s, p90 99 s, timeouts 4 %) melange donc ancien et nouvel agent ; `reasoning_none` (56 %) est la mesure du 30/10, a refaire. Sur les passes 2 et 3 seules : 26 sur 32 (81 %), echecs : ERP-10, ERP-13, ERP-16 aux deux passes. Le banc appelle `orm_agent_loop` directement : le verificateur (`enforce`) n'est pas exerce.
+**Effet de la 1763** : ERP-16 (modele absent) : le modele devine `real.estate.property`, `property`, `real_property`, les trois `fields_get` sont refuses, la reponse est remplacee par `NO_READ_ANSWER` (rien d'invente) ; en passe 1 (ancien agent) la reponse disait que le modele n'existe pas. Pas de regression sur ERP-01 a 09, 11, 12, 14, 15 (100 % aux deux passes). ERP-02 passes 2 et 3 : 120 187,11, la passe 3 ajoute « precisez un nombre de lignes a afficher » alors que le resultat n'est pas tronque (fuite de la consigne de limite sur un agregat).
+**Echecs restants (causes lues dans `captures/erp_model_eval.jsonl`)** : ERP-16 : le modele ne peut pas decouvrir le nom du modele (reel : `estate.property`) ; aucun outil ne liste les modeles. ERP-13 (« fiches article hors variantes ») : passes 2 et 3 interrogent `product.product` avec `is_product_variant = False` (49) au lieu de `product.template` (44, attendu) ; meme echec que le run de la 1759. ERP-10 : passes 2 et 3 en depassement de 180 s apres un seul `fields_get(crm.lead)` ; l'outil repond en 111 ms et l'observation fait 6 013 caracteres (moins que `sale.order`, 7 490, qui passe) : le temps est dans la generation du modele (raisonnement), pas dans la taille de l'observation ; passe 1 (ancien agent) : 36 au lieu de 14 (filtre sur les noms d'etapes Won/Lost au lieu de `probability` et `active`).
+**Pistes non appliquees (decision de pmm)** : (a) ERP-16 : autoriser la recherche d'un modele dans `ir.model` (lecture standard, valable sur toute instance 17) et le dire au prompt ; (b) ERP-13 : ajouter le libelle du modele (`ir.model.name`, p. ex. « Product » et « Product Variant ») a l'observation de `fields_get`, pour relier « fiche article » et « variante » aux modeles ; (c) `NO_READ_ANSWER` : y joindre le dernier motif de refus (ex. « le modele X n'existe pas ») pour ne pas perdre l'information ; (d) ERP-02 : limiter la consigne « fixer une limite » aux observations effectivement tronquees ; (e) ERP-10 : mesurer la duree des appels LLM (trace par saut) avant de conclure. **Aucun commit.**
+
+
+## Section 1765 : decouverte des modeles, explication des refus, reponses sans termes techniques (plan, journal avant code, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1764. Sauvegardes : `.scratch/contexte.avant_1765.txt` et `.scratch/avant_1765/` (odoo_connector.py, orm_agent_node.py, orm_agent_helpers.py, prompts.py, read_tools.py, langchain_tools.py, test_p9_runtime_read_tools.py, test_p9_typed_runtime_wiring.py, test_odoo_connector.py).
+**Mandat (pmm)** : « vas y pour 3 et 1 » (pistes de la 1764), et « la reponse generee ne devrait pas contenir trop de termes techniques (comme name_search ou le nom de l'outil orm) » ; question de pmm : le libelle du modele (piste 2) est-il une solution pour tous les modeles ?
+**Verifie sur l'instance `odoo` avant d'agir** : (a) la piste 1 telle que ecrite en 1764 (lire `ir.model` par `search_read`) ne marche que pour un administrateur : `ir.model` n'a de droit de lecture que pour le groupe `base.group_erp_manager` (`ir.model.access.csv`), et les utilisateurs `demo` et `portal` recoivent un AccessError, de meme pour `ir.actions.act_window` ; elle ne repond donc pas a la regle « n'importe quelle instance et n'importe quel utilisateur ». (b) Methode standard d'Odoo 17 (module `web`, `addons/web/models/ir_model.py`) : `ir.model.get_available_models()` liste les modeles que le demandeur peut lire (hors transitoires et abstraits) avec leur libelle ; `ir.model.display_name_for(models)` donne le libelle de modeles connus ; les deux fonctionnent pour `demo` (324 modeles lisibles contre 406 pour admin) et respectent donc les droits du demandeur. Libelles reels : `product.template` = « Product », `product.product` = « Product Variant », `estate.property` = « Estate Property ». Le libelle (piste 2) est donc une solution generale : `display_name_for` couvre tout modele ; elle n'est pas appliquee (pas de mandat), mais l'outil ci-dessous donne deja le libelle de chaque modele propose.
+**Racine** : l'agent ne peut pas retrouver le nom technique d'un modele (ERP-16 : `estate.property`) et en invente (`real.estate.property`, `property`, `real_property`) ; quand toutes les lectures sont refusees, le message fixe de la 1763 perd la raison du refus ; et le prompt demande de citer « les modeles/champs consultes », ce qui produit des reponses pleines de noms d'outils et de noms techniques.
+**Plan** : (1) `erp_data/odoo_connector.py` : `available_models(uid)` appelle `get_available_models` (parametre `check_model=False` de `_execute_kw`, la liste blanche `ODOO_ALLOWED_MODELS` etant appliquee aux lignes retournees) ; `erp_data/runtime/read_tools.py` : `orm_list_models(query)` (mot-cle obligatoire, tous les mots dans le nom ou le libelle, plafond `ORM_RUNTIME_MAX_ROWS`, `truncated` exact) ajoute au registre ; `erp_data/runtime/langchain_tools.py` : outil `list_models`. C'est un huitieme outil de lecture, enveloppe d'une methode standard d'Odoo : pas d'invention, mais hors de la liste des sept primitives de la 1749 (signale a pmm). (2) `erp_data/prompts.py` : ne jamais deviner un nom de modele, utiliser `list_models` avec un seul mot-cle, comparer le libelle a la question ; reponses en langage metier : aucun nom d'outil, pas de « ORM », ni de domaine, ni d'observation ; une courte ligne « Source » avec le libelle metier et le nom technique entre parentheses. (3) Refus : quand des outils ont ete appeles et qu'aucune lecture n'a abouti, un dernier appel LLM (`explain_refusals` dans `orm_agent_helpers.py`, prompt `build_orm_refusal_prompt`) explique en langage simple pourquoi rien n'a pu etre lu et quoi preciser, sans donnees ni exemples ; la reponse du modele est ecartee ; en cas d'echec de l'appel, `NO_READ_ANSWER`. Reponse sans source, confiance 0,5. (4) Tests, `py_compile`, pyflakes, pytest, verification sur l'instance pour `admin` et `demo`.
+**Hors mandat, non fait** : piste 2 (libelle dans `fields_get`), piste 4 (consigne de limite trop large sur un agregat), piste 5 (duree LLM d'ERP-10).
+
+
+## Section 1766 : execution de la 1765 (02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1765. Sauvegardes : `.scratch/contexte.avant_1766.txt` et `.scratch/avant_1765/`. **Mandat (pmm)** : « le 2, c pas que pour erp_13, pas de solution pour tous les modeles ? ... vas y pour 3 et 1 » (rappel de la 1765 apres interruption de la session precedente).
+**Etat constate avant d'agir** : l'etape (1) de la 1765 etait deja ecrite (`odoo_connector.available_models`, `orm_list_models`, outil `list_models`, registre), sans test ; les etapes (2) prompt, (3) explication des refus et (4) tests ne l'etaient pas ; deux tests (registre des outils, liste des outils exposes) etaient en echec.
+**Fait** : (2) `erp_data/prompts.py` : `list_models` dans la liste des primitives, consigne de ne jamais deviner un nom de modele (un mot-cle de la question, comparer les libelles, puis `fields_get`) ; reponse en langage metier : ni nom d'outil, ni « ORM », ni domaine, ni nom de parametre, ni observation brute, modeles et champs designes par leur libelle ; la consigne « cite les modeles/champs consultes » est retiree. **Ecart au plan 1765** : pas de ligne « Source » avec le nom technique dans le texte : la regle fermee des sections 924/926 reserve les preuves au depliant de l'interface, et les sources de la branche ERP (`_build_response`) y sont deja. (3) `erp_data/orm_agent_helpers.py` : `explain_refusals` (un appel LLM, texte vide en cas d'echec) et `_single_answer` partage avec `force_final_synthesis` ; `erp_data/prompts.py` : `build_orm_refusal_prompt` (pas de donnee, pas d'exemple, pas de terme technique) ; `erp_data/orm_agent_node.py` : `_build_response(question, result)` renvoie `(reponse, appels LLM en plus)` ; sans lecture reussie, la reponse du modele est ecartee et remplacee par l'explication, sinon par `NO_READ_ANSWER` (reformule sans terme technique) ; `llm_call_count` du timing et de la trace inclut l'appel d'explication. (4) Tests : `test_odoo_connector.py` (liste blanche appliquee aux lignes, appel `ir.model.get_available_models`), `test_p9_runtime_read_tools.py` (mots-cles, troncature exacte, mot-cle obligatoire, registre), `test_p9_typed_runtime_wiring.py` (outils exposes, prompt, explication, repli, comptage des appels).
+**Verification (executions reelles)** : `py_compile`, pyflakes propres ; `pytest tests erp_data/tests -m "not integration" -n auto` : **598 passes, 31 ignores**, 0 echec. Instance `odoo`, compte de service `admin` (uid 2), sans LLM : `available_models` renvoie 406 modeles ; le mot-cle `property` trouve `estate.property` (« Estate Property ») parmi 4 resultats ; `product.template` = « Product », `product.product` = « Product Variant ».
+**Reponse a la question de pmm (piste 2, libelle dans `fields_get`)** : le libelle est general (`ir.model.display_name_for` couvre tout modele, droits du demandeur respectes) mais son effet sur ERP-13 n'est pas mesure : non applique, pas de mandat. `list_models` donne deja le libelle de chaque modele propose.
+**Delegue a pmm** : (a) `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` (le prompt a change : les mesures anterieures ne sont plus comparables) ; (b) verification pour un utilisateur non administrateur (`demo`, 324 modeles attendus d'apres la 1765) : je n'ai pas son mot de passe ; (c) essai dans l'interface (« combien de biens immobiliers ? », puis une question dont le modele n'existe pas). **Aucun commit** : fichiers modifies en plus de ceux de la 1763 : `erp_data/orm_agent_helpers.py`, `erp_data/prompts.py`, `erp_data/orm_agent_node.py`, `erp_data/tests/test_odoo_connector.py`, `erp_data/tests/test_p9_runtime_read_tools.py`, `erp_data/tests/test_p9_typed_runtime_wiring.py`.
+
+
+## Section 1767 : banc ERP apres la 1766, 16 questions, 3 passes (constat, lecture seule, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1766. Sauvegarde : `.scratch/contexte.avant_1767.txt`. Aucun fichier de code modifie. **Mandat (pmm)** : sortie collee de `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` (48 executions de `qwen3:14b`, lignes relues dans `captures/erp_model_eval.jsonl`).
+**Resultat brut** : 73 % de faits (35 sur 48), 0 depassement, 0 erreur de backend, 21 appels refuses sur 146, p50 76 s, p90 122 s. Par question : ERP-13 (0 a 100 %) et ERP-16 (0 a 100 %) resolus aux trois passes ; **ERP-05, ERP-07, ERP-14 passent de 100 % a 0 %** ; ERP-10 reste a 0 % (filtre sur les noms d'etapes, sans `type` ni `probability`) ; ERP-03 a 67 % (pass 3 : `draft` et `sent` comptes, 8 au lieu de 7 : le libelle « Quotation » ne designe que `draft`).
+**Cause 1 (ERP-05, ERP-07) : `list_models` est appele en premier dans 42 executions sur 48**, la consigne « ne devine jamais le nom d'un modele... s'il ne figure dans aucune observation » etant lue comme « toujours ». Cout : un saut de plus (p50 49 a 76 s). Surtout, le mot-cle `invoice` renvoie `account.invoice.report` (« Invoices Statistics », vue SQL de lignes) et `account.reconcile.model`, jamais `account.move` (libelle « Journal Entry ») : le modele compte sur la vue de rapport et repond 8 et 22 au lieu de 4 et 4, sans erreur visible. Avant la 1766 il allait directement a `account.move`, qu'il connait.
+**Cause 2 (ERP-14) : reponse sans lecture de donnees** : un seul appel, `list_models("employee")` (8 modeles), puis « 14 employes actifs » (attendu 20, nombre non issu d'une lecture). `_build_response` compte toute Evidence comme lecture ; `list_models` (comme `fields_get`) en enregistre une, donc la garde « aucune lecture reussie » ne se declenche pas. Le banc appelle `orm_agent_loop` seul : le verificateur n'est pas exerce.
+**Termes techniques dans les reponses** : un nom d'outil (`search_count`, ERP-05 pass 1) sur 48, noms de modele ou de champ entre apostrophes inverses dans 11 sur 48 ; la consigne de la 1766 est donc en grande partie suivie, pas totalement.
+**Options (decision de pmm)** : (A) prompt : `list_models` seulement pour un modele inconnu ou quand `fields_get` dit que le modele n'existe pas (indice ajoute a l'erreur « Object ... doesn't exist » dans `_short_odoo_error`), modeles standard directement par `fields_get`, et preferer le modele metier aux libelles de rapport, statistique ou analyse ; (B) garde : seules les lectures de donnees (ni `list_models` ni `fields_get`) comptent comme lecture dans `_build_response` ; (C) apres A et B, relancer `--passes 3 --fresh`. ERP-10 et ERP-03 : erreurs de raisonnement du modele, aucune action proposee. **Aucun commit.**
+
+
+## Section 1768 : decouverte des modeles a la demande, garde sur les lectures de donnees (plan, journal avant code, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1767. Sauvegardes : `.scratch/contexte.avant_1768.txt` et `.scratch/avant_1768/` (prompts.py, langchain_tools.py, read_tools.py, orm_agent_node.py, deux fichiers de tests).
+**Mandat (pmm)** : « OUI VAS Y » (options A et B de la 1767).
+**Plan** : (A) `erp_data/prompts.py` : un modele standard connu se lit directement par `fields_get` ; `list_models` seulement pour un modele inconnu ou refuse, avec un mot-cle, en preferant le modele metier aux libelles de rapport, statistique ou analyse ; `erp_data/runtime/langchain_tools.py` : meme limite dans la description de l'outil ; `erp_data/runtime/read_tools.py` : `_run_validated` ajoute a l'erreur « Object X doesn't exist » l'indication d'utiliser `list_models` (message reel verifie sur l'instance : `Object real.estate.property doesn't exist`). (B) `read_tools.py` : `SCHEMA_METHODS = {fields_get, get_available_models}` ; `erp_data/orm_agent_node.py` : `_build_response` ne compte comme lecture que les Evidence de donnees (sources et confiance comprises) ; avec des appels d'outils mais aucune lecture de donnees, la reponse du modele est ecartee au profit de l'explication des refus (`build_orm_refusal_prompt` parle de lecture de donnees). **Effet de bord assume** : une question de precision posee apres un `fields_get` seul est aussi remplacee par l'explication (un appel LLM de plus) ; sans appel d'outil, elle reste inchangee.
+**Tests** : indice ajoute a l'erreur de modele inexistant ; `list_models` seul ne vaut pas lecture ; prompt conditionnel. **Delegue a pmm** : relance `--passes 3 --fresh`.
+
+
+## Section 1769 : verification de la 1768 sur disque, options A et B deja appliquees (constat, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1768. Sauvegarde : `.scratch/contexte.avant_1769.txt`. Aucun fichier de code modifie par cette section.
+**Mandat (pmm)** : texte de la 1767 recolle avec la question « veux-tu que j'applique A et B ? ». **Verifie sur disque avant d'agir** : A et B sont deja ecrits (fichiers modifies a 14:46, aucune section d'execution dans le journal, aucun processus de banc ni session d'edition en cours) ; je n'en suis pas l'auteur.
+**Present sur disque** : (A) `erp_data/prompts.py` : modele standard connu lu directement par `fields_get`, `list_models` seulement pour un modele inconnu ou refuse, avec un mot-cle et preference du modele metier aux libelles de rapport, statistique ou analyse ; `erp_data/runtime/langchain_tools.py` : meme limite dans la description de `list_models` ; `erp_data/runtime/read_tools.py` : `MODEL_NOT_FOUND_HINT` ajoute a l'erreur « Object X doesn't exist ». (B) `read_tools.py` : `SCHEMA_METHODS = {fields_get, get_available_models}` ; `erp_data/orm_agent_node.py` : `_build_response` ne compte comme lecture que les Evidence hors `SCHEMA_METHODS` ; sans lecture de donnees, la reponse du modele est remplacee par l'explication des refus.
+**Verification** : `py_compile` OK sur les quatre fichiers ; `pytest erp_data/tests tests/test_t3_verify_node.py -m "not integration"` : **118 passes**, 0 echec (suite complete non lancee, pas de mandat). Non verifie : l'effet sur le banc (aucun run apres 14:46).
+**A lancer par pmm** : `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` (16 questions applicables sur `odoo-dev`, ou 7 sur `odoo` ; fixer la base de reference, cf. 1755). Attendus : ERP-13 et 16 restent a 100 %, ERP-05, 07, 14 reviennent a 100 %, `list_models` n'ouvre plus la plupart des executions. **Aucun commit.**
+
+
+## Section 1770 : banc ERP apres la 1768 (A et B), 16 questions, 3 passes (constat, lecture seule, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1769. Sauvegarde : `.scratch/contexte.avant_1770.txt`. Aucun fichier de code modifie par cette section.
+**Mandat (pmm)** : sortie collee de `pytest` (612 passes, 31 ignores, 35 s) et de `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` apres A et B (lignes relues dans `captures/erp_model_eval.jsonl`, 48 dernieres).
+**Resultat brut** : 77 % de faits (37 sur 48, 73 % avant), 0 depassement, 0 erreur de backend, 29 appels refuses sur 137, p50 78 s, p90 136 s. `list_models` appele dans 26 executions sur 48 (42 avant A), encore sur des modeles standard (ERP-03, 04, 09, 15 aux trois passes). ERP-03, 05, 11 reviennent a 100 %.
+**Echecs** : (1) ERP-07 (0 % x3) : `list_models("facture")` puis `("invoice")`, le modele retient `account.invoice.report` (« Invoices Statistics ») et repond 22 au lieu de 4, sans erreur ; la preference du modele metier aux libelles de rapport (A) n'est pas suivie. (2) ERP-16 (0 % x3, etait 100 % en 1767) : `list_models("property")` trouve `estate.property`, `search_count` est refuse (fields_get non lu), le modele s'arrete apres 2 sauts au lieu d'appeler `fields_get` ; sa reponse est ecartee (B, garde sur les lectures de donnees) et remplacee par l'explication des refus. Cause probable, non verifiee : le modele pose une question de precision apres le refus (le message d'erreur lui demande de filtrer « sur chaque qualifier de la question (type, status, party, period) »), et B remplace aussi cette question (effet de bord note en 1768). La reponse brute du modele n'est pas conservee : `captures/reasoning_trace.jsonl` n'a aucune ligne du banc. (3) ERP-10 (0 % x3) : inchange, filtre sur les noms d'etapes (`stage_id.name`) ou `is_won` sans `probability` ni `active` ; erreur de raisonnement du modele. (4) ERP-14 passe 1 et ERP-13 passe 1 : a 0 % puis 100 % aux passes 2 et 3 ; ERP-14 passe 1 : un seul `list_models("employee")` puis reponse sans lecture (remplacee par l'explication) ; ERP-13 passe 1 : `product.product` (49) au lieu de `product.template` (44). Variance du modele, pas de regression.
+**Options (decision de pmm)** : (A) ERP-16 : conserver la reponse brute du modele dans la capture du banc (champ `raw_answer`) pour confirmer la cause avant de toucher au code ; (B) si la cause est confirmee : un refus « fields_get non lu » ne doit pas faire sortir de la boucle : soit l'outil lit lui-meme les champs et rejoue la requete (`mark_described` puis relance, pas de saut perdu), soit le message se limite a « call fields_get on X without field_names » (retirer l'injonction « type, status, party, period » du message d'erreur, deja dans le prompt) ; (C) ERP-07 : `list_models` classe en dernier les modeles d'affichage SQL (`_auto = False`, p. ex. `account.invoice.report`), ou masque ceux dont le libelle contient « Statistics » ou « Analysis » : demande une verification sur l'instance de ce qui distingue ces modeles de facon generale (rien de specifique a `account`) ; (D) ERP-10 : aucune action proposee (raisonnement). **Aucun commit.**
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh
+Authenticated to Odoo as admin (uid 2).
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/48] ERP-01 pass 1: facts 100%, tools 3 (66.8s)
+[2/48] ERP-02 pass 1: facts 100%, tools 4 (92.1s)
+[3/48] ERP-03 pass 1: facts 100%, tools 5 (131.8s)
+[4/48] ERP-04 pass 1: facts 100%, tools 3 (92.8s)
+[5/48] ERP-05 pass 1: facts 0%, tools 3 (111.2s)
+[6/48] ERP-06 pass 1: facts 100%, tools 2 (73.1s)
+[7/48] ERP-07 pass 1: facts 0%, tools 3 (90.5s)
+[8/48] ERP-08 pass 1: facts 100%, tools 3 (58.6s)
+[9/48] ERP-09 pass 1: facts 100%, tools 3 (90.4s)
+[10/48] ERP-10 pass 1: facts 0%, tools 3 (137.5s)
+[11/48] ERP-11 pass 1: facts 100%, tools 3 (62.1s)
+[12/48] ERP-12 pass 1: facts 100%, tools 2 (48.7s)
+[13/48] ERP-13 pass 1: facts 100%, tools 3 (74.7s)
+[14/48] ERP-14 pass 1: facts 0%, tools 1 (29.4s)
+[15/48] ERP-15 pass 1: facts 100%, tools 3 (77.4s)
+[16/48] ERP-16 pass 1: facts 100%, tools 3 (64.7s)
+[17/48] ERP-01 pass 2: facts 100%, tools 3 (52.9s)
+[18/48] ERP-02 pass 2: facts 100%, tools 4 (99.1s)
+[19/48] ERP-03 pass 2: facts 100%, tools 5 (98.6s)
+[20/48] ERP-04 pass 2: facts 100%, tools 3 (78.5s)
+[21/48] ERP-05 pass 2: facts 0%, tools 5 (122.5s)
+[22/48] ERP-06 pass 2: facts 100%, tools 2 (72.9s)
+[23/48] ERP-07 pass 2: facts 0%, tools 4 (80.1s)
+[24/48] ERP-08 pass 2: facts 100%, tools 3 (60.6s)
+[25/48] ERP-09 pass 2: facts 100%, tools 3 (90.8s)
+[26/48] ERP-10 pass 2: facts 0%, tools 3 (125.4s)
+[27/48] ERP-11 pass 2: facts 100%, tools 3 (61.6s)
+[28/48] ERP-12 pass 2: facts 100%, tools 2 (48.9s)
+[29/48] ERP-13 pass 2: facts 100%, tools 3 (74.7s)
+[30/48] ERP-14 pass 2: facts 0%, tools 1 (29.2s)
+[31/48] ERP-15 pass 2: facts 100%, tools 3 (77.7s)
+[32/48] ERP-16 pass 2: facts 100%, tools 3 (64.7s)
+[33/48] ERP-01 pass 3: facts 100%, tools 3 (52.8s)
+[34/48] ERP-02 pass 3: facts 100%, tools 4 (99.2s)
+[35/48] ERP-03 pass 3: facts 0%, tools 4 (77.8s)
+[36/48] ERP-04 pass 3: facts 100%, tools 3 (78.5s)
+[37/48] ERP-05 pass 3: facts 0%, tools 5 (121.6s)
+[38/48] ERP-06 pass 3: facts 100%, tools 2 (73.8s)
+[39/48] ERP-07 pass 3: facts 0%, tools 4 (81.2s)
+[40/48] ERP-08 pass 3: facts 100%, tools 3 (61.1s)
+[41/48] ERP-09 pass 3: facts 100%, tools 3 (91.0s)
+[42/48] ERP-10 pass 3: facts 0%, tools 3 (126.7s)
+[43/48] ERP-11 pass 3: facts 100%, tools 3 (62.4s)
+[44/48] ERP-12 pass 3: facts 100%, tools 2 (49.2s)
+[45/48] ERP-13 pass 3: facts 100%, tools 3 (75.3s)
+[46/48] ERP-14 pass 3: facts 0%, tools 1 (28.8s)
+[47/48] ERP-15 pass 3: facts 100%, tools 3 (78.0s)
+[48/48] ERP-16 pass 3: facts 100%, tools 3 (64.9s)
+
+ERP agent evaluation (backend errors are excluded from rates)
+model                  runs  err   tout  facts   full  noTool  tools    ok  invalid  unkn   LLM  LLMerr  hops   p50s   p90s  vram
+qwen3:14b                48    0     0%    73%    73%      0%      3   125       21     0     4       0     3     76    122  1.00
+qwen3:14b+reasoning_none   16    0     0%    56%    56%      0%      2    27        3     0     3       0     2     12     15  1.00
+
+facts = share of expected phrases/values found; full = all expected items found;
+noTool = answer generated without an ORM call; invalid = tool call failed/refused;
+timeouts count as unsuccessful answers, but are reported separately from backend errors.
+
+per question (timeouts count as zero facts)
+question                 qwen3:14b  qwen3:14b+reasoning_
+ERP-01                        100%                  100%
+ERP-02                        100%                  100%
+ERP-03                         67%                  100%
+ERP-04                        100%                  100%
+ERP-05                          0%                    0%
+ERP-06                        100%                  100%
+ERP-07                          0%                    0%
+ERP-08                        100%                  100%
+ERP-09                        100%                  100%
+ERP-10                          0%                    0%
+ERP-11                        100%                    0%
+ERP-12                        100%                  100%
+ERP-13                        100%                    0%
+ERP-14                          0%                    0%
+ERP-15                        100%                  100%
+ERP-16                        100%                    0%
+(.venv) user@debian:~/odoo-ia-prototype$ pytest
+========================== test session starts ===========================
+platform linux -- Python 3.11.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/user/odoo-ia-prototype
+configfile: pytest.ini
+testpaths: tests, erp_data/tests
+plugins: langsmith-0.10.0, xdist-3.8.0, anyio-4.14.2
+2 workers [643 items]   
+......s...ss.s..sss..s.ss......................................... [ 10%]
+.......sss..s.s.....ss............................................ [ 20%]
+..ssssssssssssss.................................................. [ 30%]
+.................................................................. [ 41%]
+.................................................................. [ 51%]
+.................................................................. [ 61%]
+.................................................................. [ 71%]
+.................................................................. [ 82%]
+.................................................................. [ 92%]
+.................................................                  [100%]
+============================ warnings summary ============================
+.venv/lib/python3.11/site-packages/fastapi/testclient.py:1
+.venv/lib/python3.11/site-packages/fastapi/testclient.py:1
+  /home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/document_rag/test_ingest_all.py: 23 warnings
+tests/document_rag/test_chroma_manager.py: 12 warnings
+tests/document_rag/test_collection_metadata.py: 4 warnings
+tests/document_rag/test_collection_name.py: 6 warnings
+tests/document_rag/test_ingestion.py: 8 warnings
+tests/document_rag/test_no_code_collection.py: 3 warnings
+tests/test_api_endpoint_protection.py: 1 warning
+tests/test_api_ingestion.py: 2 warnings
+tests/test_e2e_incremental_rag.py: 2 warnings
+  /home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/chromadb/api/types.py:945: DeprecationWarning: The class OllamaEmbeddingFunction does not implement get_config(). This will be required in a future version.
+    or self.get_config() is NotImplemented
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============= 612 passed, 31 skipped, 63 warnings in 35.19s ==============
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh
+Authenticated to Odoo as admin (uid 2).
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/48] ERP-01 pass 1: facts 100%, tools 4 (65.3s)
+[2/48] ERP-02 pass 1: facts 100%, tools 3 (66.3s)
+[3/48] ERP-03 pass 1: facts 100%, tools 4 (84.9s)
+[4/48] ERP-04 pass 1: facts 100%, tools 4 (136.3s)
+[5/48] ERP-05 pass 1: facts 100%, tools 2 (50.6s)
+[6/48] ERP-06 pass 1: facts 100%, tools 2 (54.2s)
+[7/48] ERP-07 pass 1: facts 0%, tools 4 (129.6s)
+[8/48] ERP-08 pass 1: facts 100%, tools 2 (53.1s)
+[9/48] ERP-09 pass 1: facts 100%, tools 4 (97.6s)
+[10/48] ERP-10 pass 1: facts 0%, tools 4 (159.4s)
+[11/48] ERP-11 pass 1: facts 100%, tools 2 (53.7s)
+[12/48] ERP-12 pass 1: facts 100%, tools 2 (50.0s)
+[13/48] ERP-13 pass 1: facts 0%, tools 3 (89.0s)
+[14/48] ERP-14 pass 1: facts 0%, tools 1 (74.0s)
+[15/48] ERP-15 pass 1: facts 100%, tools 3 (82.7s)
+[16/48] ERP-16 pass 1: facts 0%, tools 2 (99.3s)
+[17/48] ERP-01 pass 2: facts 100%, tools 3 (49.4s)
+[18/48] ERP-02 pass 2: facts 100%, tools 4 (116.8s)
+[19/48] ERP-03 pass 2: facts 100%, tools 4 (149.8s)
+[20/48] ERP-04 pass 2: facts 100%, tools 4 (179.9s)
+[21/48] ERP-05 pass 2: facts 100%, tools 2 (47.6s)
+[22/48] ERP-06 pass 2: facts 100%, tools 2 (55.4s)
+[23/48] ERP-07 pass 2: facts 0%, tools 4 (129.0s)
+[24/48] ERP-08 pass 2: facts 100%, tools 2 (53.0s)
+[25/48] ERP-09 pass 2: facts 100%, tools 4 (97.7s)
+[26/48] ERP-10 pass 2: facts 0%, tools 2 (131.4s)
+[27/48] ERP-11 pass 2: facts 100%, tools 3 (73.9s)
+[28/48] ERP-12 pass 2: facts 100%, tools 2 (46.1s)
+[29/48] ERP-13 pass 2: facts 100%, tools 2 (56.1s)
+[30/48] ERP-14 pass 2: facts 100%, tools 3 (66.8s)
+[31/48] ERP-15 pass 2: facts 100%, tools 3 (81.7s)
+[32/48] ERP-16 pass 2: facts 0%, tools 2 (97.8s)
+[33/48] ERP-01 pass 3: facts 100%, tools 3 (51.1s)
+[34/48] ERP-02 pass 3: facts 100%, tools 4 (114.4s)
+[35/48] ERP-03 pass 3: facts 100%, tools 4 (144.9s)
+[36/48] ERP-04 pass 3: facts 100%, tools 3 (136.5s)
+[37/48] ERP-05 pass 3: facts 100%, tools 2 (61.8s)
+[38/48] ERP-06 pass 3: facts 100%, tools 2 (54.6s)
+[39/48] ERP-07 pass 3: facts 0%, tools 4 (128.5s)
+[40/48] ERP-08 pass 3: facts 100%, tools 2 (52.8s)
+[41/48] ERP-09 pass 3: facts 100%, tools 4 (97.2s)
+[42/48] ERP-10 pass 3: facts 0%, tools 2 (132.2s)
+[43/48] ERP-11 pass 3: facts 100%, tools 3 (73.7s)
+[44/48] ERP-12 pass 3: facts 100%, tools 2 (46.6s)
+[45/48] ERP-13 pass 3: facts 100%, tools 2 (56.5s)
+[46/48] ERP-14 pass 3: facts 100%, tools 3 (66.7s)
+[47/48] ERP-15 pass 3: facts 100%, tools 3 (82.0s)
+[48/48] ERP-16 pass 3: facts 0%, tools 2 (98.3s)
+
+ERP agent evaluation (backend errors are excluded from rates)
+model                  runs  err   tout  facts   full  noTool  tools    ok  invalid  unkn   LLM  LLMerr  hops   p50s   p90s  vram
+qwen3:14b                48    0     0%    77%    77%      0%      3   108       29     0     4       0     3     78    136  1.00
+qwen3:14b+reasoning_none   16    0     0%    56%    56%      0%      2    27        3     0     3       0     2     12     15  1.00
+
+facts = share of expected phrases/values found; full = all expected items found;
+noTool = answer generated without an ORM call; invalid = tool call failed/refused;
+timeouts count as unsuccessful answers, but are reported separately from backend errors.
+
+per question (timeouts count as zero facts)
+question                 qwen3:14b  qwen3:14b+reasoning_
+ERP-01                        100%                  100%
+ERP-02                        100%                  100%
+ERP-03                        100%                  100%
+ERP-04                        100%                  100%
+ERP-05                        100%                    0%
+ERP-06                        100%                  100%
+ERP-07                          0%                    0%
+ERP-08                        100%                  100%
+ERP-09                        100%                  100%
+ERP-10                          0%                    0%
+ERP-11                        100%                    0%
+ERP-12                        100%                  100%
+ERP-13                         67%                    0%
+ERP-14                         67%                    0%
+ERP-15                        100%                  100%
+ERP-16                          0%                    0%
+(.venv) user@debian:~/odoo-ia-prototype$ 
+
+## Section 1771 : reponse brute du modele dans la capture du banc, controle de l'option C (plan, journal avant code, 02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1770. Sauvegardes : `.scratch/contexte.avant_1771.txt` et `.scratch/avant_1771/` (erp_model_worker.py, run_erp_model_eval.py).
+**Mandat (pmm)** : « vas y » (options A et C de la 1770).
+**Controle de C sur l'instance `odoo` (admin, sans LLM) avant d'agir** : `get_available_models` pour `invoice` renvoie seulement `account.reconcile.model` et `account.invoice.report` ; `account.move` (libelle « Journal Entry ») n'y figure pas, et `facture` ne renvoie rien. Classer ou masquer les modeles de rapport ne ferait donc que retirer `account.invoice.report` et laisser le modele sans candidat ; et `ir.model` n'expose aucun attribut distinguant une vue SQL d'un modele ordinaire (champs : `transient`, `state`, `info`, `modules`... ; `info` est la docstring de la classe de base, identique pour `account.move` et `account.invoice.report`). Une regle fondee sur « report », « Statistics » ou « Analysis » serait une heuristique de nom et de langue : hors de la regle « n'importe quelle instance Odoo 17 ». **C n'est pas applique.** La cause d'ERP-07 est que le modele ne connait pas le nom du modele des factures et que le mot-cle de la question ne mene pas a `account.move` : question ouverte pour pmm (a decider).
+**Plan (A)** : `evaluation/erp_model_worker.py` enregistre la reponse brute du modele (`ReactResult.answer`, avant `_build_response`) dans le resultat du worker (cle `model_answer`) ; `scripts/run_erp_model_eval.py` la copie dans la capture. Elle ne sert pas au score (`answer` inchange). Test : `tests/test_erp_model_eval.py`. **Delegue a pmm** : relance du banc (`--passes 3 --fresh`, ou seulement ERP-16 si l'option `--ids` existe), puis lecture de `model_answer` d'ERP-16.
+
+
+## Section 1772 : execution de la 1771 (02/11/2026)
+
+Date : 02/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1771. Sauvegardes : celles de la 1771.
+**Fait** : (A) `evaluation/erp_model_worker.py` : `tracked_build_response` enregistre `ReactResult.answer` (reponse brute du modele, avant remplacement) et la renvoie dans le resultat du worker sous `model_answer` ; `scripts/run_erp_model_eval.py` : `run_once` la copie dans la capture ; `answer` et le score sont inchanges. `tests/test_erp_model_eval.py` : `run_once` conserve `model_answer`. (C) non applique (voir 1771).
+**Verification** : `py_compile` et pyflakes propres ; `pytest tests/test_erp_model_eval.py` : 19 passes (suite complete non lancee).
+**Delegue a pmm** : `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` (sans `--fresh`, les passes deja enregistrees d'ERP-16 sont reprises sans `model_answer` ; avec `--fresh --ids`, les lignes des autres questions de ce modele sont effacees), puis lecture de `model_answer` (ERP-16 : le modele pose-t-il une question de precision apres le refus ?). **Aucun commit.**
+
+
+
+J'ai appliqué A, mais pas C : j'ai vérifié sur l'instance `odoo` que C ne réglerait rien. Le journal est à jour (sections 1771 et 1772, sauvegardes dans `.scratch/`), et aucun commit.
+
+**A, fait.** Le banc enregistre maintenant la réponse brute du modèle (clé `model_answer`) à côté de la réponse finale, avant son éventuel remplacement par l'explication des refus. Le score ne change pas.
+- Fichiers modifiés : `evaluation/erp_model_worker.py`, `scripts/run_erp_model_eval.py`, `tests/test_erp_model_eval.py`.
+- Vérifié : `py_compile` et `pyflakes` propres, 19 tests passent dans `tests/test_erp_model_eval.py`. Je n'ai pas lancé la suite complète.
+
+**C, non appliqué.**
+- **`list_models("invoice")`** ne renvoie que `account.reconcile.model` et `account.invoice.report`. `account.move` (libellé « Journal Entry ») n'y figure pas, et `facture` ne renvoie rien. Masquer les modèles de rapport laisserait donc le modèle sans candidat.
+- **`ir.model`** n'expose aucun attribut qui distingue une vue SQL d'un modèle ordinaire. Le champ `info` est la même docstring pour `account.move` et `account.invoice.report`.
+- **Seule règle possible :** un filtre sur « report », « Statistics » ou « Analysis ». Ce serait une heuristique de nom et de langue, contraire à ta règle « n'importe quelle instance Odoo 17 ».
+- **Cause d'ERP-07 :** le modèle ne connaît pas le nom du modèle des factures, et le mot-clé de la question ne mène pas à `account.move`. Je laisse la décision ouverte.
+
+**À faire de ton côté :** relancer `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh`, puis lire `model_answer` pour ERP-16. Cela dira si le modèle pose une question de précision après le refus (la cause probable de la 1770), avant qu'on touche au code.
+- **Pourquoi `--fresh` :** sans lui, les passes déjà enregistrées d'ERP-16 sont reprises sans `model_answer`.
+- **Pourquoi pas `--fresh --ids` :** il effacerait les lignes des autres questions de ce modèle.

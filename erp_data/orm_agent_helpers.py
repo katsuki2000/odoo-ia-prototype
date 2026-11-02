@@ -42,20 +42,31 @@ def execute_tool_call(
     return tool_name, tool_args, observation
 
 
+def _single_answer(prompt: str) -> str:
+    response = invoke_llm(
+        _build_llm(temperature=0.0, max_tokens=settings.ORM_SYNTHESIS_MAX_TOKENS), [HumanMessage(content=prompt)]
+    )
+    return response.content
+
+
 def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[str, int]:
     """Synthesize final answer when the ReAct iteration budget is exhausted."""
     logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
     from erp_data.prompts import build_orm_synthesis_prompt
 
-    synthesis_prompt = build_orm_synthesis_prompt(question, tool_observations)
-    llm_calls = 1
     try:
-        final_resp = invoke_llm(
-            _build_llm(temperature=0.0, max_tokens=512), [HumanMessage(content=synthesis_prompt)])
-        return final_resp.content, llm_calls
+        return _single_answer(build_orm_synthesis_prompt(question, tool_observations)), 1
     except Exception as exc:
         logger.error("Forced synthesis failed: %s", exc)
-        return (
-            "Je n'ai pas pu obtenir de réponse complète à partir des observations disponibles.",
-            llm_calls,
-        )
+        return "Je n'ai pas pu obtenir de réponse complète à partir des observations disponibles.", 1
+
+
+def explain_refusals(question: str, tool_observations: List[str]) -> Tuple[str, int]:
+    """Explain in plain words why no read succeeded; empty text when the explanation call fails."""
+    from erp_data.prompts import build_orm_refusal_prompt
+
+    try:
+        return _single_answer(build_orm_refusal_prompt(question, tool_observations)).strip(), 1
+    except Exception as exc:
+        logger.error("Refusal explanation failed: %s", exc)
+        return "", 1

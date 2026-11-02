@@ -12,6 +12,7 @@ from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.read_tools import (
     READ_ONLY_ORM_TOOLS,
     orm_fields_get,
+    orm_list_models,
     orm_name_search,
     orm_read,
     orm_read_group,
@@ -58,6 +59,7 @@ def mock_connector():
 
 def test_read_only_tool_registry_covers_first_lot():
     assert set(READ_ONLY_ORM_TOOLS) == {
+        "list_models",
         "fields_get",
         "search",
         "read",
@@ -146,14 +148,37 @@ def test_orm_search_applies_row_cap_and_truncation_flag(
     requester_uid, mock_connector, monkeypatch
 ):
     monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 5)
-    mock_connector.search.return_value = [1, 2, 3, 4, 5]
+    mock_connector.search.return_value = [1, 2, 3, 4, 5, 6]
     result = orm_search("sale.order", domain=[], limit=999)
 
     mock_connector.search.assert_called_once_with(
-        7, "sale.order", domain=[], limit=5, order=None, offset=0
+        7, "sale.order", domain=[], limit=6, order=None, offset=0
     )
+    assert result.evidence[0].value == [1, 2, 3, 4, 5]
     assert result.observation.truncated is True
     assert "[truncated]" in result.text
+
+
+def test_a_result_exactly_at_the_limit_is_not_truncated(
+    requester_uid, mock_connector, monkeypatch
+):
+    monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 5)
+    mock_connector.search.return_value = [1, 2, 3, 4, 5]
+    result = orm_search("sale.order", domain=[], limit=5)
+
+    assert result.observation.truncated is False
+    assert "[truncated]" not in result.text
+
+
+def test_orm_read_group_cuts_to_the_ceiling_and_flags_the_rest(
+    requester_uid, mock_connector, monkeypatch
+):
+    monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 2)
+    mock_connector.read_group.return_value = [{"id": 1}, {"id": 2}, {"id": 3}]
+    result = orm_read_group("sale.order", domain=[], fields=["amount_total:sum"], groupby=["partner_id"])
+
+    assert result.evidence[0].value == [{"id": 1}, {"id": 2}]
+    assert result.observation.truncated is True
 
 
 def test_orm_read_requires_explicit_fields(requester_uid, mock_connector):
@@ -169,7 +194,7 @@ def test_orm_search_read_requires_fields_and_caps(
     requester_uid, mock_connector, monkeypatch
 ):
     monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 2)
-    mock_connector.search_read.return_value = [{"id": 1}, {"id": 2}]
+    mock_connector.search_read.return_value = [{"id": 1}, {"id": 2}, {"id": 3}]
     result = orm_search_read(
         "product.product",
         domain=[("active", "=", True)],
@@ -181,17 +206,50 @@ def test_orm_search_read_requires_fields_and_caps(
         model="product.product",
         domain=[("active", "=", True)],
         fields=["name"],
-        limit=2,
+        limit=3,
         order=None,
     )
+    assert result.evidence[0].value == [{"id": 1}, {"id": 2}]
     assert result.observation.truncated is True
+
+
+def test_list_models_keeps_models_matching_every_keyword_in_name_or_label(requester_uid, mock_connector):
+    mock_connector.available_models.return_value = [
+        {"model": "estate.property", "display_name": "Estate Property"},
+        {"model": "product.template", "display_name": "Product"},
+        {"model": "product.product", "display_name": "Product Variant"},
+    ]
+    result = orm_list_models("Product variant")
+    assert result.evidence[0].value == [("product.product", "Product Variant")]
+    assert result.observation.truncated is False
+    mock_connector.available_models.assert_called_once_with(7)
+
+
+def test_list_models_marks_a_truncated_list_only_when_more_models_exist(requester_uid, mock_connector, monkeypatch):
+    monkeypatch.setattr("config.settings.ORM_RUNTIME_MAX_ROWS", 2)
+    mock_connector.available_models.return_value = [
+        {"model": f"x.model{index}", "display_name": f"Model {index}"} for index in range(3)
+    ]
+    assert orm_list_models("model").observation.truncated is True
+    assert orm_list_models("model 0").observation.truncated is False
+
+
+def test_a_missing_model_error_points_to_list_models(requester_uid, mock_connector):
+    mock_connector.name_search.side_effect = OdooConnectorError("Object real.estate.property doesn't exist")
+    with pytest.raises(OrmRuntimeError, match="list_models"):
+        orm_name_search("real.estate.property", name="a")
+
+
+def test_list_models_requires_a_keyword(requester_uid, mock_connector):
+    with pytest.raises(OrmRuntimeError):
+        orm_list_models("  ")
 
 
 def test_orm_name_search_uses_separate_ceiling(
     requester_uid, mock_connector, monkeypatch
 ):
     monkeypatch.setattr("config.settings.ORM_NAME_SEARCH_LIMIT", 3)
-    mock_connector.name_search.return_value = [(1, "A"), (2, "B"), (3, "C")]
+    mock_connector.name_search.return_value = [(1, "A"), (2, "B"), (3, "C"), (4, "D")]
     result = orm_name_search("res.partner", name="Ac", limit=100)
     mock_connector.name_search.assert_called_once_with(
         7,
@@ -199,7 +257,7 @@ def test_orm_name_search_uses_separate_ceiling(
         name="Ac",
         domain=[],
         operator="ilike",
-        limit=3,
+        limit=4,
     )
     assert result.observation.truncated is True
     assert result.evidence[0].value == [(1, "A"), (2, "B"), (3, "C")]

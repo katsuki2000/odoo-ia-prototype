@@ -65,6 +65,22 @@ def test_optional_model_allowlist_enforcement(monkeypatch):
         connector.search_read(1, "x_custom.record", domain=[], fields=["name"])
 
 
+def test_available_models_applies_the_allow_list_to_the_rows_not_to_ir_model(monkeypatch):
+    rows = [
+        {"model": "res.partner", "display_name": "Contact"},
+        {"model": "sale.order", "display_name": "Sales Order"},
+    ]
+    monkeypatch.setattr(settings, "ODOO_ALLOWED_MODELS", frozenset({"res.partner"}))
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
+    connector.models = _RecordingModels(rows)
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        assert connector.available_models(7) == rows[:1]
+    finally:
+        odoo_api_key_ctx.reset(token)
+    assert connector.models.calls[0][0][3:5] == ("ir.model", "get_available_models")
+
+
 def test_custom_models_are_allowed_by_default(monkeypatch):
     """Custom addon models are not blocked by a built-in model list."""
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")

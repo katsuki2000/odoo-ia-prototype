@@ -1,6 +1,6 @@
 corrige tout ce qui ne respecte pas ces règles quand tu vois un fichier
 faut que le projet soit scalable et interoperable : pas de "ça marche sur ma machine" -- aucun chemin absolu, ID numerique (ir.model.data/xml_id a la place), ou config specifique à un poste codé en dur ; 
-verifie si ce qui est demandé est deja fait, avant d'agir. on simplifie le code, à retirer ce que je comprends pas et qui n'a aucun impact sur architecture.md
+verifie si ce qui est demandé est deja fait, avant d'agir. on simplifie le code, à retirer ce qui n'a aucun impact sur architecture.md
 architecture est l'objectif à atteindre 
 pas de fix chirurgical, voir la root cause
 ne remplis pas le code de commentaires, écris que si c necessaire et sois bref (je ne veux pas voir de d'après contexte, ou un truc du genre), tu as deja contexte et readme pour les details

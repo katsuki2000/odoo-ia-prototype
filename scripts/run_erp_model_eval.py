@@ -187,6 +187,7 @@ def run_once(item, uid, password, model, reasoning_effort=None):
     )
     return {
         "answer": answer,
+        "model_answer": result.get("model_answer"),
         "answer_chars": len(answer),
         "tool_calls": calls,
         "tool_call_count": len(calls),
