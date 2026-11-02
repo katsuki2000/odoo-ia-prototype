@@ -5,16 +5,20 @@ XML-RPC, and returns an OrmToolResult (Observation + Evidence + text).
 
 from __future__ import annotations
 
+import difflib
+import re
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from core.evidence.evidence import EvidenceSourceType, make_evidence
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
+from erp_data.runtime.discovery import is_undescribed, mark_described, require_described
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.identity import require_execution_uid, resolve_company_scope
 from erp_data.runtime.types import OrmObservation, OrmToolResult
 from erp_data.runtime.validation import (
     assert_domain_within_companies,
+    assert_selection_values,
     cap_name_search_limit,
     cap_row_limit,
     validate_domain,
@@ -27,6 +31,7 @@ from erp_data.runtime.validation import (
 )
 
 _connector: Optional[OdooConnector] = None
+_field_cache: dict[tuple[str, str], Optional[dict]] = {}
 
 
 def _get_connector() -> OdooConnector:
@@ -92,11 +97,72 @@ def _build_result(
     return OrmToolResult(observation=observation, evidence=[evidence], text=text)
 
 
-def _checked_domain(domain: Optional[list]) -> list:
+def _field_info(model: str, name: str) -> Optional[dict]:
+    """fields_get metadata of one field, cached per model and field.
+
+    None when unavailable; {} when Odoo answered and the field does not exist on the model."""
+    key = (model, name)
+    if key not in _field_cache:
+        uid = require_execution_uid()
+        try:
+            fields = _get_connector().fields_get(uid, model, [name])
+        except OdooConnectorError:
+            return None
+        _field_cache[key] = (fields.get(name) or {}) if isinstance(fields, dict) else None
+    return _field_cache[key]
+
+
+def _selection_choices(model: str, path: str) -> Optional[list]:
+    """Selection pairs of a field path such as `state` or `order_id.state`."""
+    *parents, name = path.split(".")
+    for parent in parents:
+        info = _field_info(model, parent)
+        model = info.get("relation") if info else None
+        if not model:
+            return None
+    info = _field_info(model, name)
+    return info.get("selection") if info and info.get("type") == "selection" else None
+
+
+def _assert_domain_fields_exist(model: str, domain: list) -> None:
+    """Refuse a domain leaf on a field Odoo says the model does not have, with the closest real names.
+
+    Only the first segment of a path is checked; when Odoo cannot answer, the ORM stays the authority."""
+    for item in domain:
+        if not isinstance(item, (list, tuple)) or len(item) != 3 or not isinstance(item[0], str):
+            continue
+        name = item[0].split(".")[0]
+        if _field_info(model, name) != {}:
+            continue
+        try:
+            known = sorted(_get_connector().fields_get(require_execution_uid(), model, []) or {})
+        except OdooConnectorError:
+            known = []
+        close = difflib.get_close_matches(name, known, n=5, cutoff=0.4)
+        hint = f"closest fields: {', '.join(close)}; " if close else ""
+        raise OrmRuntimeError(
+            f"unknown field {name!r} in domain: {model} has no such field; {hint}"
+            "read the full field list with fields_get"
+        )
+
+
+def _checked_domain(model: str, domain: Optional[list]) -> list:
     domain = validate_domain(domain)
     _company_id, company_ids = resolve_company_scope()
     assert_domain_within_companies(domain, company_ids)
+    _assert_domain_fields_exist(model, domain)
+    assert_selection_values(domain, lambda path: _selection_choices(model, path))
     return domain
+
+
+def _short_odoo_error(message: str) -> str:
+    """Keep the connector prefix and the final exception line of an Odoo XML-RPC traceback."""
+    if "Traceback" not in message:
+        return message
+    lines = [line.strip().rstrip("'>").strip() for line in re.split(r"\\n|\n", message)]
+    last = [line for line in lines if line][-1].replace("\\'", "'")
+    prefix = message.split("<Fault", 1)[0].strip()
+    return f"{prefix} {last}".strip()
 
 
 def _run_validated(call: Callable[[], Any]) -> Any:
@@ -105,7 +171,7 @@ def _run_validated(call: Callable[[], Any]) -> Any:
     except OrmRuntimeError:
         raise
     except OdooConnectorError as exc:
-        raise OrmRuntimeError(str(exc)) from exc
+        raise OrmRuntimeError(_short_odoo_error(str(exc))) from exc
 
 
 def _field_summary(metadata: dict) -> str:
@@ -118,7 +184,10 @@ def orm_fields_get(model: str, field_names: Optional[list] = None) -> OrmToolRes
     names = validate_field_list(field_names or None)
     uid = require_execution_uid()
     request = {"model": model, "field_names": names}
-    fields_info = _run_validated(lambda: _get_connector().fields_get(uid, model, names))
+    # A partial read on a model not yet described in full is widened: one call satisfies the schema guard
+    # and the model sees every field, with the requested ones in detail.
+    widened = bool(names) and is_undescribed(model)
+    fields_info = _run_validated(lambda: _get_connector().fields_get(uid, model, None if widened else names))
     described = {
         name: metadata for name, metadata in sorted(fields_info.items()) if isinstance(metadata, dict)
     } if isinstance(fields_info, dict) else {}
@@ -127,13 +196,17 @@ def orm_fields_get(model: str, field_names: Optional[list] = None) -> OrmToolRes
             key: metadata[key]
             for key in ("string", "type", "help", "relation", "selection", "required", "readonly", "store")
             if key in metadata
-        } if names else _field_summary(metadata)
+        } if name in names else _field_summary(metadata)
         for name, metadata in described.items()
     }
     value = {"field_count": len(fields), "fields": fields}
     unknown = [name for name in names if name not in fields]
     if unknown:
         value["unknown_fields"] = unknown
+    if widened:
+        value["note"] = f"{model} was not described yet: all its fields are listed, those you asked for in detail"
+    if not names or widened:
+        mark_described(model)
     return _build_result(
         tool="fields_get",
         method="fields_get",
@@ -155,7 +228,8 @@ def orm_search(
     offset: int = 0,
 ) -> OrmToolResult:
     model = validate_model_name(model)
-    domain = _checked_domain(domain)
+    require_described(model)
+    domain = _checked_domain(model, domain)
     order = validate_order(order)
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise OrmRuntimeError("offset must be a non-negative integer")
@@ -225,7 +299,8 @@ def orm_search_read(
     context: Optional[dict] = None,
 ) -> OrmToolResult:
     model = validate_model_name(model)
-    domain = _checked_domain(domain)
+    require_described(model)
+    domain = _checked_domain(model, domain)
     fields = validate_field_list(fields)
     if not fields:
         raise OrmRuntimeError(
@@ -271,7 +346,8 @@ def orm_search_read(
 
 def orm_search_count(model: str, domain: Optional[list] = None) -> OrmToolResult:
     model = validate_model_name(model)
-    domain = _checked_domain(domain)
+    require_described(model)
+    domain = _checked_domain(model, domain)
     uid = require_execution_uid()
     request = {"model": model, "domain": domain}
     count = _run_validated(
@@ -298,7 +374,8 @@ def orm_read_group(
     lazy: bool = True,
 ) -> OrmToolResult:
     model = validate_model_name(model)
-    domain = _checked_domain(domain)
+    require_described(model)
+    domain = _checked_domain(model, domain)
     fields = validate_field_list(fields, allow_aggregate=True)
     if not fields:
         raise OrmRuntimeError("fields must be a non-empty list for read_group")
@@ -347,7 +424,7 @@ def orm_name_search(
     if not isinstance(name, str):
         raise OrmRuntimeError("name must be a string")
     operator = validate_name_search_operator(operator)
-    domain = _checked_domain(domain)
+    domain = _checked_domain(model, domain)
     capped = cap_name_search_limit(limit)
     uid = require_execution_uid()
     request = {

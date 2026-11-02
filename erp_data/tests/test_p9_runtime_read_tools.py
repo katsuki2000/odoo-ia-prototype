@@ -20,6 +20,7 @@ from erp_data.runtime.read_tools import (
     orm_search_read,
 )
 from erp_data.runtime.validation import (
+    assert_selection_values,
     cap_name_search_limit,
     cap_row_limit,
     validate_domain,
@@ -35,8 +36,10 @@ from erp_data.runtime.validation import (
 @pytest.fixture(autouse=True)
 def _reset_connector():
     read_tools._connector = read_tools._technical_connector = None
+    read_tools._field_cache.clear()
     yield
     read_tools._connector = read_tools._technical_connector = None
+    read_tools._field_cache.clear()
 
 
 @pytest.fixture
@@ -289,3 +292,93 @@ def test_orm_fields_get_with_names_returns_details_and_reports_unknown_fields(re
     value = result.evidence[0].value
     assert value["fields"] == {"state": {"type": "selection", "string": "Status", "selection": [["sale", "Sales Order"]]}}
     assert value["unknown_fields"] == ["missing_field"]
+
+
+_SALE_STATES = [["draft", "Quotation"], ["sent", "Quotation Sent"], ["sale", "Sales Order"], ["cancel", "Cancelled"]]
+
+
+def test_assert_selection_values_lists_the_valid_values():
+    choices = {"state": _SALE_STATES}.get
+    assert_selection_values([("state", "in", ["sale", "draft"]), ("amount", ">", 1)], choices)
+    assert_selection_values([("state", "=", False), ("name", "=", "S0001")], choices)
+    with pytest.raises(OrmRuntimeError, match=r"'confirmed'.*sale \(Sales Order\)"):
+        assert_selection_values([("state", "=", "confirmed")], choices)
+    with pytest.raises(OrmRuntimeError, match="'done'"):
+        assert_selection_values([("state", "not in", ["sale", "done"])], choices)
+
+
+def test_read_group_refuses_an_unknown_selection_value_before_calling_odoo(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {"state": {"type": "selection", "selection": _SALE_STATES}}
+    with pytest.raises(OrmRuntimeError, match="valid values: draft"):
+        orm_read_group("sale.order", [("state", "=", "confirmed")], ["amount_total:sum"])
+    mock_connector.read_group.assert_not_called()
+
+
+def test_selection_metadata_is_fetched_once_per_model_and_field(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {"state": {"type": "selection", "selection": _SALE_STATES}}
+    mock_connector.search_count.return_value = 3
+    orm_search_count("sale.order", [("state", "=", "sale")])
+    orm_search_count("sale.order", [("state", "in", ["sale", "sent"])])
+    mock_connector.fields_get.assert_called_once_with(7, "sale.order", ["state"])
+
+
+def test_selection_check_follows_relations_and_skips_other_leaves(requester_uid, mock_connector):
+    mock_connector.fields_get.side_effect = lambda uid, model, names: {
+        ("sale.order.line", "order_id"): {"order_id": {"type": "many2one", "relation": "sale.order"}},
+        ("sale.order", "state"): {"state": {"type": "selection", "selection": _SALE_STATES}},
+        ("sale.order.line", "active"): {"active": {"type": "boolean"}},
+        ("sale.order.line", "qty"): {"qty": {"type": "float"}},
+    }.get((model, names[0]), {})
+    with pytest.raises(OrmRuntimeError, match="'confirmed'"):
+        orm_search_count("sale.order.line", [("order_id.state", "=", "confirmed")])
+    mock_connector.search_count.return_value = 1
+    orm_search_count("sale.order.line", [("active", "=", True), ("qty", ">", 2)])
+    assert mock_connector.fields_get.call_count == 4
+
+
+def test_selection_check_is_skipped_when_the_field_is_not_a_selection(requester_uid, mock_connector):
+    mock_connector.fields_get.return_value = {"name": {"type": "char"}}
+    mock_connector.search_count.return_value = 5
+    assert orm_search_count("res.partner", [("name", "=", "Acme")]).observation.row_count == 1
+
+
+def test_domain_on_unknown_field_is_refused_with_close_names(requester_uid, mock_connector):
+    def fields_get(uid, model, names):
+        if names:
+            return {n: {"type": "char"} for n in names if n in {"probability", "stage_id", "active"}}
+        return {"probability": {}, "stage_id": {}, "active": {}, "state_id": {}}
+
+    mock_connector.fields_get.side_effect = fields_get
+    with pytest.raises(OrmRuntimeError, match=r"unknown field 'state'.*crm\.lead.*fields_get") as exc:
+        orm_search_count("crm.lead", domain=[("state", "!=", "won")])
+    assert "state_id" in str(exc.value)
+    mock_connector.search_count.assert_not_called()
+
+
+def test_domain_on_known_or_undetermined_field_reaches_the_orm(requester_uid, mock_connector):
+    mock_connector.fields_get.side_effect = lambda uid, model, names: {
+        n: {"type": "boolean"} for n in names if n == "active"
+    }
+    mock_connector.search_count.return_value = 2
+    assert orm_search_count("crm.lead", domain=[("active", "=", True)]).observation.row_count == 1
+
+    read_tools._field_cache.clear()
+    mock_connector.fields_get.side_effect = OdooConnectorError("down")
+    mock_connector.search_count.return_value = 2
+    orm_search_count("crm.lead", domain=[("anything", "=", 1)])
+    mock_connector.search_count.assert_called()
+
+
+def test_odoo_traceback_is_reduced_to_its_last_line(requester_uid, mock_connector):
+    fault = (
+        "Failed to count crm.lead: <Fault 1: 'Traceback (most recent call last):\\n"
+        "  File \"x.py\", line 1, in f\\n    boom()\\n"
+        "ValueError: Invalid field crm.lead.foo in leaf (\\'foo\\', \\'=\\', 1)\\n'>"
+    )
+    mock_connector.fields_get.side_effect = lambda uid, model, names: {n: {"type": "char"} for n in names}
+    mock_connector.search_count.side_effect = OdooConnectorError(fault)
+    with pytest.raises(OrmRuntimeError) as exc:
+        orm_search_count("crm.lead", domain=[("foo", "=", 1)])
+    message = str(exc.value)
+    assert "Traceback" not in message and "File" not in message
+    assert "ValueError: Invalid field crm.lead.foo in leaf ('foo', '=', 1)" in message

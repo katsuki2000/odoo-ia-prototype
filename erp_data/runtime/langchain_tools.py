@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import ast
 import json
 from copy import deepcopy
-from typing import Any, Optional
+from functools import partial
+from typing import Annotated, Any, Optional
 
 from langchain_core.tools import tool
+from pydantic import BeforeValidator
 
 from config import settings
 from core.evidence.evidence_collector import record_evidence
-from erp_data.runtime.errors import OrmRuntimeError
+from erp_data.runtime.errors import OrmRuntimeError, SchemaNotReadError
 from erp_data.runtime.read_tools import (
     orm_fields_get as _fields_get,
     orm_name_search as _name_search,
@@ -21,6 +24,48 @@ from erp_data.runtime.read_tools import (
     orm_search_read as _search_read,
 )
 from erp_data.runtime.types import OrmToolResult
+
+UNKNOWN_FIELDS_HINT = (
+    "\nSome requested names are not fields of this model. Read the full list (fields_get without "
+    "field_names) before concluding that a field does not exist."
+)
+FULL_LIST_HINT = (
+    "\nMatch every qualifier of the question (type, status, party, period) to a field of this list "
+    "and apply each one as a filter or grouping."
+)
+
+
+def _coerce_list(value: Any) -> Any:
+    """Small models often send a list argument as a string ('state' or "['a', 'b']").
+    Turn those into a real list so the tool schema accepts them; leave anything else untouched."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text:
+        return None
+    if text.startswith("["):
+        try:
+            parsed = ast.literal_eval(text)
+        except (ValueError, SyntaxError):
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                parsed = None
+        if isinstance(parsed, list):
+            return parsed
+    return [part.strip().strip("'\"") for part in text.split(",") if part.strip()]
+
+
+LooseList = Annotated[Optional[list], BeforeValidator(_coerce_list)]
+LooseStrList = Annotated[Optional[list[str]], BeforeValidator(_coerce_list)]
+
+
+def _schema_hint(result: OrmToolResult) -> str:
+    if result.observation.tool != "fields_get":
+        return ""
+    if result.evidence and result.evidence[0].value.get("unknown_fields"):
+        return UNKNOWN_FIELDS_HINT
+    return "" if result.observation.request["field_names"] else FULL_LIST_HINT
 
 
 def _format_observation(result: OrmToolResult) -> str:
@@ -56,12 +101,14 @@ def _format_observation(result: OrmToolResult) -> str:
                 "value_summary": "Output too large to display; narrow fields or reduce the record limit.",
             }, ensure_ascii=False)
     notice = "\nDisplayed output is truncated; omitted fields or records are not evidence." if output_truncated else ""
-    return f"{result.text}{notice}\n{body}"
+    return f"{result.text}{notice}\n{body}{_schema_hint(result)}"
 
 
 def _invoke(call) -> str:
     try:
         result = call()
+    except SchemaNotReadError as exc:
+        return f"ORM read refused: {exc}\n{_invoke(partial(_fields_get, exc.model))}"
     except OrmRuntimeError as exc:
         return f"ORM read refused: {exc}"
     record_evidence(result.evidence)
@@ -69,7 +116,7 @@ def _invoke(call) -> str:
 
 
 @tool
-def fields_get(model: str, field_names: Optional[list] = None) -> str:
+def fields_get(model: str, field_names: LooseStrList = None) -> str:
     """List every field of an Odoo model as name -> type and label. Pass field_names to get the full
     details (relation, selection values) of those fields."""
     return _invoke(lambda: _fields_get(model, field_names))
@@ -78,7 +125,7 @@ def fields_get(model: str, field_names: Optional[list] = None) -> str:
 @tool
 def search(
     model: str,
-    domain: Optional[list] = None,
+    domain: LooseList = None,
     limit: int = 0,
     order: str = "",
     offset: int = 0,
@@ -104,8 +151,8 @@ def read(model: str, ids: list[int], fields: list[str]) -> str:
 @tool
 def search_read(
     model: str,
-    domain: Optional[list] = None,
-    fields: Optional[list[str]] = None,
+    domain: LooseList = None,
+    fields: LooseStrList = None,
     limit: int = 0,
     order: str = "",
 ) -> str:
@@ -122,7 +169,7 @@ def search_read(
 
 
 @tool
-def search_count(model: str, domain: Optional[list] = None) -> str:
+def search_count(model: str, domain: LooseList = None) -> str:
     """Count records matching an Odoo domain (how many)."""
     return _invoke(lambda: _search_count(model, domain=domain or []))
 
@@ -131,8 +178,8 @@ def search_count(model: str, domain: Optional[list] = None) -> str:
 def read_group(
     model: str,
     fields: list[str],
-    groupby: Optional[list[str]] = None,
-    domain: Optional[list] = None,
+    groupby: LooseStrList = None,
+    domain: LooseList = None,
     lazy: bool = True,
 ) -> str:
     """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total."""
@@ -151,7 +198,7 @@ def read_group(
 def name_search(
     model: str,
     name: str = "",
-    domain: Optional[list] = None,
+    domain: LooseList = None,
     operator: str = "ilike",
     limit: int = 0,
 ) -> str:

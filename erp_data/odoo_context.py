@@ -11,6 +11,7 @@ odoo_api_key_ctx = contextvars.ContextVar("odoo_api_key", default=None)
 odoo_company_id_ctx = contextvars.ContextVar("odoo_company_id", default=None)
 odoo_company_ids_ctx = contextvars.ContextVar("odoo_company_ids", default=None)
 odoo_db_ctx = contextvars.ContextVar("odoo_db", default=None)
+odoo_described_models_ctx = contextvars.ContextVar("odoo_described_models", default=None)
 
 
 @contextmanager
@@ -24,6 +25,7 @@ def request_identity(uid, api_key, company_id=None, company_ids=None, db=None):
         (odoo_company_id_ctx, None if company_id is None else int(company_id)),
         (odoo_company_ids_ctx, None if company_ids is None else [int(x) for x in company_ids]),
         (odoo_db_ctx, db),
+        (odoo_described_models_ctx, set()),
     )
     tokens = [(var, var.set(value)) for var, value in values]
     try:

@@ -1,5 +1,5 @@
 import re
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from config import settings
 from erp_data.odoo_connector import MODEL_NAME_RE
@@ -23,6 +23,7 @@ _ORDER_RE = re.compile(
     re.IGNORECASE,
 )
 _NAME_SEARCH_OPS = frozenset({"=", "ilike", "like", "=ilike", "=like"})
+_SELECTION_OPS = frozenset({"=", "!=", "in", "not in"})
 
 
 def cap_row_limit(limit: Optional[int]) -> int:
@@ -168,3 +169,31 @@ def assert_domain_within_companies(
                 raise OrmRuntimeError(
                     f"domain company_id in {values} outside allowed companies {sorted(allowed)}"
                 )
+
+
+def assert_selection_values(domain: list, choices_of: Callable[[str], Optional[list]]) -> None:
+    """Refuse a string value that is not a key of the selection field it filters.
+
+    choices_of maps a field path to its [key, label] pairs, or None when the
+    field is not a selection or is unknown (the ORM then stays the authority).
+    """
+    for item in domain:
+        if not isinstance(item, (list, tuple)):
+            continue
+        path, op, value = item
+        if op not in _SELECTION_OPS:
+            continue
+        values = value if isinstance(value, (list, tuple)) else [value]
+        strings = [v for v in values if isinstance(v, str)]
+        if not strings:
+            continue
+        choices = choices_of(path)
+        if not choices or not all(isinstance(key, str) for key, _label in choices):
+            continue
+        valid = {key for key, _label in choices}
+        invalid = [v for v in strings if v not in valid]
+        if invalid:
+            listed = ", ".join(f"{key} ({label})" for key, label in choices)
+            raise OrmRuntimeError(
+                f"invalid value {invalid[0]!r} for selection field {path!r}; valid values: {listed}"
+            )
