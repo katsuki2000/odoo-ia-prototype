@@ -61,9 +61,9 @@ class TestIncrementalIndexation(unittest.TestCase):
         with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             changed = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
-        self.assertIn(str(first_file.resolve()), changed.get("updated_files", []))
-        self.assertIn(str(third_file.resolve()), changed.get("updated_files", []))
-        self.assertIn(str(second_file.resolve()), changed.get("skipped_files", []))
+        self.assertIn(first_file.name, changed.get("updated_files", []))
+        self.assertIn(third_file.name, changed.get("updated_files", []))
+        self.assertIn(second_file.name, changed.get("skipped_files", []))
         self.assertEqual(changed.get("added_files"), [])
         self.assertEqual(changed.get("deleted_files"), [])
         self.assertEqual(changed.get("chunks_added"), 2)
@@ -84,13 +84,13 @@ class TestIncrementalIndexation(unittest.TestCase):
         with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             result = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
-        self.assertIn(str(deleted_file.resolve()), result.get("deleted_files", []))
-        self.assertIn(str(kept_file.resolve()), result.get("skipped_files", []))
+        self.assertIn(deleted_file.name, result.get("deleted_files", []))
+        self.assertIn(kept_file.name, result.get("skipped_files", []))
         self.assertEqual(result.get("added_files"), [])
         self.assertEqual(result.get("updated_files"), [])
         self.assertEqual(result.get("chunks_added"), 0)
         self.assertEqual(wrapped_add_chunks.call_count, 0)
-        self.assertEqual(self.manager.delete_by_source(str(deleted_file.resolve())), 0)
+        self.assertEqual(self.manager.delete_by_source(deleted_file.name), 0)
         self.assertGreaterEqual(self.manager.get_stats().get("total_chunks", 0), 1)
         self.assertIn("Deleted removed source", "\n".join(logs.output))
 
@@ -107,8 +107,8 @@ class TestIncrementalIndexation(unittest.TestCase):
         with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             result = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
-        self.assertIn(str(new_file.resolve()), result.get("added_files", []))
-        self.assertIn(str(existing_file.resolve()), result.get("skipped_files", []))
+        self.assertIn(new_file.name, result.get("added_files", []))
+        self.assertIn(existing_file.name, result.get("skipped_files", []))
         self.assertEqual(result.get("updated_files"), [])
         self.assertEqual(result.get("deleted_files"), [])
         self.assertEqual(result.get("chunks_added"), 1)
