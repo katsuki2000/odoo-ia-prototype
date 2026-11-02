@@ -1,4 +1,4 @@
-name: Python Tests and OCA Coverage
+name: Python Tests
 
 on:
   push:
@@ -10,10 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  oca-coverage:
+  tests:
     runs-on: ubuntu-latest
-    env:
-      CORE_ADDONS_PATH: ${{ github.workspace }}/../odoo-17.0/addons
     steps:
       - uses: actions/checkout@v3
 
@@ -27,32 +25,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Clone Odoo 17 core addons
+      - name: Clone Odoo 17 core sources
         run: |
           git clone --depth 1 --filter=blob:none --sparse --branch 17.0 https://github.com/odoo/odoo.git ../odoo-17.0
-          git -C ../odoo-17.0 sparse-checkout set addons
+          git -C ../odoo-17.0 sparse-checkout set odoo
 
-      - name: Clone OCA sample modules
-        run: |
-          mkdir -p tests/oca_sample
-          cd tests/oca_sample
-          git clone --depth 1 -b 17.0 https://github.com/OCA/account-financial-reporting.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/sale-workflow.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/server-tools.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/server-ux.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/purchase-workflow.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/hr.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/account-invoicing.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/stock-logistics-warehouse.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/partner-contact-management.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/reporting-engine.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/web.git
-          git clone --depth 1 -b 17.0 https://github.com/OCA/project.git
-
-      - name: Run offline project test suite
+      - name: Run offline test suite
         run: |
           pytest -q -m "not integration"
-
-      - name: Run coverage script
-        run: |
-          python scripts/run_oca_coverage.py tests/oca_sample

@@ -131,17 +131,7 @@ python3 odoo-bin -c odoo.conf -d odoo-dev -i maintenance --stop-after-init
 ```
 
 
-### Step 9 : Seed ERP data and configure the instance
-
-```bash
-cd ~/odoo-ia-prototype
-source .venv/bin/activate
-
-# Consolidated setup script : this is a test purpose script (Company Alpha, sales journal, users, products, demo data), the projects should work on your own data
-python3 scripts/full_setup.py
-```
-
-### Step 10 : Ingest documents into the vector store (ChromaDB)
+### Step 9 : Ingest documents into the vector store (ChromaDB)
 
 ```bash
 cd ~/odoo-ia-prototype
