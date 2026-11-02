@@ -1,0 +1,80 @@
+@startuml 5_6_classes_sprint5
+title Figure 5.6 — Diagramme de classes de conception, Sprint 5
+skinparam classAttributeIconSize 0
+
+class "generate_node" as GenerateNode <<module document_rag>> {
+  +generate(state : RAGState) : dict
+  -_build_answer_llm() : ChatOpenAI
+}
+
+class "generate_helpers" as GenerateHelpers <<module document_rag>> {
+  +build_source_aliases(chunks : list) : dict
+  +format_context(alias_map : dict) : str
+  +verify_used_sources(used_source_aliases, alias_map) : list
+  +compute_rag_confidence(chunks : list) : float
+  +parse_raw_json_answer(raw_text : str) : str | None
+}
+
+class "verify_node" as VerifyNode <<module core.graph>> {
+  +verify_answer(state : RAGState) : dict
+}
+
+class "verifier" as Verifier <<module core.verification>> {
+  +verify_answer_claims(...) : VerificationReport
+}
+
+class VerificationReport {
+  +mode : VerifierMode
+  +claims_total : int
+  +unsupported_claims : int
+  +claims_by_type : dict[ClaimType, int]
+  +unsupported_by_type : dict[ClaimType, int]
+  +unsupported : list[UnsupportedClaim]
+}
+
+class UnsupportedClaim {
+  +claim_type : ClaimType
+  +text : str
+  +reason : str
+}
+
+enum ClaimType {
+  NUMBER
+  GROUP
+  METHOD
+}
+
+enum VerifierMode {
+  OFF
+  REPORT
+  ENFORCE
+}
+
+class AssistantResponse {
+  +answer : str
+  +sources : list[SourceReference]
+  +confidence : float
+  +ocr_warning : bool
+  +route : str | None
+  +verification : VerificationReport | None
+  +evidence_dossier : list[Evidence]
+}
+
+class SourceReference {
+  +source : str
+  +doc_type : str
+  +title : str
+  +snippet : str
+  +page : int | None
+}
+
+GenerateNode ..> GenerateHelpers : utilise
+GenerateNode ..> AssistantResponse : produit
+VerifyNode ..> Verifier : délègue
+Verifier ..> VerificationReport : produit
+VerificationReport "1" *-- "0..*" UnsupportedClaim
+UnsupportedClaim ..> ClaimType
+VerificationReport ..> VerifierMode
+AssistantResponse "1" *-- "0..*" SourceReference : contient
+AssistantResponse "1" o-- "0..1" VerificationReport
+@enduml

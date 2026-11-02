@@ -1,0 +1,80 @@
+@startuml 5_2_modele_domaine
+title Figure 5.2 — Modèle du domaine du système
+hide methods
+skinparam classAttributeIconSize 0
+
+class Utilisateur {
+  id : int
+  login : str
+  name : str
+}
+class Societe {
+  id : int
+  name : str
+}
+class ParametresMiroAI <<miro.ai.settings>> {
+  name : str
+  api_url : str
+  api_token : str
+  request_timeout : int
+}
+class JournalAudit <<miro.ai.log>> {
+  question : str
+  answer : str
+  session_id : str
+  response_time_ms : int
+  sources_text : JSON
+  sources_count : int
+  metadata_text : JSON
+  state : success / error
+}
+class SessionConversation <<dérivée>> {
+  session_id : str
+}
+class SourceDocumentaire {
+  source : str
+  title : str
+  doc_type : str
+  snippet : str
+  page : int
+}
+class ObservationORM {
+  tool : str
+  model : str
+  method : str
+  row_count : int
+  truncated : bool
+  execution_identity : int
+  read_at : str
+}
+class Preuve <<Evidence>> {
+  evidence_id : str
+  source_type : str
+  claim : str
+  value : Any
+  source : str
+}
+class RapportVerification <<VerificationReport>> {
+  mode : off / report / enforce
+  claims_total : int
+  unsupported_claims : int
+}
+
+Utilisateur "1..*" -- "1..*" Societe : rattaché à
+Utilisateur "1" -- "0..*" JournalAudit : trace
+Societe "1" -- "0..*" JournalAudit : cloisonne
+SessionConversation "1" o-- "1..*" JournalAudit : regroupe\n(par session_id)
+JournalAudit "0..*" -- "0..*" SourceDocumentaire : cite
+JournalAudit "0..*" -- "0..*" ObservationORM : s'appuie sur
+ObservationORM "1" *-- "1..*" Preuve : produit
+JournalAudit "1" -- "0..1" RapportVerification : évalué par
+
+note bottom of ParametresMiroAI
+  Configuration globale de la connexion au
+  backend IA (aucun lien avec une société).
+end note
+note bottom of SessionConversation
+  Pas de modèle Odoo dédié : une session
+  est reconstituée à partir de miro.ai.log.
+end note
+@enduml

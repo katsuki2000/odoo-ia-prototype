@@ -1,0 +1,63 @@
+@startuml 5_7_classes_sprint7
+title Figure 5.7 — Diagramme de classes de conception, Sprint 7
+skinparam classAttributeIconSize 0
+
+class MiroAiSystray <<Component OWL>> {
+  +state.isOpen : bool
+  +state.loading : bool
+  +state.sourceMode : str | null
+  +state.sessionId : str
+  +state.messages : list
+  +state.sessions : list
+  +setup() : void
+  +toggleDrawer() : void
+  +toggleSourceMode(mode : str) : void
+  +sendMessage() : void
+  +askAndWait(rpcPayload) : Promise
+  +cancelRequest() : void
+  +loadSessions() : Promise
+  +loadSession(sessionId : str) : Promise
+  +startNewConversation() : void
+}
+
+class MiroAiController <<http.Controller>> {
+  +health_check() : dict
+  +ask(question, session_id, source_mode) : dict
+  +ask_result(job_id, session_id) : dict
+  +sessions(limit : int) : list
+  +history(session_id : str) : list
+  -_fetch_answer(job_id, session_id) : dict
+}
+
+class "ask_flow" as AskFlow <<module>> {
+  +KEY_PREFIX : str = "MIRO AI - "
+  +JWT_LIFETIME_SECONDS : int = 300
+  +STALE_KEY_SECONDS : int = 3600
+  +generate_jwt_token(payload_dict, secret_key) : str
+  +backend_headers(secret_key, user, company_id, groups, api_key) : dict
+  +requester_scope(env) : tuple
+  +issue_requester_key(env, job_id) : str
+  +revoke_requester_keys(env, job_id) : void
+  +is_job_id(value) : bool
+}
+
+class "backend_client" as BackendClient <<module>> {
+  +post_to_backend(api_url, path, headers, payload, timeout) : Response
+  +get_from_backend(api_url, path, headers, timeout) : Response
+  +job_response_object(response) : dict
+  +response_json_object(response) : dict
+}
+
+class BackendError <<exception>>
+class BackendUnreachable <<exception>>
+class BackendTimeout <<exception>>
+class BackendInvalidResponse <<exception>>
+
+MiroAiSystray --> MiroAiController : RPC POST (json)
+MiroAiController ..> AskFlow : signe le JWT et émet la clé éphémère
+MiroAiController ..> BackendClient : relaie vers FastAPI (job + polling)
+BackendError <|-- BackendUnreachable
+BackendError <|-- BackendTimeout
+BackendError <|-- BackendInvalidResponse
+BackendClient ..> BackendError : lève
+@enduml

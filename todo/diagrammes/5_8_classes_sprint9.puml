@@ -1,0 +1,78 @@
+@startuml 5_8_classes_sprint9
+title Figure 5.8 — Diagramme de classes de conception, Sprint 9
+skinparam classAttributeIconSize 0
+
+class MiroAiSettings <<models.Model>> {
+  +name : Char
+  +api_url : Char
+  +api_token : Char
+  +request_timeout : Integer
+  +get_signing_secret() : str
+  +get_active_settings() : record
+}
+
+class MiroAiLog <<models.Model>> {
+  +question : Text
+  +answer : Text
+  +user_id : Many2one(res.users)
+  +company_id : Many2one(res.company)
+  +session_id : Char
+  +response_time_ms : Integer
+  +sources_text : Text (JSON)
+  +sources_count : Integer
+  +metadata_text : Text (JSON)
+  +state : Selection (success / error)
+  +log_query(question, answer, session_id, response_time_ms, sources, state, metadata) : record
+  +get_sessions(limit : int) : list
+  +get_session_history(session_id : str) : list
+}
+
+class "read_tools" as OrmRuntimeReadTools <<module erp_data.runtime>> {
+  +orm_fields_get(model, field_names) : OrmToolResult
+  +orm_search(model, domain, ...) : OrmToolResult
+  +orm_read(model, ids, fields) : OrmToolResult
+  +orm_search_read(model, domain, fields, limit, ...) : OrmToolResult
+  +orm_search_count(model, domain) : OrmToolResult
+  +orm_read_group(model, domain, fields, groupby, ...) : OrmToolResult
+  +orm_name_search(model, name, ...) : OrmToolResult
+}
+
+class OrmToolResult {
+  +observation : OrmObservation
+  +evidence : list[Evidence]
+  +text : str
+}
+
+class OrmObservation {
+  +tool : str
+  +model : str
+  +method : str
+  +request : dict
+  +row_count : int
+  +truncated : bool
+  +execution_identity : int
+  +read_at : str
+}
+
+class OdooConnector {
+  +url : str
+  +username : str
+  +technical : bool
+  +common : ServerProxy
+  +models : ServerProxy
+  +authenticate(username : str) : int
+  +search_read(uid, model, domain, fields, limit, order) : list[dict]
+  +search(uid, model, domain, ...) : list[int]
+  +read(uid, model, ids, fields) : list[dict]
+  +search_count(uid, model, domain) : int
+  +name_search(uid, model, ...) : list
+  +read_group(uid, model, domain, fields, groupby) : list[dict]
+  +fields_get(uid, model, field_names) : dict
+  -_check_whitelist(model : str) : void
+  -_execute_kw(uid, model, method, args, kwargs) : Any
+}
+
+OrmRuntimeReadTools ..> OrmToolResult : retourne
+OrmToolResult "1" *-- "1" OrmObservation
+OrmRuntimeReadTools --> OdooConnector : exécute sous l'uid demandeur
+@enduml

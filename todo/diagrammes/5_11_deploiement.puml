@@ -1,0 +1,45 @@
+@startuml 5_11_deploiement
+title Figure 5.11 — Diagramme de déploiement du système
+
+node "Poste utilisateur" as Poste <<device>> {
+  node "Navigateur web" <<execution environment>> {
+    component "Interface Odoo 17\n(composant OWL miro_ai)" as UI
+  }
+}
+
+node "Serveur applicatif\n(Odoo et backend IA côte à côte)" as Srv <<device>> {
+  node "Processus Odoo 17" <<execution environment>> {
+    component "Addon miro_ai\n(contrôleur, modèles)" as Addon
+    component "Moteur Odoo 17\n(ORM, droits d'accès, XML-RPC)\nport 8069" as Odoo
+  }
+  node "Processus uvicorn" <<execution environment>> {
+    component "Backend FastAPI et LangGraph\nport 8000 (API_HOST 127.0.0.1 par défaut)" as Api
+    database "ChromaDB\n(fichiers, embeddings bge-m3)" as Chroma
+    folder "Corpus documentaire\n(PDF, Markdown, DOCX)" as Docs
+  }
+  node "Serveur PostgreSQL" <<execution environment>> {
+    database "Base Odoo" as Pg
+  }
+}
+
+node "Serveur d'inférence LLM\n(cible aws ou kaggle)" as Llm <<device>> {
+  node "Ollama" <<execution environment>> {
+    component "API compatible OpenAI (/v1)\nmodèle qwen3:14b\nembeddings bge-m3" as Ollama
+  }
+}
+
+UI -- Odoo : HTTPS / RPC JSON\nport 8069
+Addon -- Odoo : appels internes Python
+Addon -- Api : HTTP REST asynchrone\n(création du job puis sondage)\nJWT HS256
+Api -- Odoo : XML-RPC /xmlrpc/2/object\nlecture seule, uid demandeur\n(clé API éphémère)
+Odoo -- Pg : SQL TCP 5432
+Api -- Chroma : requêtes vectorielles
+Api -- Docs : ingestion et découpage
+Api -- Ollama : HTTPS /v1\n(génération et embeddings)
+
+note bottom of Llm
+  Hébergement réel selon LLM_TARGET : aws (par défaut)
+  ou kaggle (tunnel ngrok). Aucun Dockerfile ni docker-compose
+  dans le dépôt.
+end note
+@enduml

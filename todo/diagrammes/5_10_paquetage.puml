@@ -1,0 +1,50 @@
+@startuml 5_10_paquetage
+title Figure 5.10 — Diagramme de paquetage du système
+skinparam packageStyle folder
+
+package "odoo_addons.miro_ai\n(module Odoo 17)" as Addon {
+  package "static.src\n(composant OWL)" as Owl
+  package "controllers" as Ctrl
+  package "models\n(miro.ai.settings, miro.ai.log)" as Models
+  package "security" as Sec
+}
+
+package "api\n(serveur FastAPI)" as Api {
+  package "routes_ask / routes_ingestion\n/ routes_system" as Routes
+  package "ask_jobs\n(file de jobs)" as Jobs
+  package "auth\n(JWT HS256)" as Auth
+}
+
+package "core\n(orchestration LangGraph)" as Core {
+  package "graph" as Graph
+  package "routing" as Routing
+  package "verification" as Verif
+  package "evidence" as Evid
+  package "llm\n(client OpenAI-compatible)" as Llm
+  package "session" as Sess
+}
+
+package "document_rag\n(moteur RAG hybride)" as Rag {
+  package "ingestion\n(PDF, texte, Markdown, DOCX,\nGoogle Drive)" as Ingest
+  package "vectorstore\n(ChromaDB, BM25, fusion RRF)" as Vec
+}
+
+package "erp_data\n(agent ORM temps réel)" as Erp {
+  package "runtime\n(outils de lecture seule)" as Runtime
+  package "odoo_connector\n(XML-RPC)" as Conn
+}
+
+package "config\n(settings, identifiants Odoo,\nGoogle Drive)" as Config
+
+rectangle "Serveur Odoo 17\n(ORM et droits d'accès)" as OdooServer
+
+Addon ..> Api : HTTP REST asynchrone\n(JWT HS256)
+Api ..> Core : exécute le graphe
+Core ..> Rag : branche documentaire
+Core ..> Erp : branche système ERP
+Erp ..> OdooServer : XML-RPC sous l'uid demandeur
+Api ..> Config
+Core ..> Config
+Rag ..> Config
+Erp ..> Config
+@enduml

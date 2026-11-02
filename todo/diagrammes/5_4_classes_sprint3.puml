@@ -1,0 +1,56 @@
+@startuml 5_4_classes_sprint3
+title Figure 5.4 — Diagramme de classes de conception, Sprint 3
+skinparam classAttributeIconSize 0
+
+class IngestionOrchestrator {
+  +chunk_size : int = 512
+  +chunk_overlap : int = 50
+  +stats : dict
+  +last_docs_dir : str | Path
+  +ingest_all(docs_dir : str | Path) : dict
+  +clear_and_reingest(docs_dir : str | Path) : dict
+}
+
+class "document_loader" as DocumentLoader <<module>> {
+  +load_document(file_path, chunk_size, chunk_overlap, scan_root) : tuple[list[str], list[dict]]
+}
+
+class PDFLoader {
+  +load_and_chunk(...) : tuple[list[str], list[dict]]
+  -_extract_text_from_pdf(reader) : str
+  -_extract_text_via_ocr(pdf_path : Path) : str
+}
+
+class WikiLoader {
+  +load_text_file(...) : tuple[list[str], list[dict]]
+  +load_markdown_file(...) : tuple[list[str], list[dict]]
+  +load_docx_file(...) : tuple[list[str], list[dict]]
+}
+
+class ChromaManager {
+  +db_path : Path
+  +collection_name : str = "odoo_docs"
+  +embedding_model : str
+  +add_chunks(texts, metadatas, ids) : list[str]
+  +query(query_text, top_k, where) : dict
+  +get_by_id(chunk_id : str) : dict
+  +delete_by_source(source_path : str) : int
+  +get_stats() : dict
+}
+
+class OllamaEmbeddingFunction {
+  +model : str = "bge-m3:latest"
+  -_embed_batch(texts : list[str]) : list[list[float]]
+}
+
+note right of DocumentLoader
+  Formats pris en charge : .pdf, .txt, .md, .docx
+  (dispatch par extension, pas de classe mère).
+end note
+
+IngestionOrchestrator --> DocumentLoader : charge chaque fichier
+DocumentLoader ..> PDFLoader : .pdf
+DocumentLoader ..> WikiLoader : .txt, .md, .docx
+IngestionOrchestrator --> ChromaManager : stocke les vecteurs
+ChromaManager ..> OllamaEmbeddingFunction : génère les embeddings
+@enduml

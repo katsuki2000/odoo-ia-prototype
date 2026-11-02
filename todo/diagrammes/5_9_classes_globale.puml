@@ -1,0 +1,153 @@
+@startuml 5_9_classes_globale
+title Figure 5.9 — Diagramme de classes de conception globale du système
+skinparam classAttributeIconSize 0
+
+package "odoo_addons.miro_ai (Odoo 17)" {
+  class MiroAiSystray <<Component OWL>> {
+    +sendMessage() : void
+    +askAndWait(payload) : Promise
+  }
+  class MiroAiController <<http.Controller>> {
+    +ask(question, session_id, source_mode) : dict
+    +ask_result(job_id, session_id) : dict
+    +sessions(limit) : list
+    +history(session_id) : list
+  }
+  class "ask_flow" as AskFlow <<module>> {
+    +generate_jwt_token(payload, secret) : str
+    +issue_requester_key(env, job_id) : str
+    +revoke_requester_keys(env, job_id) : void
+  }
+  class "backend_client" as BackendClient <<module>> {
+    +post_to_backend(...) : Response
+    +get_from_backend(...) : Response
+  }
+  class MiroAiSettings <<models.Model>> {
+    +api_url : Char
+    +api_token : Char
+    +request_timeout : Integer
+    +get_signing_secret() : str
+  }
+  class MiroAiLog <<models.Model>> {
+    +question : Text
+    +answer : Text
+    +session_id : Char
+    +log_query(...) : record
+  }
+}
+
+package "api (FastAPI)" {
+  class "routes_ask" as RoutesAsk <<routeur>> {
+    +POST /api/v1/ask
+    +POST /api/v1/ask/jobs
+    +GET /api/v1/ask/jobs/:job_id
+  }
+  class "auth" as Auth <<module>> {
+    +verify_token(credentials) : dict
+    +get_current_user(payload) : dict
+    +require_admin(user) : dict
+  }
+  class AskJobStore {
+    +submit(job_id, owner_uid, question, work) : void
+    +get(job_id, owner_uid) : AskJob
+  }
+  class AskJob {
+    +status() : str
+    +elapsed_ms() : int
+  }
+}
+
+package "core" {
+  class "graph" as Graph <<module core.graph>> {
+    +build_graph() : CompiledGraph
+    +query_graph(question, uid, ...) : AssistantResponse
+  }
+  class RAGState <<TypedDict>> {
+    +question : str
+    +uid : int | None
+    +route : str | None
+    +source_mode : str | None
+    +retrieved_chunks : list[dict]
+    +response : AssistantResponse | None
+  }
+  class "source_selection" as SourceSelection <<module core.routing>> {
+    +select_source(question) : SourceSelection
+    +route_decision(state) : str
+  }
+  class "verify_node" as VerifyNode <<module core.graph>> {
+    +verify_answer(state) : dict
+  }
+  class AssistantResponse {
+    +answer : str
+    +sources : list[SourceReference]
+    +confidence : float
+    +route : str | None
+    +verification : VerificationReport | None
+    +evidence_dossier : list[Evidence]
+  }
+}
+
+package "document_rag" {
+  class "search" as Search <<module>> {
+    +retrieve(query, top_k) : list[dict]
+    +hybrid_search(...) : list
+  }
+  class ChromaManager {
+    +query(query_text, top_k, where) : dict
+    +add_chunks(texts, metadatas, ids) : list[str]
+  }
+  class BM25Index {
+    +build_from_chroma(manager) : void
+    +search(query, top_k) : list[dict]
+  }
+  class "generate_node" as GenerateNode <<module>> {
+    +generate(state) : dict
+  }
+  class IngestionOrchestrator {
+    +ingest_all(docs_dir) : dict
+  }
+}
+
+package "erp_data" {
+  class "orm_agent_node" as OrmAgentNode <<module>> {
+    +orm_agent_loop(state) : dict
+  }
+  class "read_tools" as OrmRuntimeReadTools <<module>> {
+    +orm_search_read(...) : OrmToolResult
+    +orm_search_count(...) : OrmToolResult
+    +orm_read_group(...) : OrmToolResult
+  }
+  class OdooConnector {
+    +authenticate(username) : int
+    +search_read(uid, model, ...) : list[dict]
+  }
+}
+
+MiroAiSystray --> MiroAiController : RPC JSON
+MiroAiController ..> AskFlow : signe le JWT, émet la clé éphémère
+MiroAiController ..> BackendClient
+MiroAiController ..> MiroAiSettings : lit les paramètres
+MiroAiController ..> MiroAiLog : journalise
+BackendClient ..> RoutesAsk : HTTP REST asynchrone (JWT HS256)
+RoutesAsk ..> Auth : authentifie
+RoutesAsk --> AskJobStore : dépose et suit le job
+AskJobStore "1" o-- "0..*" AskJob
+AskJobStore ..> Graph : exécute query_graph
+Graph ..> RAGState
+Graph ..> SourceSelection : route
+Graph ..> Search : branche documentaire
+Graph ..> OrmAgentNode : branche système ERP
+Search --> ChromaManager : dense (bge-m3)
+Search --> BM25Index : lexical
+Search ..> GenerateNode : passages récupérés
+GenerateNode ..> VerifyNode
+OrmAgentNode ..> VerifyNode
+OrmAgentNode --> OrmRuntimeReadTools
+OrmRuntimeReadTools --> OdooConnector
+VerifyNode ..> AssistantResponse : réponse validée
+IngestionOrchestrator --> ChromaManager : stocke les vecteurs
+note right of OdooConnector
+  Appels XML-RPC (/xmlrpc/2/object) vers le serveur
+  Odoo, sous l'uid du demandeur.
+end note
+@enduml
