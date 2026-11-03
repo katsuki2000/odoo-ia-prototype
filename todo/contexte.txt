@@ -7405,3 +7405,14 @@ Date : 03/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture :
 **Non modifie, a relire par pmm** : paragraphes 106 et 111 (impératif « on-premise », deja coherent avec l'objectif local), 256, 574, 592, 617 (« instance AWS privee en deploiement », coherents) ; conclusion : aucune perspective « migration vers un serveur local » ajoutee (a ajouter si pmm le souhaite) ; paragraphe 374 (« clients de MiroKE depuis leur instance Odoo ») et 535 (deploiement chez plusieurs clients) a relire avec l'objectif local.
 **Commit** : non fait. Dans cette copie de travail `MASTER_ENI_refs.docx` n'est pas suivi par git (`MASTER_ENI.docx` apparait supprime) et `contexte.txt`, `rules.md`, `architecture.md`, `memoire_a_reporter.md` contiennent des modifications non commitees d'autres sessions : un commit melangerait ces modifications.
 **Fichiers modifies** : `todo/MASTER_ENI_refs.docx`, `todo/contexte.txt`.
+
+
+## Section 1793 : `AIDEredac` : points deja traites retires (03/11/2026)
+
+Date : 03/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1792. Sauvegardes : `.scratch/AIDEredac.avant_1793`, `.scratch/contexte.avant_1793.txt`.
+**Mandat (pmm)** : commiter, puis retirer de `AIDEredac` ce qui est deja resolu.
+**Commit** : `aca524cb` (`MASTER_ENI_refs.docx` et `contexte.txt`, section 1792).
+**Verifie dans `MASTER_ENI_refs.docx` avant retrait** : evolution des versions d'Odoo (Odoo 20, annexe), choix d'Odoo 17 (para. 309), tunnel SSH (para. 533), corpus fictif (para. 561 et 628), corpus dans Google Drive, prix et choix de l'instance (5.12), Hit@1 defini au glossaire (para. 771), ingenieur d'appui AWS (tableau des moyens humains), PoC (para. 253), perspectives (Code Intelligence en premier, MCP, tout dans Odoo).
+**Retires de `AIDEredac` (11 lignes)** : les points ci-dessus.
+**Conserves** : « DANS ou SUR » (« dans » subsiste ailleurs que dans le titre), remerciements (a pmm), choix des parametres, ajout des captures (trois « [A inserer : capture ... ] » restent), reperer les redondances, regler les chiffres, ajout du RAGAS (script non lance), version de PostgreSQL (aucune mention), choix du modele d'embeddings (section « retenu : BGE-M3 » sans comparaison), retrait de « je » et « nous » (verifie : seuls restent les remerciements et le format « je veux » des user stories ; ligne gardee comme regle d'ecriture), « Limites de l'evaluation » a corriger, bloc demo, bloc corrections, apres le doc.
+**Fichiers modifies** : `todo/AIDEredac`, `todo/contexte.txt`.

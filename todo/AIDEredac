@@ -2,22 +2,11 @@
 à faire dans le doc :
 integration DANS ou SUR? (à l'ENI , j'ai dit sur, chez mIRO on m'a juste demandé integration d'une IA privée)
 remerciements, je changerai moi meme
-mettre à jour Evolution des Versions odoo
 LE CHOIX DES PARMAMÈTRES gardés
 ajout des captures
-ecplication du choix de odoo 17 ( c la verision qu'utilise la plipart des ERP de miro, ce dernier souhaite migrer les autres à 17)
 reperer les redondance
-le doc dit deja que le systeme communiqe avec aws par ssh?
-les corpus docs son des faux generés en modiiant les vrais docs de l'entreprise
-le corpus documentaire qui est dans drive
- le price
  choix du modele d'embedding à documenter
  regler les chiffres
- Hit@1 , c quoi?
- choix de l'instance
-parmi les moyens humains : un ingenieur m'a aidé pour la mise en place du serveur AWS et m'y a donné accès
-preciser que ce n'est un PoC, pour prouver la faisabilité et mesurer le prix de la mise en place
-perspective: mettre entierment tout sur odoo, accès qu' aux docs qu'on peut voir, mcp pour pouvoir exposer, code intelligence(qui était deja fait)
 ajout du RAGAS
 version postgres
 retrait de "je" et "nous" dans le doc, à part dans "remerciement"
