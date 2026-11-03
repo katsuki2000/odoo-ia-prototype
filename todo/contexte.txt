@@ -7015,3 +7015,225 @@ J'ai appliqué A, mais pas C : j'ai vérifié sur l'instance `odoo` que C ne ré
 **À faire de ton côté :** relancer `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh`, puis lire `model_answer` pour ERP-16. Cela dira si le modèle pose une question de précision après le refus (la cause probable de la 1770), avant qu'on touche au code.
 - **Pourquoi `--fresh` :** sans lui, les passes déjà enregistrées d'ERP-16 sont reprises sans `model_answer`.
 - **Pourquoi pas `--fresh --ids` :** il effacerait les lignes des autres questions de ce modèle.
+
+## Section 1773 : correction du flux ERP et de la découverte (02/11/2026)
+
+Date : 02/11/2026. Le flux existant a été vérifié avant modification ; aucune correspondance de modèle Odoo propre à une instance n'a été ajoutée.
+
+Modifications :
+- `api/routes_ask.py` refuse explicitement une requête `source_mode=system` dont le JWT ne contient pas la clé API temporaire du demandeur, avec une erreur 403 claire ; la documentation reste accessible sans cette clé.
+- `erp_data/runtime/langchain_tools.py` lit automatiquement le schéma complet puis rejoue une lecture refusée uniquement parce que `fields_get` n'avait pas encore été appelé.
+- `erp_data/runtime/read_tools.py` élargit une recherche de modèle à ses modèles du même namespace technique lorsqu'un mot-clé unique a trouvé un candidat ; cela permet de comparer les modèles métier et rapport présents dans l'instance sans alias codé en dur.
+- `erp_data/prompts.py` précise que `list_models` ne doit pas être appelé avant chaque question.
+- Tests ajoutés ou adaptés pour la clé JWT, la reprise après découverte du schéma et les modèles frères.
+
+Vérification : les suites ORM et routage ciblées passent avec 84 tests et 14 sous-tests. La suite API ciblée doit encore être exécutée.
+
+Analyse du banc relancé : `qwen3:14b` atteint 93 % de faits avec 7 % de dépassements de délai ; `gpt-oss:20b` atteint 89 % de faits, sans dépassement mais avec deux erreurs d'appel d'outil. Les deux modèles échouent encore sur ERP-10. Le traceback d'ERP-10 révélait que le validateur ne contrôlait que le premier segment d'un chemin relationnel (`stage_id.closed`) ; le contrôle parcourt maintenant tous les segments et refuse le domaine avant XML-RPC avec un champ invalide explicite.
+
+Le validateur refuse également les valeurs imbriquées pour `in` et `not in` : un domaine tel que `[[6]]` n'est pas envoyé à Odoo. Cette règle est indépendante des modèles et corrige une autre forme de domaine mal construit observée dans ERP-10.
+
+Le banc d'évaluation respecte maintenant `--fresh --ids`: seuls les résultats du modèle et des questions sélectionnées sont supprimés, au lieu de supprimer tous les résultats du modèle.
+
+Tentative de relance ciblée : `--model qwen3:14b --login admin --passes 3 --fresh --ids ERP-10`. L'authentification Odoo a réussi, mais l'appel Ollama `/api/show` est resté bloqué avant le chargement du modèle ; le processus a été interrompu. Les trois anciennes lignes qwen d'ERP-10 ont été retirées comme demandé par le filtre, les autres lignes de la capture sont conservées. Les tests ORM ciblés restent verts : 35 passes.
+
+Relance ERP-10 effectuée après ouverture du tunnel SSH : 3/3 passes exécutées, mais 0 % de faits. Les trois réponses ont utilisé le domaine valide `stage_id.name not in [Won, Lost]` et compté 36. Le problème restant est sémantique : le modèle assimile les noms d'étapes relationnelles à la définition de l'état demandé. Le prompt interdit maintenant explicitement cette substitution et demande de chercher d'abord un champ explicite du modèle principal (booléen, sélection ou pourcentage), sans règle spécifique à `crm.lead`.
+
+## Section 1774 : planification métier avant l'agent ORM (02/11/2026)
+
+Ajout d'une étape générique de planification dans `erp_data/orm_agent_helpers.py`. `QueryPlan` extrait le sujet métier, les conditions obligatoires, le type de résultat et les ambiguïtés, sans inventer de modèle, champ ou valeur technique. Le plan est produit par une sortie structurée puis transmis à la boucle ORM dans un message système interne ; chaque condition doit être confirmée par `fields_get` et apparaître dans la lecture finale. En cas d'indisponibilité de la sortie structurée, le flux ORM existant est conservé.
+
+Tests de l'agent, du planificateur et du vérificateur : 42 passes. Aucun alias ou traitement spécifique à CRM n'a été ajouté.
+
+La première intégration du planificateur a provoqué des dépassements de 180 secondes avec `qwen3:14b` : l'appel structuré utilisait le raisonnement ERP par défaut et ajoutait un appel LLM long avant la boucle ORM. La planification est maintenant limitée à 256 tokens et utilise `reasoning_effort=none`; le raisonnement normal reste inchangé pour l'agent ORM.
+
+
+## Section 1775 : date du jour et lecture de mesure pour les questions de montant (03/11/2026)
+
+Date : 03/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1774. Sauvegardes : `.scratch/contexte.avant_1775.txt` et `.scratch/avant_1775/` (prompts.py, orm_agent_helpers.py, orm_agent_node.py, test_p9_typed_runtime_wiring.py).
+**Mandat (pmm)** : « oui » (pistes 1 et 2).
+**Constat** (`captures/reasoning_trace.jsonl`, trace `5af29b555864`, « how much did we spend last month ? ») : le modele n'avait aucune date du jour et a filtre `hr.expense` sur 2023-09-01 .. 2023-09-30 (`search_count -> 0`), puis a conclu a l'absence de depenses. Aucune lecture d'un champ monetaire. Les « 30 » et « 2023 » retires par le verificateur venaient de ces dates devinees. Le plan (`result_kind`, `ambiguity`) n'etait que consultatif et un `search_count` suffisait a clore la reponse.
+**Fait** : (1) `erp_data/prompts.py` : `build_orm_agent_messages` ajoute un message systeme « Date du jour (UTC) : AAAA-MM-JJ » calcule a l'execution ; le prompt demande de resoudre les periodes relatives depuis cette date et de lire un montant avec `read_group` ou `search_read`. (2) `erp_data/orm_agent_helpers.py` : `format_query_plan` (sorti de `orm_agent_node.py`), `counted_instead_of_measured` (plan `aggregate` + `search_count` sans `read_group`/`search_read`/`read`), et le planificateur definit chaque `result_kind`. (3) `erp_data/orm_agent_node.py` : `_run_react` recoit le plan ; dans ce cas la reponse n'est pas acceptee et `MEASURE_READ_REMINDER` est renvoye au modele, une seule fois. Aucun nom de modele, champ ou alias specifique.
+**Verification** : pyflakes propre ; `pytest erp_data/tests tests/test_t3_verify_node.py tests/test_erp_model_eval.py` : 158 passes (suite complete non lancee). Tests ajoutes : date dans les messages, garde `counted_instead_of_measured`, relance unique vers la lecture de mesure.
+**Non traite** : ambiguite de « spend » (hr.expense, factures fournisseurs, achats, paiements) et mot-cle choisi par le modele pour `list_models` (lie a ERP-07) ; piste 3 (clarification deterministe depuis `plan.ambiguity`) a mesurer sur le banc avant adoption.
+**Delegue a pmm** : relancer la question « how much did we spend last month ? » dans MIRO AI (filtre attendu sur octobre 2026, lecture d'un champ monetaire), puis le banc `python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh` pour verifier l'absence de regression (77 % avant). **Aucun commit.**
+
+
+## Section 1776 : langue de la reponse ERP (03/11/2026)
+
+Date : 03/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1775. Sauvegardes : `.scratch/contexte.avant_1776.txt` et `.scratch/avant_1776/` (prompts.py, orm_agent_helpers.py, test_p9_typed_runtime_wiring.py).
+**Mandat (pmm)** : « la langue de la question ; mais avec les termes de l'interface ».
+**Constat** : une question en anglais recevait une reponse en francais. Tout le contexte du modele est en francais (prompt, plan, date, rappels) et `build_orm_synthesis_prompt` imposait « en francais ». `state["language"]` (langue de l'interface, envoyee par l'addon) n'est lue nulle part. Les libelles de `fields_get` / `list_models` sont deja dans la langue de l'utilisateur Odoo : l'appel s'execute sous son uid et aucun `lang` n'est force dans le contexte.
+**Fait** : `QueryPlan.answer_language` rempli par le planificateur (nom de la langue de la question) et repris dans le plan (« Langue de la reponse : X, libelles Odoo non traduits ») ; le prompt demande de nommer modeles et champs par leur libelle exact renvoye par Odoo, sans le traduire ; la synthese forcee ecrit « dans la langue de la question » au lieu de « en francais ». Aucune detection de langue codee en dur.
+**Verification** : pyflakes propre ; `pytest erp_data/tests tests/test_t3_verify_node.py tests/test_erp_model_eval.py` : tous passes (suite complete non lancee). Tests : `QueryPlan` avec `answer_language`, texte du plan.
+**Non traite** : `NO_DATA_ANSWER`, `NO_READ_ANSWER` et `OUT_OF_SCOPE_ANSWER` restent en francais ; le message du verificateur deterministe est en anglais ; les descriptions « in French » de `core/schemas.py` (`LLMResponse.answer`, `AssistantResponse.answer`) sont laissees car elles touchent la branche RAG (prompt RAG : « francais par defaut »).
+**Delegue a pmm** : reposer la question en anglais dans MIRO AI (reponse attendue en anglais, libelles dans la langue de l'interface), puis une question en francais. **Aucun commit.**
+
+
+## Section 1777 : pas de devise inventee dans les reponses ERP (03/11/2026)
+
+Date : 03/11/2026. Branche : `memoire-final`. Dernier numero lu avant ecriture : 1776. Sauvegardes : `.scratch/contexte.avant_1777.txt` et `.scratch/avant_1777/` (prompts.py, test_p9_typed_runtime_wiring.py).
+**Mandat (pmm)** : « oui applique » (point 1 de la liste suivant les traces `527996f8ba8b` et `acdea540a279`).
+**Constat** : apres les sections 1775 et 1776, la question « how much did we spend last month ? » filtre bien octobre 2026, lit `total_amount` avec `read_group` (`__count: 0`) et repond dans la langue de la question, mais ecrit « $0.00 » (anglais) et « 0,00 € » (francais) alors que l'observation ne porte aucune devise.
+**Fait** : `erp_data/prompts.py` : regle generique « n'ajoute aucune devise ni unite absente des observations ; sans devise lue dans les donnees, donne le nombre seul ». Test : presence de la regle dans le prompt.
+**Verification** : pyflakes propre ; `pytest erp_data/tests tests/test_t3_verify_node.py tests/test_erp_model_eval.py` : 160 passes (suite complete non lancee).
+**Non traite** : noms techniques (`hr.expense`, `total_amount`) encore cites dans la reponse ; latence de 114 a 118 s (5 a 6 appels LLM de 20 a 35 s, proche du timeout de 120 s) ; sens de « spend » et mot-cle de `list_models` (ERP-07) ; message du verificateur en anglais.
+**Delegue a pmm** : reposer « how much did we spend last month ? » dans MIRO AI et verifier l'absence de « $ » ou « € » dans la reponse. **Aucun commit.**
+
+
+
+(.venv) Mahalahatse@Mahalahatse:~/Project/odoo-ia-prototype
+$ python scripts/run_erp_model_eval.py --model qwen3:14b --login admin --passes 3 --fresh
+Authenticated to Odoo as admin (uid 2).
+[SKIP] ERP-02: no matching record or several currencies
+qwen3:14b loaded: {'vram_fraction': 1.0, 'context_length': 32768}
+[1/45] ERP-01 pass 1: facts 100%, tools 2 (56.4s)
+[2/45] ERP-03 pass 1: facts 100%, tools 4 (107.2s)
+[3/45] ERP-04 pass 1: facts 100%, tools 4 (97.4s)
+[4/45] ERP-05 pass 1: facts 100%, tools 4 (103.8s)
+[5/45] ERP-06 pass 1: facts 100%, tools 3 (75.6s)
+[6/45] ERP-07 pass 1: facts 100%, tools 2 (72.3s)
+[7/45] ERP-08 pass 1: facts 100%, tools 1 (40.6s)
+[8/45] ERP-09 pass 1: timed out (180.0s)
+[9/45] ERP-10 pass 1: facts 0%, tools 2 (120.1s)
+[10/45] ERP-11 pass 1: facts 100%, tools 2 (52.8s)
+[11/45] ERP-12 pass 1: facts 100%, tools 4 (71.8s)
+[12/45] ERP-13 pass 1: facts 100%, tools 3 (146.4s)
+[13/45] ERP-14 pass 1: facts 100%, tools 3 (67.7s)
+[14/45] ERP-15 pass 1: facts 100%, tools 2 (43.6s)
+[15/45] ERP-16 pass 1: facts 100%, tools 4 (99.7s)
+[16/45] ERP-01 pass 2: facts 100%, tools 2 (82.5s)
+[17/45] ERP-03 pass 2: facts 100%, tools 5 (118.4s)
+[18/45] ERP-04 pass 2: facts 100%, tools 4 (94.5s)
+[19/45] ERP-05 pass 2: facts 100%, tools 4 (98.4s)
+[20/45] ERP-06 pass 2: facts 100%, tools 2 (56.6s)
+[21/45] ERP-07 pass 2: facts 100%, tools 2 (58.0s)
+[22/45] ERP-08 pass 2: facts 100%, tools 1 (33.6s)
+[23/45] ERP-09 pass 2: timed out (180.0s)
+[24/45] ERP-10 pass 2: facts 0%, tools 2 (117.4s)
+[25/45] ERP-11 pass 2: facts 100%, tools 2 (51.4s)
+[26/45] ERP-12 pass 2: facts 100%, tools 4 (69.0s)
+[27/45] ERP-13 pass 2: timed out (180.0s)
+[28/45] ERP-14 pass 2: facts 100%, tools 2 (39.3s)
+[29/45] ERP-15 pass 2: facts 100%, tools 3 (55.5s)
+[30/45] ERP-16 pass 2: facts 100%, tools 4 (100.1s)
+[31/45] ERP-01 pass 3: facts 100%, tools 2 (82.4s)
+[32/45] ERP-03 pass 3: facts 100%, tools 5 (118.1s)
+[33/45] ERP-04 pass 3: facts 100%, tools 4 (93.6s)
+[34/45] ERP-05 pass 3: facts 100%, tools 4 (98.7s)
+[35/45] ERP-06 pass 3: facts 100%, tools 2 (57.4s)
+[36/45] ERP-07 pass 3: facts 100%, tools 2 (57.4s)
+[37/45] ERP-08 pass 3: facts 100%, tools 1 (33.4s)
+[38/45] ERP-09 pass 3: timed out (180.0s)
+LLM invoke failed at iteration 1: Connection error.
+[39/45] ERP-10 pass 3: error (26.6s)
+ORM query planning unavailable: APIConnectionError
+LLM invoke failed at iteration 1: Connection error.
+[40/45] ERP-11 pass 3: error (2.8s)
+ORM query planning unavailable: APIConnectionError
+LLM invoke failed at iteration 1: Connection error.
+[41/45] ERP-12 pass 3: error (2.7s)
+3 consecutive errors: the backend looks down. Restore it, then rerun with --retry-errors.
+Traceback (most recent call last):
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connection.py", line 204, in _new_conn
+    sock = connection.create_connection(
+        (self._dns_host, self.port),
+    ...<2 lines>...
+        socket_options=self.socket_options,
+    )
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/util/connection.py", line 85, in create_connection
+    raise err
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/util/connection.py", line 73, in create_connection
+    sock.connect(sa)
+    ~~~~~~~~~~~~^^^^
+ConnectionRefusedError: [Errno 111] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py", line 493, in _make_request
+    conn.request(
+    ~~~~~~~~~~~~^
+        method,
+        ^^^^^^^
+    ...<6 lines>...
+        enforce_content_length=enforce_content_length,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connection.py", line 500, in request
+    self.endheaders()
+    ~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/http/client.py", line 1362, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/http/client.py", line 1122, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/usr/lib/python3.13/http/client.py", line 1066, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connection.py", line 331, in connect
+    self.sock = self._new_conn()
+                ~~~~~~~~~~~~~~^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connection.py", line 219, in _new_conn
+    raise NewConnectionError(
+        self, f"Failed to establish a new connection: {e}"
+    ) from e
+urllib3.exceptions.NewConnectionError: HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [Errno 111] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/requests/adapters.py", line 696, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/urllib3/util/retry.py", line 543, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [Errno 111] Connection refused"))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/scripts/run_erp_model_eval.py", line 379, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/scripts/run_erp_model_eval.py", line 367, in main
+    exit_code = run_on_model(
+        args.model,
+    ...<3 lines>...
+        probes={"llm": probe_llm},
+    )
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/evaluation/bench_common.py", line 121, in run_on_model
+    set_keep_alive(model, 0)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/evaluation/ollama_server.py", line 26, in set_keep_alive
+    server_call('POST', '/api/generate', {'model': model, 'keep_alive': keep_alive, 'stream': False})
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/evaluation/ollama_server.py", line 16, in server_call
+    response = requests.request(method, url, json=payload, timeout=SERVER_TIMEOUT_SECONDS)
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/requests/api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/requests/sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/requests/sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+  File "/home/Mahalahatse/Project/odoo-ia-prototype/.venv/lib/python3.13/site-packages/requests/adapters.py", line 729, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='localhost', port=11434): Max retries exceeded with url: /api/generate (Caused by NewConnectionError("HTTPConnection(host='localhost', port=11434): Failed to establish a new connection: [Errno 111] Connection refused"))
+(.venv) Mahalahatse@Mahalahatse:~/Project/odoo-ia-prototype

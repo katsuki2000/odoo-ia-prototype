@@ -108,11 +108,18 @@ def _format_observation(result: OrmToolResult) -> str:
     return f"{result.text}{notice}\n{body}{_schema_hint(result)}"
 
 
-def _invoke(call) -> str:
+def _invoke(call, retry_schema=True) -> str:
     try:
         result = call()
     except SchemaNotReadError as exc:
-        return f"ORM read refused: {exc}\n{_invoke(partial(_fields_get, exc.model))}"
+        if not retry_schema:
+            return f"ORM read refused: {exc}"
+        try:
+            schema = _fields_get(exc.model)
+        except OrmRuntimeError as schema_error:
+            return f"ORM read refused: {schema_error}"
+        record_evidence(schema.evidence)
+        return _invoke(call, retry_schema=False)
     except OrmRuntimeError as exc:
         return f"ORM read refused: {exc}"
     record_evidence(result.evidence)

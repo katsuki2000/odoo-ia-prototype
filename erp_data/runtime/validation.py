@@ -64,6 +64,13 @@ def validate_domain(domain: Any) -> list:
                 raise OrmRuntimeError(f"invalid domain field: {field!r}")
             if not isinstance(op, str) or op not in _DOMAIN_LEAF_OPS:
                 raise OrmRuntimeError(f"invalid domain leaf operator: {op!r}")
+            if op in {"in", "not in"} and (
+                not isinstance(_val, (list, tuple))
+                or any(isinstance(value, (list, tuple, dict)) for value in _val)
+            ):
+                raise OrmRuntimeError(
+                    f"domain operator {op!r} requires a flat list of scalar values"
+                )
             continue
         raise OrmRuntimeError(f"invalid domain entry: {item!r}")
     return domain

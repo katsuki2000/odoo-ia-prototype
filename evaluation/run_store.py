@@ -20,8 +20,12 @@ def append_run(path, record):
         file.write(json.dumps(record, ensure_ascii=False) + '\n')
 
 
-def discard_model(path, model):
-    kept = [record for key, record in load_runs(path).items() if key[0] != model]
+def discard_model(path, model, question_ids=None):
+    selected = set(question_ids or ())
+    kept = [
+        record for key, record in load_runs(path).items()
+        if key[0] != model or (selected and key[1] not in selected)
+    ]
     with open(path, 'w', encoding='utf-8') as file:
         file.writelines(json.dumps(record, ensure_ascii=False) + '\n' for record in kept)
 

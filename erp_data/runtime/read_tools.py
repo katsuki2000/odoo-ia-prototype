@@ -132,25 +132,34 @@ def _selection_choices(model: str, path: str) -> Optional[list]:
 
 
 def _assert_domain_fields_exist(model: str, domain: list) -> None:
-    """Refuse a domain leaf on a field Odoo says the model does not have, with the closest real names.
-
-    Only the first segment of a path is checked; when Odoo cannot answer, the ORM stays the authority."""
+    """Refuse a domain leaf on a field or relation path absent from Odoo's schema."""
     for item in domain:
         if not isinstance(item, (list, tuple)) or len(item) != 3 or not isinstance(item[0], str):
             continue
-        name = item[0].split(".")[0]
-        if _field_info(model, name) != {}:
-            continue
-        try:
-            known = sorted(_get_connector().fields_get(require_execution_uid(), model, []) or {})
-        except OdooConnectorError:
-            known = []
-        close = difflib.get_close_matches(name, known, n=5, cutoff=0.4)
-        hint = f"closest fields: {', '.join(close)}; " if close else ""
-        raise OrmRuntimeError(
-            f"unknown field {name!r} in domain: {model} has no such field; {hint}"
-            "read the full field list with fields_get"
-        )
+        path = item[0]
+        current_model = model
+        parts = path.split(".")
+        for index, name in enumerate(parts):
+            info = _field_info(current_model, name)
+            if info is None:
+                break
+            if info == {}:
+                try:
+                    known = sorted(_get_connector().fields_get(require_execution_uid(), current_model, []) or {})
+                except OdooConnectorError:
+                    known = []
+                close = difflib.get_close_matches(name, known, n=5, cutoff=0.4)
+                hint = f"closest fields: {', '.join(close)}; " if close else ""
+                raise OrmRuntimeError(
+                    f"unknown field {path!r} in domain: {current_model} has no such field; {hint}"
+                    "read the full field list with fields_get"
+                )
+            if index < len(parts) - 1:
+                current_model = info.get("relation")
+                if not current_model:
+                    raise OrmRuntimeError(
+                        f"invalid relation path {path!r} in domain: {model}.{name} is not relational"
+                    )
 
 
 def _checked_domain(model: str, domain: Optional[list]) -> list:
@@ -470,7 +479,21 @@ def orm_list_models(query: str) -> OrmToolResult:
         for row in rows
         if all(word in f"{row['model']} {row['display_name']}".lower() for word in words)
     )
+    namespaces = {
+        model.split(".", 1)[0]
+        for model, _label in matches
+        if len(words) == 1 and "." in model
+    }
+    expanded = sorted(
+        (row["model"], row["display_name"])
+        for row in rows
+        if row["model"].split(".", 1)[0] in namespaces
+        and (row["model"], row["display_name"]) not in matches
+    )
+    candidates = matches + expanded
     shown, truncated = _window(matches, cap_row_limit(None))
+    if expanded:
+        shown, truncated = _window(candidates, cap_row_limit(None))
     return _build_result(
         tool="list_models",
         method="get_available_models",

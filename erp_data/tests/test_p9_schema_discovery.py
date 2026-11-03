@@ -124,14 +124,11 @@ def _evidence(monkeypatch):
     monkeypatch.setattr(langchain_tools, "record_evidence", lambda evidence: None)
 
 
-def test_the_agent_gets_the_refusal_then_the_full_field_list(_request_scope, _evidence):
-    observation = langchain_tools.search_count.invoke({"model": "account.move"})
-    assert observation.startswith("ORM read refused: fields of account.move not read yet")
-    assert "move_type" in observation
-    assert observation.endswith(langchain_tools.FULL_LIST_HINT)
-    _request_scope.search_count.assert_not_called()
+def test_a_query_automatically_reads_schema_then_retries(_request_scope, _evidence):
     _request_scope.search_count.return_value = 4
-    assert "ORM read refused" not in langchain_tools.search_count.invoke({"model": "account.move"})
+    observation = langchain_tools.search_count.invoke({"model": "account.move"})
+    assert "account.move.search_count -> 4" in observation
+    _request_scope.search_count.assert_called_once()
 
 
 def test_unknown_field_names_come_with_the_advice_to_read_the_full_list(_evidence):
@@ -143,4 +140,3 @@ def test_a_detailed_fields_get_gets_no_hint(_evidence):
     observation = langchain_tools.fields_get.invoke({"model": "account.move", "field_names": ["move_type"]})
     assert langchain_tools.FULL_LIST_HINT not in observation
     assert langchain_tools.UNKNOWN_FIELDS_HINT not in observation
-

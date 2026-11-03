@@ -15,13 +15,17 @@ from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 from core.state import RAGState
 from erp_data.orm_agent_helpers import (
+    QueryPlan,
     _build_llm,
+    counted_instead_of_measured,
     execute_tool_call,
     explain_refusals,
     force_final_synthesis,
+    format_query_plan,
+    plan_orm_question,
     resolve_orm_tools,
 )
-from erp_data.prompts import EMPTY_REPLY_REMINDER, build_orm_agent_messages
+from erp_data.prompts import EMPTY_REPLY_REMINDER, MEASURE_READ_REMINDER, build_orm_agent_messages
 from erp_data.runtime.read_tools import SCHEMA_METHODS
 
 logger = logging.getLogger(__name__)
@@ -40,13 +44,22 @@ class ReactResult(NamedTuple):
     hops: int
 
 
-def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLogger, trace_id: str) -> ReactResult:
+def _run_react(
+    question: str,
+    chat_history: list,
+    trace_logger: ReasoningTraceLogger,
+    trace_id: str,
+    plan: QueryPlan | None = None,
+    planning_calls: int = 0,
+) -> ReactResult:
     """Reason, call an ORM tool, observe, repeat until an answer or the iteration budget is spent."""
     tools = resolve_orm_tools()
     tool_llm = _build_llm(temperature=0.0).bind_tools(tools)
-    messages = build_orm_agent_messages(question, chat_history)
+    messages = build_orm_agent_messages(question, chat_history, query_plan=plan and format_query_plan(plan))
     observations: List[Any] = []
-    llm_calls = hops = 0
+    tool_names: List[str] = []
+    measure_reminded = False
+    llm_calls, hops = planning_calls, 0
 
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
@@ -59,6 +72,10 @@ def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLo
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
+            if counted_instead_of_measured(plan, tool_names) and not measure_reminded:
+                measure_reminded = True
+                messages.append(HumanMessage(content=MEASURE_READ_REMINDER))
+                continue
             if str(ai_msg.content).strip():
                 return ReactResult(ai_msg.content, observations, llm_calls, hops)
             messages.append(HumanMessage(content=EMPTY_REPLY_REMINDER))
@@ -68,6 +85,7 @@ def _run_react(question: str, chat_history: list, trace_logger: ReasoningTraceLo
             started = time.time()
             tool_name, tool_args, observation = execute_tool_call(tool_call, tools)
             observations.append(observation)
+            tool_names.append(tool_name)
             trace_logger.log_hop(
                 trace_id=trace_id, hop_index=hops, tool_name=tool_name, tool_args=tool_args,
                 observation=str(observation), elapsed_ms=(time.time() - started) * 1000,
@@ -109,7 +127,11 @@ def orm_agent_loop(state: RAGState) -> dict:
         result = ReactResult(PROMPT_INJECTION_REFUSAL_MSG, [], 0, 0)
         response, extra_calls = AssistantResponse(answer=PROMPT_INJECTION_REFUSAL_MSG, sources=[], confidence=0.0), 0
     else:
-        result = _run_react(question, state.get("chat_history", []), trace_logger, trace_id)
+        query_plan, planning_calls = plan_orm_question(question, _build_llm)
+        result = _run_react(
+            question, state.get("chat_history", []), trace_logger, trace_id,
+            plan=query_plan, planning_calls=planning_calls,
+        )
         response, extra_calls = _build_response(question, result)
 
     timing = state.get("timing", {}).copy()

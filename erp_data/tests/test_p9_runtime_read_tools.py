@@ -95,6 +95,8 @@ def test_validate_domain_accepts_leaves_and_operators():
         validate_domain([("name", "execute", "x")])
     with pytest.raises(OrmRuntimeError, match="invalid domain field"):
         validate_domain([("name);write", "=", "x")])
+    with pytest.raises(OrmRuntimeError, match="flat list"):
+        validate_domain([("stage_id", "not in", [[6]])])
     assert validate_order("write_date desc, id asc") == "write_date desc, id asc"
     with pytest.raises(OrmRuntimeError):
         validate_order("name desc; unlink")
@@ -223,6 +225,19 @@ def test_list_models_keeps_models_matching_every_keyword_in_name_or_label(reques
     assert result.evidence[0].value == [("product.product", "Product Variant")]
     assert result.observation.truncated is False
     mock_connector.available_models.assert_called_once_with(7)
+
+
+def test_list_models_includes_sibling_models_from_the_matching_namespace(requester_uid, mock_connector):
+    mock_connector.available_models.return_value = [
+        {"model": "account.invoice.report", "display_name": "Invoices Statistics"},
+        {"model": "account.move", "display_name": "Journal Entry"},
+        {"model": "sale.order", "display_name": "Sales Order"},
+    ]
+    result = orm_list_models("invoice")
+    assert result.evidence[0].value == [
+        ("account.invoice.report", "Invoices Statistics"),
+        ("account.move", "Journal Entry"),
+    ]
 
 
 def test_list_models_marks_a_truncated_list_only_when_more_models_exist(requester_uid, mock_connector, monkeypatch):
@@ -410,6 +425,22 @@ def test_domain_on_unknown_field_is_refused_with_close_names(requester_uid, mock
     with pytest.raises(OrmRuntimeError, match=r"unknown field 'state'.*crm\.lead.*fields_get") as exc:
         orm_search_count("crm.lead", domain=[("state", "!=", "won")])
     assert "state_id" in str(exc.value)
+    mock_connector.search_count.assert_not_called()
+
+
+def test_domain_on_unknown_related_field_is_refused_before_xmlrpc(requester_uid, mock_connector):
+    def fields_get(uid, model, names):
+        if model == "crm.lead" and names == ["stage_id"]:
+            return {"stage_id": {"type": "many2one", "relation": "crm.stage"}}
+        if model == "crm.stage" and names == ["closed"]:
+            return {}
+        if model == "crm.stage" and not names:
+            return {"name": {}, "is_won": {}}
+        return {}
+
+    mock_connector.fields_get.side_effect = fields_get
+    with pytest.raises(OrmRuntimeError, match=r"unknown field 'stage_id.closed'.*crm\.stage"):
+        orm_search_count("crm.lead", domain=[("stage_id.closed", "=", False)])
     mock_connector.search_count.assert_not_called()
 
 

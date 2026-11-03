@@ -346,7 +346,7 @@ def main(argv=None):
         return 0
     label = result_label(args.model, args.reasoning_effort)
     if args.fresh:
-        run_store.discard_model(RESULTS_PATH, label)
+        run_store.discard_model(RESULTS_PATH, label, args.ids)
     runs = load_scored_runs()
     todo = list(run_store.pending_runs(
         label, questions, args.passes, runs,

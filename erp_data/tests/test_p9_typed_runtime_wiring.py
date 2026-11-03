@@ -12,7 +12,7 @@ from core.evidence.evidence_collector import (
     start_evidence_collection,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from erp_data.orm_agent_helpers import resolve_orm_tools
+from erp_data.orm_agent_helpers import QueryPlan, plan_orm_question, resolve_orm_tools
 from erp_data.prompts import ORM_AGENT_SYSTEM_PROMPT, build_orm_agent_messages
 from erp_data.runtime import read_tools
 
@@ -58,6 +58,36 @@ def test_orm_prompt_requires_instance_schema_and_evidence():
     assert "modules personnalisés" in messages[0].content
     assert "Ne suppose jamais qu'un modèle" in messages[0].content
     assert "seule source de faits" in messages[0].content
+
+
+def test_orm_messages_carry_the_business_plan():
+    messages = build_orm_agent_messages("Combien d'opportunités ouvertes ?", query_plan="Conditions: active")
+    assert messages[2].content == "Conditions: active"
+
+
+def test_orm_messages_carry_the_current_date():
+    from datetime import datetime, timezone
+
+    messages = build_orm_agent_messages("Combien a-t-on dépensé le mois dernier ?")
+    assert messages[1].content == f"Date du jour (UTC) : {datetime.now(timezone.utc).date().isoformat()}."
+
+
+def test_query_planner_returns_structured_business_constraints(monkeypatch):
+    class StructuredPlanner:
+        def with_structured_output(self, _schema, method):
+            assert method == "json_schema"
+            return self
+
+    expected = QueryPlan(
+        subject="opportunités",
+        conditions=["type opportunité", "actives", "ni gagnées ni perdues"],
+        result_kind="count",
+        answer_language="français",
+    )
+    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: expected)
+    plan, calls = plan_orm_question("Combien d'opportunités ouvertes ?", lambda **_kwargs: StructuredPlanner())
+    assert plan == expected
+    assert calls == 1
 
 
 def test_search_count_wrapper_records_evidence_and_returns_json():
@@ -232,6 +262,11 @@ def test_prompt_asks_for_business_language_in_the_answer():
     assert "cite les" not in ORM_AGENT_SYSTEM_PROMPT
 
 
+def test_prompt_does_not_equate_related_display_names_with_business_state():
+    assert "champ explicite de type booléen, sélection ou pourcentage" in ORM_AGENT_SYSTEM_PROMPT
+    assert "Ne remplace jamais cet état par des noms d'affichage" in ORM_AGENT_SYSTEM_PROMPT
+
+
 def test_refusal_prompt_forbids_data_and_technical_terms():
     from erp_data.prompts import build_orm_refusal_prompt
 
@@ -298,3 +333,71 @@ def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer
     assert result["response"].answer == "Il y a 2 partenaires."
     assert seen[1] == EMPTY_REPLY_REMINDER
     assert result["timing"]["llm_call_count"] == 2
+
+
+@pytest.mark.parametrize(
+    ("kind", "tools", "expected"),
+    [
+        ("aggregate", ["fields_get", "search_count"], True),
+        ("aggregate", ["search_count", "read_group"], False),
+        ("aggregate", [], False),
+        ("count", ["search_count"], False),
+    ],
+)
+def test_counting_rows_does_not_answer_a_question_about_a_total(kind, tools, expected):
+    from erp_data.orm_agent_helpers import counted_instead_of_measured
+
+    plan = QueryPlan(subject="dépenses", result_kind=kind, answer_language="English")
+    assert counted_instead_of_measured(plan, tools) is expected
+    assert counted_instead_of_measured(None, tools) is False
+
+
+def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measure(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.prompts import MEASURE_READ_REMINDER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc1"}]),
+        AIMessage(content="Aucune dépense."),
+        AIMessage(content="", tool_calls=[{"name": "read_group", "args": {}, "id": "tc2"}]),
+        AIMessage(content="Total : 1200."),
+    ])
+    seen = []
+
+    def fake_invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+
+    def fake_execute(tool_call, _tools):
+        _record_read(method=tool_call["name"])
+        return tool_call["name"], {}, "observation"
+
+    plan = QueryPlan(subject="dépenses", result_kind="aggregate", answer_language="English")
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "Combien a-t-on dépensé le mois dernier ?"})
+    assert result["response"].answer == "Total : 1200."
+    assert seen[2] == MEASURE_READ_REMINDER
+
+
+def test_plan_text_asks_for_the_question_language_with_untranslated_odoo_labels():
+    from erp_data.orm_agent_helpers import format_query_plan
+
+    text = format_query_plan(QueryPlan(subject="expenses", result_kind="aggregate", answer_language="English"))
+    assert "Langue de la réponse : English" in text
+    assert "libellés Odoo non traduits" in text
+
+
+def test_prompt_forbids_a_currency_that_the_data_does_not_show():
+    assert "N'ajoute aucune devise ni unité absente des observations" in ORM_AGENT_SYSTEM_PROMPT

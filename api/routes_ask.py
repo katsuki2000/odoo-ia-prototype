@@ -63,6 +63,11 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         company_id = request.company_id if token_company_id is None else int(token_company_id)
         if not api_key:
             logger.warning("No Odoo API key in the JWT for uid=%s: ERP calls will be refused.", uid)
+            if request.source_mode == "system":
+                raise HTTPException(
+                    status_code=403,
+                    detail="The Odoo user identity is unavailable for this system request.",
+                )
 
         response = query_graph(
             question=request.question,

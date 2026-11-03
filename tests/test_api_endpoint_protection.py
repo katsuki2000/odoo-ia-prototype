@@ -63,6 +63,22 @@ def test_health_stays_public(client):
     assert client.get("/health").status_code == 200
 
 
+def test_system_request_without_requester_api_key_is_rejected_before_graph(client):
+    with patch("api.routes_ask.query_graph") as query_graph:
+        response = client.post(
+            "/api/v1/ask",
+            headers=_headers(),
+            json={
+                "question": "Combien de clients ?",
+                "session_id": "s",
+                "company_id": 1,
+                "source_mode": "system",
+            },
+        )
+    assert response.status_code == 403
+    query_graph.assert_not_called()
+
+
 def test_scheduled_scan_reachable_with_an_admin_token(client):
     with patch("api.routes_ingestion.run_scan") as scan:
         scan.return_value = {"status": "success", "files_scanned": 0, "chunks_added": 0, "duration_ms": 0}
