@@ -72,6 +72,20 @@ def test_execute_runs_resets_the_error_counter_after_a_success(tmp_path):
     assert len(runs) == 5
 
 
+def test_execute_runs_does_not_mistake_worker_errors_for_backend_failures(tmp_path):
+    todo = [({"id": f"Q{number}"}, 1) for number in range(4)]
+    runs = {}
+    build = lambda item, pass_number: {
+        "model": "m", "question_id": item["id"], "pass_number": pass_number,
+        "error": "ValueError", "backend_error": False, "seconds": 1.0,
+    }
+
+    finished = common.execute_runs(todo, runs, tmp_path / "runs.jsonl", build, lambda _record: "error")
+
+    assert finished is True
+    assert len(runs) == 4
+
+
 @pytest.fixture
 def server(monkeypatch):
     calls = {"unloaded": []}
@@ -97,6 +111,16 @@ def test_run_on_model_keeps_the_model_loaded_on_request(server):
 
 def test_run_on_model_reports_an_interrupted_run(server):
     assert common.run_on_model("m", 32768, False, lambda info: False) == 3
+
+
+def test_run_on_model_preserves_interrupted_status_when_unload_fails(monkeypatch, capsys, server):
+    def fail_unload(*_args):
+        raise common.requests.ConnectionError("server stopped")
+
+    monkeypatch.setattr(common, "set_keep_alive", fail_unload)
+
+    assert common.run_on_model("m", 32768, False, lambda info: False) == 3
+    assert "Could not unload model after the run: ConnectionError" in capsys.readouterr().out
 
 
 def test_run_on_model_refuses_a_context_length_mismatch_before_any_run(server):

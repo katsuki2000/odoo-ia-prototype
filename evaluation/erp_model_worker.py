@@ -1,6 +1,7 @@
 """Run one isolated ORM-agent benchmark question."""
 
 from contextlib import ExitStack
+import traceback
 from unittest.mock import patch
 
 
@@ -16,7 +17,7 @@ def classify_tool_observation(observation):
     text = str(observation).casefold()
     if text.startswith("tool '") and " is not available." in text:
         return "unknown"
-    if text.startswith("orm read refused:") or "failed or was refused" in text:
+    if text.startswith(("orm read refused:", "query refused:")) or "failed or was refused" in text:
         return "invalid"
     return "ok"
 
@@ -43,22 +44,32 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
     tool_calls = []
     llm_errors = []
     model_answers = []
+    query_plans = []
 
     execute_tool_call = agent.execute_tool_call
     invoke_llm = agent.invoke_llm
     helper_invoke_llm = helpers.invoke_llm
     build_response = agent._build_response
 
-    def tracked_tool_call(tool_call, all_tools):
-        name, arguments, observation = execute_tool_call(tool_call, all_tools)
+    def tracked_tool_call(tool_call, all_tools, plan=None):
+        name, arguments, observation, coverage_complete = execute_tool_call(tool_call, all_tools, plan)
         call = describe_tool_call(name, arguments, observation)
         tool_calls.append(call)
         result_queue.put({"event": "tool_call", "call": call})
-        return name, arguments, observation
+        return name, arguments, observation, coverage_complete
 
     def tracked_build_response(question, result):
         model_answers.append(result.answer)
         return build_response(question, result)
+
+    plan_orm_question = agent.plan_orm_question
+
+    def tracked_plan(*args, **kwargs):
+        plan, calls = plan_orm_question(*args, **kwargs)
+        serialized_plan = plan.model_dump() if plan is not None else None
+        query_plans.append(serialized_plan)
+        result_queue.put({"event": "query_plan", "plan": serialized_plan})
+        return plan, calls
 
     def tracked_invoke(invoke, *args, **kwargs):
         result_queue.put({"event": "llm_call"})
@@ -74,6 +85,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
         with ExitStack() as stack:
             stack.enter_context(request_identity(uid, api_key, db=db))
             stack.enter_context(patch.object(agent, "execute_tool_call", tracked_tool_call))
+            stack.enter_context(patch.object(agent, "plan_orm_question", tracked_plan))
             stack.enter_context(patch.object(
                 agent, "invoke_llm", lambda *args, **kwargs: tracked_invoke(invoke_llm, *args, **kwargs)))
             stack.enter_context(patch.object(agent, "_build_response", tracked_build_response))
@@ -93,6 +105,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
         result_queue.put({"event": "result", "result": {
             "answer": response.answer if response else "",
             "model_answer": model_answers[0] if model_answers else None,
+            "query_plan": query_plans[0] if query_plans else None,
             "timing": result.get("timing", {}),
             "tool_calls": tool_calls,
             "llm_errors": llm_errors,
@@ -100,6 +113,9 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
     except Exception as error:
         result_queue.put({"event": "result", "result": {
             "worker_error": type(error).__name__,
+            "worker_error_detail": str(error)[:500],
+            "worker_traceback": traceback.format_exc(limit=8)[:4000],
+            "query_plan": query_plans[0] if query_plans else None,
             "tool_calls": tool_calls,
             "llm_errors": llm_errors,
         }})

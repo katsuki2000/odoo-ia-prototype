@@ -5,11 +5,10 @@ from __future__ import annotations
 import ast
 import json
 from copy import deepcopy
-from functools import partial
 from typing import Annotated, Any, Optional
 
 from langchain_core.tools import tool
-from pydantic import BeforeValidator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictInt
 
 from config import settings
 from core.evidence.evidence_collector import record_evidence
@@ -57,8 +56,66 @@ def _coerce_list(value: Any) -> Any:
     return [part.strip().strip("'\"") for part in text.split(",") if part.strip()]
 
 
-LooseList = Annotated[Optional[list], BeforeValidator(_coerce_list)]
 LooseStrList = Annotated[Optional[list[str]], BeforeValidator(_coerce_list)]
+DomainToken = str | tuple[str, str, Any]
+def _is_domain_leaf(value: Any) -> bool:
+    return isinstance(value, (list, tuple)) and len(value) == 3 and all(
+        isinstance(value[index], str) for index in (0, 1)
+    )
+
+
+def _flatten_domain_tokens(value: Any) -> Any:
+    if _is_domain_leaf(value) or isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [token for item in value for token in _flatten_domain_tokens(item)]
+    return [value]
+
+
+def _coerce_domain(value: Any) -> Any:
+    value = _coerce_list(value)
+    return _flatten_domain_tokens(value) if isinstance(value, list) else value
+
+
+LooseDomain = Annotated[
+    Optional[list[DomainToken]],
+    BeforeValidator(_coerce_domain),
+    Field(description='Odoo domain: a list of [field, operator, value] triplets and logical operators.'),
+]
+
+
+def _coerce_domain_fragment(value: Any) -> Any:
+    if _is_domain_leaf(value):
+        return [value]
+    return _coerce_domain(value)
+
+
+def _coerce_condition_filters(value: Any) -> Any:
+    value = _coerce_list(value)
+    if not isinstance(value, list):
+        return value
+    return [
+        item if isinstance(item, dict) else {"condition_id": index, "domain": item}
+        for index, item in enumerate(value)
+    ]
+
+
+class ConditionFilter(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    condition_id: StrictInt = Field(ge=0)
+    description: str | None = None
+    domain: Annotated[list[DomainToken], BeforeValidator(_coerce_domain_fragment)] = Field(min_length=1)
+
+
+ConditionFilters = Annotated[
+    Optional[list[ConditionFilter]],
+    BeforeValidator(_coerce_condition_filters),
+    Field(description=(
+        "Map the numbered subject and every query-plan condition to exact, non-empty Odoo domain fragments."
+        " For compatibility, an ordered list of fragments is accepted and assigned identifiers by position."
+    )),
+]
 
 
 def _schema_hint(result: OrmToolResult) -> str:
@@ -136,7 +193,8 @@ def fields_get(model: str, field_names: LooseStrList = None) -> str:
 @tool
 def search(
     model: str,
-    domain: LooseList = None,
+    domain: LooseDomain = None,
+    condition_filters: ConditionFilters = None,
     limit: int = 0,
     order: str = "",
     offset: int = 0,
@@ -162,7 +220,8 @@ def read(model: str, ids: list[int], fields: list[str]) -> str:
 @tool
 def search_read(
     model: str,
-    domain: LooseList = None,
+    domain: LooseDomain = None,
+    condition_filters: ConditionFilters = None,
     fields: LooseStrList = None,
     limit: int = 0,
     order: str = "",
@@ -180,7 +239,11 @@ def search_read(
 
 
 @tool
-def search_count(model: str, domain: LooseList = None) -> str:
+def search_count(
+    model: str,
+    domain: LooseDomain = None,
+    condition_filters: ConditionFilters = None,
+) -> str:
     """Count records matching an Odoo domain (how many)."""
     return _invoke(lambda: _search_count(model, domain=domain or []))
 
@@ -190,7 +253,8 @@ def read_group(
     model: str,
     fields: list[str],
     groupby: LooseStrList = None,
-    domain: LooseList = None,
+    domain: LooseDomain = None,
+    condition_filters: ConditionFilters = None,
     lazy: bool = True,
 ) -> str:
     """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total."""
@@ -209,7 +273,8 @@ def read_group(
 def name_search(
     model: str,
     name: str = "",
-    domain: LooseList = None,
+    domain: LooseDomain = None,
+    condition_filters: ConditionFilters = None,
     operator: str = "ilike",
     limit: int = 0,
 ) -> str:

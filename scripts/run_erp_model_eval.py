@@ -107,9 +107,10 @@ def _run_isolated_question(question, uid, password, model, reasoning_effort, tim
     llm_errors = []
     llm_call_count = 0
     result = None
+    query_plan = None
 
     def collect_messages():
-        nonlocal result, llm_call_count
+        nonlocal result, llm_call_count, query_plan
         while True:
             try:
                 message = result_queue.get_nowait()
@@ -121,6 +122,8 @@ def _run_isolated_question(question, uid, password, model, reasoning_effort, tim
                 llm_errors.append(message["error"])
             elif message["event"] == "llm_call":
                 llm_call_count += 1
+            elif message["event"] == "query_plan":
+                query_plan = message["plan"]
             else:
                 result = message["result"]
 
@@ -138,6 +141,7 @@ def _run_isolated_question(question, uid, password, model, reasoning_effort, tim
                 "timed_out": True,
                 "tool_calls": tool_calls,
                 "llm_errors": llm_errors,
+                "query_plan": query_plan,
                 "timing": {"llm_call_count": llm_call_count, "hop_count": len(tool_calls)},
             }
         if result is None:
@@ -145,7 +149,14 @@ def _run_isolated_question(question, uid, password, model, reasoning_effort, tim
                 "worker_error": f"Worker exited with status {process.exitcode} without a result.",
                 "tool_calls": tool_calls,
                 "llm_errors": llm_errors,
+                "query_plan": query_plan,
+                "timing": {"llm_call_count": llm_call_count, "hop_count": len(tool_calls)},
             }
+        if result.get("worker_error"):
+            result.setdefault("timing", {}).update({
+                "llm_call_count": llm_call_count,
+                "hop_count": len(tool_calls),
+            })
         return result
     except BaseException:
         if process.is_alive():
@@ -161,6 +172,22 @@ def score(expected, answer):
     folded_answer = normalize(answer)
     found = sum(any(contains_fact(folded_answer, fact) for fact in group) for group in expected)
     return {"fact_recall": found / len(expected), "complete": found == len(expected)}
+
+
+def retryable_run(record):
+    return bool(record.get("error") or record.get("timed_out") or not record.get("complete", False))
+
+
+def select_pending_runs(model, questions, passes, runs, retry_errors=False, rerun=False):
+    if rerun:
+        return [(item, pass_number) for pass_number in range(1, passes + 1) for item in questions]
+    return list(run_store.pending_runs(
+        model,
+        questions,
+        passes,
+        runs,
+        lambda previous: retry_errors and retryable_run(previous),
+    ))
 
 
 def _is_backend_error(error):
@@ -188,6 +215,10 @@ def run_once(item, uid, password, model, reasoning_effort=None):
     return {
         "answer": answer,
         "model_answer": result.get("model_answer"),
+        "query_plan": result.get("query_plan"),
+        "worker_error_detail": result.get("worker_error_detail"),
+        "worker_traceback": result.get("worker_traceback"),
+        "backend_error": bool(backend_errors),
         "answer_chars": len(answer),
         "tool_calls": calls,
         "tool_call_count": len(calls),
@@ -290,7 +321,7 @@ def print_report(runs):
         )
     print("\nfacts = share of expected phrases/values found; full = all expected items found;")
     print("noTool = answer generated without an ORM call; invalid = tool call failed/refused;")
-    print("timeouts count as unsuccessful answers, but are reported separately from backend errors.")
+    print("timeouts and worker errors are excluded from accuracy rates and reported separately.")
     question_ids = dict.fromkeys(record["question_id"] for record in records)
     print(f'\nper question (timeouts count as zero facts)\n{"question":<12}'
           + "".join(f'{model[:20]:>22}' for model in models))
@@ -313,12 +344,21 @@ def main(argv=None):
     parser.add_argument("--reasoning-effort", help="reasoning effort sent with each request (ERP_REASONING_EFFORT; `none` switches the reasoning off); recorded as <model>+reasoning_<value>")
     parser.add_argument("--context-length", type=int, default=32768, help="required Ollama context length")
     parser.add_argument("--login", help="Odoo user login for the benchmark (required for a run)")
-    parser.add_argument("--retry-errors", action="store_true", help="rerun recorded backend/worker errors")
+    parser.add_argument(
+        "--retry-errors", action="store_true",
+        help="rerun recorded errors, timeouts, and incomplete answers",
+    )
+    parser.add_argument(
+        "--rerun", action="store_true",
+        help="rerun every selected question/pass and keep the prior JSONL history",
+    )
     parser.add_argument("--fresh", action="store_true", help="discard recorded runs for this model first")
     parser.add_argument("--keep-loaded", action="store_true", help="do not unload the model at the end")
     parser.add_argument("--report", action="store_true", help="report saved results and exit")
     parser.add_argument("--show-expected", action="store_true", help="print the expected values computed on the instance and exit")
     args = parser.parse_args(argv)
+    if args.rerun and args.fresh:
+        parser.error("--rerun preserves prior results and cannot be combined with --fresh")
 
     if args.report:
         print_report(load_scored_runs())
@@ -348,10 +388,10 @@ def main(argv=None):
     if args.fresh:
         run_store.discard_model(RESULTS_PATH, label, args.ids)
     runs = load_scored_runs()
-    todo = list(run_store.pending_runs(
+    todo = select_pending_runs(
         label, questions, args.passes, runs,
-        lambda previous: args.retry_errors and bool(previous["error"]),
-    ))
+        retry_errors=args.retry_errors, rerun=args.rerun,
+    )
     if not todo:
         print_report(runs)
         return 0

@@ -71,6 +71,37 @@ def test_score_needs_one_writing_per_expected_group_without_matching_inside_long
     assert bench.score(amount, "Total : 120 187.11 Ar")["complete"] is True
 
 
+@pytest.mark.parametrize(
+    ("record", "retry"),
+    [
+        ({"error": "ValueError", "complete": False}, True),
+        ({"error": None, "timed_out": True, "complete": False}, True),
+        ({"error": None, "timed_out": False, "complete": False}, True),
+        ({"error": None, "timed_out": False, "complete": True}, False),
+    ],
+)
+def test_retry_errors_selects_every_unsuccessful_run(bench, record, retry):
+    assert bench.retryable_run(record) is retry
+
+
+def test_rerun_selects_requested_passes_without_removing_existing_records(bench):
+    questions = [_item(), _item(id="ERP-02")]
+    completed = {
+        ("qwen3:8b", item["id"], pass_number): {
+            "question_id": item["id"], "pass_number": pass_number, "complete": True, "error": None,
+        }
+        for item in questions
+        for pass_number in (1, 2)
+    }
+
+    assert bench.select_pending_runs("qwen3:8b", questions, 2, completed) == []
+    assert bench.select_pending_runs("qwen3:8b", questions, 2, completed, rerun=True) == [
+        (questions[0], 1), (questions[1], 1),
+        (questions[0], 2), (questions[1], 2),
+    ]
+    assert len(completed) == 4
+
+
 def test_attach_expected_keeps_applicable_questions_and_reports_the_others(monkeypatch, bench, capsys):
     def compute(execute, item):
         if item["id"] == "ERP-02":
@@ -98,6 +129,7 @@ def test_rescoring_uses_the_value_recorded_with_the_run(bench, tmp_path):
         ("12 records", "ok"),
         ("ORM read refused: access denied", "invalid"),
         ("ORM operation 'read' failed or was refused.", "invalid"),
+        ("Query refused: condition_filters must cover every plan condition.", "invalid"),
         ("Tool 'missing_tool' is not available.", "unknown"),
     ],
 )
@@ -120,6 +152,7 @@ def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):
         lambda *args: {
             "answer": "4 ventes pour Société Dupont.",
             "model_answer": "Précisez la période.",
+            "query_plan": {"subject": "ventes", "conditions": ["confirmées"]},
             "timing": {"llm_call_count": 3, "hop_count": 2},
             "tool_calls": [
                 {"name": "search_read", "status": "ok"},
@@ -132,6 +165,7 @@ def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):
     result = bench.run_once(_item(), 7, "secret", "qwen3:8b")
     assert result["fact_recall"] == 1.0
     assert result["model_answer"] == "Précisez la période."
+    assert result["query_plan"] == {"subject": "ventes", "conditions": ["confirmées"]}
     assert (result["tool_call_count"], result["tool_ok"], result["tool_invalid"], result["tool_unknown"]) == (3, 1, 1, 1)
     assert (result["no_tool"], result["llm_calls"], result["hops"], result["error"]) == (False, 3, 2, None)
 
@@ -157,7 +191,27 @@ def test_run_once_marks_a_network_failure_as_an_error(monkeypatch, bench):
     )
     result = bench.run_once(_item(), 7, "secret", "qwen3:8b")
     assert result["error"] == "APIConnectionError (openai)"
+    assert result["backend_error"] is True
     assert result["no_tool"] is True
+
+
+def test_run_once_keeps_a_worker_exception_distinct_from_a_backend_error(monkeypatch, bench):
+    monkeypatch.setattr(bench, "_run_isolated_question", lambda *args: {
+        "worker_error": "ValueError",
+        "worker_error_detail": "tool call result shape was rejected",
+        "worker_traceback": "Traceback (most recent call last): ...",
+        "timing": {"llm_call_count": 2, "hop_count": 1},
+        "tool_calls": [{"name": "list_models", "status": "ok", "args": {"query": "invoice"}}],
+        "llm_errors": [],
+    })
+
+    result = bench.run_once(_item(), 7, "secret", "qwen3:8b")
+
+    assert result["error"] == "ValueError"
+    assert result["backend_error"] is False
+    assert result["worker_error_detail"] == "tool call result shape was rejected"
+    assert result["worker_traceback"].startswith("Traceback")
+    assert result["llm_calls"] == 2
 
 
 def test_worker_timeout_terminates_the_question_process(monkeypatch, bench):
@@ -204,6 +258,7 @@ def test_worker_timeout_terminates_the_question_process(monkeypatch, bench):
         "timed_out": True,
         "tool_calls": [],
         "llm_errors": [],
+        "query_plan": None,
         "timing": {"llm_call_count": 0, "hop_count": 0},
     }
     assert processes[0].terminated is True

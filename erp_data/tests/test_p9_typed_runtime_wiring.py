@@ -60,6 +60,212 @@ def test_orm_prompt_requires_instance_schema_and_evidence():
     assert "seule source de faits" in messages[0].content
 
 
+def test_orm_domain_schema_requires_triplets_and_rejects_object_leaves():
+    from pydantic import ValidationError
+
+    from erp_data.runtime.langchain_tools import search_count
+
+    schema = search_count.args_schema.model_json_schema()["properties"]["domain"]
+    items = next(option["items"] for option in schema["anyOf"] if option.get("type") == "array")
+    leaf_schema = next(option for option in items["anyOf"] if option.get("type") == "array")
+    assert leaf_schema["prefixItems"][:2] == [{"type": "string"}, {"type": "string"}]
+    assert leaf_schema["minItems"] == leaf_schema["maxItems"] == 3
+
+    parsed = search_count.args_schema.model_validate({
+        "model": "purchase.order",
+        "domain": [["state", "=", "purchase"]],
+    })
+    assert parsed.domain == [("state", "=", "purchase")]
+    with pytest.raises(ValidationError):
+        search_count.args_schema.model_validate({
+            "model": "purchase.order",
+            "domain": [{"field": "state", "operator": "=", "value": "purchase"}],
+        })
+
+
+def test_condition_filters_require_all_plan_conditions_and_match_the_executed_domain():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+
+    plan = QueryPlan(
+        subject="customer invoices",
+        conditions=["posted", "unpaid or partially paid"],
+        result_kind="count",
+        answer_language="English",
+    )
+    domain = [
+        ["move_type", "=", "out_invoice"],
+        ["state", "=", "posted"],
+        ["payment_state", "in", ["not_paid", "partial"]],
+    ]
+    bindings = [
+        {"condition_id": condition_id, "domain": [leaf]}
+        for condition_id, leaf in enumerate(domain)
+    ]
+
+    assert validate_condition_filters(
+        plan, "search_count", {"domain": domain, "condition_filters": bindings},
+    ) == (True, None)
+    assert validate_condition_filters(
+        plan, "search_count", {"domain": domain[:2], "condition_filters": bindings[:2]},
+    )[1] == "Query refused: condition_filters must cover every plan condition; missing condition_id values: [2]."
+    assert validate_condition_filters(
+        plan, "search_count", {"domain": domain, "condition_filters": bindings[1:]},
+    )[1] == "Query refused: condition_filters must cover every plan condition; missing condition_id values: [0]."
+    assert validate_condition_filters(
+        plan, "search_count", {
+            "domain": domain,
+            "condition_filters": bindings[:2] + [{
+                "condition_id": 2,
+                "domain": [["payment_state", "=", "not_paid"]],
+            }],
+        },
+    )[1] == "Query refused: domain must exactly match its condition_filters fragments."
+    assert validate_condition_filters(
+        plan, "search_count", {
+            "domain": domain,
+            "condition_filters": bindings + [bindings[0]],
+        },
+    )[1] == "Query refused: condition_id 0 is bound more than once."
+
+
+def test_condition_filter_accepts_a_single_domain_triplet_with_a_list_value():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+    from erp_data.runtime.langchain_tools import ConditionFilter, search_count
+
+    condition_filter = ConditionFilter.model_validate({
+        "condition_id": 1,
+        "domain": ["state", "not in", ["won", "lost"]],
+    })
+
+    assert condition_filter.domain == [("state", "not in", ["won", "lost"])]
+    plan = QueryPlan(
+        subject="opportunities", conditions=["neither won nor lost"],
+        result_kind="count", answer_language="English",
+    )
+    parsed = search_count.args_schema.model_validate({
+        "model": "crm.lead",
+        "domain": [["type", "=", "opportunity"], ["state", "not in", ["won", "lost"]]],
+        "condition_filters": [
+            {"condition_id": 0, "domain": ["type", "=", "opportunity"]},
+            {"condition_id": 1, "domain": ["state", "not in", ["won", "lost"]]},
+        ],
+    }).model_dump(exclude_none=True)
+    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
+    with pytest.raises(ValueError):
+        search_count.args_schema.model_validate({
+            "model": "crm.lead",
+            "domain": [],
+            "condition_filters": [{"condition_id": 0, "scope": "model", "domain": []}],
+        })
+
+
+def test_domain_schema_flattens_nested_fragments_and_accepts_condition_descriptions():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="customer invoices", conditions=["posted"],
+        result_kind="count", answer_language="English",
+    )
+    parsed = search_count.args_schema.model_validate({
+        "model": "account.move",
+        "domain": [
+            [["move_type", "=", "out_invoice"], ["payment_state", "=", "not_paid"]],
+            [["state", "=", "posted"]],
+        ],
+        "condition_filters": [
+            {
+                "condition_id": 0,
+                "description": "customer invoices not paid",
+                "domain": [["move_type", "=", "out_invoice"], ["payment_state", "=", "not_paid"]],
+            },
+            {"condition_id": 1, "description": "posted", "domain": ["state", "=", "posted"]},
+        ],
+    }).model_dump(exclude_none=True)
+
+    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
+
+
+def test_execute_tool_call_refuses_incomplete_condition_mapping_before_orm():
+    from erp_data.orm_agent_helpers import execute_tool_call
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="opportunités", conditions=["perdues", "sans motif de perte"],
+        result_kind="count", answer_language="français",
+    )
+    invoke = MagicMock(return_value="2 records")
+    tool = MagicMock(name="search_count")
+    tool.name = "search_count"
+    tool.args_schema = search_count.args_schema
+    tool.invoke = invoke
+    args = {
+        "model": "crm.lead",
+        "domain": [["type", "=", "opportunity"], ["lost_reason_id", "=", False]],
+        "condition_filters": [
+            {"condition_id": 0, "domain": [["type", "=", "opportunity"]]},
+            {"condition_id": 1, "domain": [["lost_reason_id", "=", False]]},
+        ],
+    }
+
+    name, _arguments, observation, coverage_complete = execute_tool_call(
+        {"name": "search_count", "args": args}, [tool], plan,
+    )
+
+    assert name == "search_count"
+    assert observation.startswith("Query refused: condition_filters must cover every plan condition")
+    assert coverage_complete is False
+    invoke.assert_not_called()
+
+
+def test_execute_tool_call_materializes_an_ordered_condition_filter_list():
+    from erp_data.orm_agent_helpers import execute_tool_call
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="customer invoices", conditions=["posted", "unpaid or partially paid"],
+        result_kind="count", answer_language="English",
+    )
+    tool = MagicMock(name="search_count")
+    tool.name = "search_count"
+    tool.args_schema = search_count.args_schema
+    tool.invoke = MagicMock(return_value="4 records")
+    raw_args = {
+        "model": "account.move",
+        "condition_filters": [
+            ["move_type", "=", "out_invoice"],
+            ["state", "=", "posted"],
+            ["payment_state", "in", ["not_paid", "partial"]],
+        ],
+    }
+
+    name, arguments, observation, coverage_complete = execute_tool_call(
+        {"name": "search_count", "args": raw_args}, [tool], plan,
+    )
+
+    assert name == "search_count"
+    assert observation == "4 records"
+    assert coverage_complete is True
+    assert arguments["domain"] == [
+        ("move_type", "=", "out_invoice"),
+        ("state", "=", "posted"),
+        ("payment_state", "in", ["not_paid", "partial"]),
+    ]
+    assert [item["condition_id"] for item in arguments["condition_filters"]] == [0, 1, 2]
+    tool.invoke.assert_called_once_with(arguments)
+
+
+def test_orm_prompt_documents_the_odoo_domain_shape():
+    from erp_data.orm_agent_helpers import format_query_plan
+
+    assert "liste de triplets [champ, opérateur, valeur]" in ORM_AGENT_SYSTEM_PROMPT
+    assert "N'envoie jamais une condition sous forme d'objet" in ORM_AGENT_SYSTEM_PROMPT
+    assert "condition_filters" in ORM_AGENT_SYSTEM_PROMPT
+    assert "Sujet obligatoire [0]" in format_query_plan(QueryPlan(
+        subject="opportunités", result_kind="count", answer_language="français",
+    ))
+
+
 def test_orm_messages_carry_the_business_plan():
     messages = build_orm_agent_messages("Combien d'opportunités ouvertes ?", query_plan="Conditions: active")
     assert messages[2].content == "Conditions: active"
@@ -147,9 +353,9 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
             )
         return AIMessage(content="Il y a 2 partenaires.")
 
-    def fake_execute(_tc, _tools):
+    def fake_execute(_tc, _tools, _plan=None):
         _record_read()
-        return "search_count", {}, "res.partner.search_count -> 2"
+        return "search_count", {}, "res.partner.search_count -> 2", True
 
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
@@ -182,10 +388,10 @@ def _run_loop_with_tool_outcome(
         AIMessage(content=answer),
     ])
 
-    def fake_execute(_tc, _tools):
+    def fake_execute(_tc, _tools, _plan=None):
         if record_read:
             _record_read(method=method)
-        return "search_read", {}, "observation"
+        return "search_read", {}, "observation", True
 
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
@@ -243,6 +449,84 @@ def test_a_clarifying_question_without_any_tool_call_is_kept(monkeypatch):
     response = node.orm_agent_loop({"question": "Rapport des ventes ?"})["response"]
     assert response.answer == "Sur quelle période ?"
     assert response.sources == []
+
+
+def test_partial_answer_is_blocked_when_no_successful_query_covers_all_conditions(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.orm_agent_helpers import QueryPlan
+    from erp_data.orm_agent_node import CONDITION_COVERAGE_REMINDER, INCOMPLETE_QUERY_ANSWER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([AIMessage(content="Il y a 31 factures."), AIMessage(content="Il y a 31 factures.")])
+    seen = []
+
+    def fake_invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+
+    plan = QueryPlan(
+        subject="customer invoices",
+        conditions=["customer invoices", "posted", "unpaid"],
+        result_kind="count",
+        answer_language="English",
+    )
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "How many unpaid customer invoices are posted?"})
+    assert result["response"].answer == INCOMPLETE_QUERY_ANSWER
+    assert result["response"].sources == []
+    assert result["response"].confidence == 0.0
+    assert seen[1] == CONDITION_COVERAGE_REMINDER
+
+
+def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.orm_agent_helpers import QueryPlan
+    from erp_data.orm_agent_node import INCOMPLETE_QUERY_ANSWER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    calls = {"llm": 0, "tool": 0}
+
+    def fake_invoke(_llm, _messages):
+        calls["llm"] += 1
+        return AIMessage(content="", tool_calls=[{
+            "name": "search_count", "args": {"model": "account.move"}, "id": f"tc{calls['llm']}",
+        }])
+
+    def fake_execute(_tool_call, _tools, _plan=None):
+        calls["tool"] += 1
+        return "search_count", {}, "Query refused: invalid arguments for search_count.", False
+
+    plan = QueryPlan(
+        subject="customer invoices", conditions=["posted"],
+        result_kind="count", answer_language="English",
+    )
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "How many posted customer invoices?"})
+
+    assert calls == {"llm": 2, "tool": 2}
+    assert result["response"].answer == INCOMPLETE_QUERY_ANSWER
+    assert result["timing"]["hop_count"] == 2
 
 
 def test_prompt_asks_the_user_for_a_limit_when_a_result_is_truncated():
@@ -374,9 +658,9 @@ def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measur
         seen.append(messages[-1].content)
         return next(replies)
 
-    def fake_execute(tool_call, _tools):
+    def fake_execute(tool_call, _tools, _plan=None):
         _record_read(method=tool_call["name"])
-        return tool_call["name"], {}, "observation"
+        return tool_call["name"], {}, "observation", True
 
     plan = QueryPlan(subject="dépenses", result_kind="aggregate", answer_language="English")
     monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))

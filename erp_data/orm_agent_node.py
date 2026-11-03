@@ -6,7 +6,12 @@ from typing import Any, List, NamedTuple, Optional
 
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA, REACT_RECURSION_LIMIT
+from config.settings import (
+    ORM_CONFIDENCE_WITH_DATA,
+    ORM_CONFIDENCE_WITHOUT_DATA,
+    ORM_MAX_QUERY_REFUSALS,
+    REACT_RECURSION_LIMIT,
+)
 from core.evidence.disclosure import filter_disclosed_evidence
 from core.evidence.evidence_collector import peek_turn_evidence
 from core.guardrails import PROMPT_INJECTION_REFUSAL_MSG, is_prompt_injection
@@ -24,6 +29,7 @@ from erp_data.orm_agent_helpers import (
     format_query_plan,
     plan_orm_question,
     resolve_orm_tools,
+    successful_tool_observation,
 )
 from erp_data.prompts import EMPTY_REPLY_REMINDER, MEASURE_READ_REMINDER, build_orm_agent_messages
 from erp_data.runtime.read_tools import SCHEMA_METHODS
@@ -35,6 +41,16 @@ NO_READ_ANSWER = (
     "Je n'ai pas pu lire les données nécessaires pour répondre : les accès ont été refusés ou ont échoué. "
     "Précisez le sujet, le statut ou la période, ou reformulez la question."
 )
+INCOMPLETE_QUERY_ANSWER = (
+    "Je ne peux pas confirmer le résultat : toutes les conditions obligatoires de la question "
+    "n'ont pas été appliquées à une lecture réussie des données."
+)
+CONDITION_COVERAGE_REMINDER = (
+    "La requête exécutée ne couvre pas encore toutes les conditions obligatoires numérotées du plan. "
+    "Complète les fragments condition_filters en t'appuyant sur fields_get, puis exécute une lecture qui "
+    "applique toutes les conditions avant de répondre. Si une correspondance n'est pas démontrable, demande "
+    "une précision au lieu de conclure à partir du résultat partiel."
+)
 
 
 class ReactResult(NamedTuple):
@@ -42,6 +58,7 @@ class ReactResult(NamedTuple):
     observations: List[Any]
     llm_calls: int
     hops: int
+    conditions_covered: bool = True
 
 
 def _run_react(
@@ -59,6 +76,9 @@ def _run_react(
     observations: List[Any] = []
     tool_names: List[str] = []
     measure_reminded = False
+    conditions_covered = plan is None or not plan.conditions
+    coverage_reminded = False
+    query_refusals = 0
     llm_calls, hops = planning_calls, 0
 
     for iteration in range(REACT_RECURSION_LIMIT):
@@ -68,10 +88,16 @@ def _run_react(
             ai_msg = invoke_llm(tool_llm, messages)
         except Exception as error:
             logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, error)
-            return ReactResult(None, observations, llm_calls, hops)
+            return ReactResult(None, observations, llm_calls, hops, conditions_covered)
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
+            if not conditions_covered:
+                if coverage_reminded:
+                    return ReactResult(None, observations, llm_calls, hops, False)
+                messages.append(HumanMessage(content=CONDITION_COVERAGE_REMINDER))
+                coverage_reminded = True
+                continue
             if counted_instead_of_measured(plan, tool_names) and not measure_reminded:
                 measure_reminded = True
                 messages.append(HumanMessage(content=MEASURE_READ_REMINDER))
@@ -83,7 +109,11 @@ def _run_react(
 
         for tool_call in ai_msg.tool_calls:
             started = time.time()
-            tool_name, tool_args, observation = execute_tool_call(tool_call, tools)
+            tool_name, tool_args, observation, coverage_complete = execute_tool_call(tool_call, tools, plan)
+            observation_succeeded = successful_tool_observation(observation)
+            if tool_name in {"search", "search_read", "search_count", "read_group", "name_search"} \
+                    and observation_succeeded:
+                conditions_covered = coverage_complete or plan is None or not plan.conditions
             observations.append(observation)
             tool_names.append(tool_name)
             trace_logger.log_hop(
@@ -92,7 +122,13 @@ def _run_react(
             )
             hops += 1
             messages.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"]))
+            if not observation_succeeded:
+                query_refusals += 1
+                if query_refusals >= ORM_MAX_QUERY_REFUSALS:
+                    return ReactResult(None, observations, llm_calls, hops, False)
 
+    if not conditions_covered:
+        return ReactResult(None, observations, llm_calls, hops, False)
     answer, extra_calls = force_final_synthesis(question, observations)
     return ReactResult(answer, observations, llm_calls + extra_calls, hops)
 
@@ -101,6 +137,10 @@ def _build_response(question: str, result: ReactResult) -> tuple[AssistantRespon
     """Response and extra LLM calls. Sources and confidence rest on this turn's successful data reads: refused
     calls and schema reads (model list, field list) are not data, so without one the model's answer is replaced
     by an explanation of why nothing could be read."""
+    if not result.conditions_covered:
+        return AssistantResponse(
+            answer=INCOMPLETE_QUERY_ANSWER, sources=[], confidence=0.0,
+        ), 0
     reads = [item for item in peek_turn_evidence() if item.scope.get("method") not in SCHEMA_METHODS]
     if result.observations and not reads:
         explanation, extra_calls = explain_refusals(question, [str(item) for item in result.observations])

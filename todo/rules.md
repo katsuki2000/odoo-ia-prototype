@@ -26,4 +26,6 @@ c moi qui m'occupe de la forme et de la mise en page, toi tu t'occupes que du co
 
 commit ; sens toi libre, mais le nom du commit doit etre explicite
 
-pour la webographie et bibliogrqphie, j'ai deja dit que je le ferai moi meme sur word, mais tu peux inclure dans le doc la citation et la source et le lien où tu as recuperé le doc; 
+
+
+pour les diagrammes, mets le code (par ex puml) dans le dossier diagramme avant de les generer dans le doc

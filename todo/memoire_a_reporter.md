@@ -55,3 +55,12 @@ Format dans le corps du texte : auteur-année, par exemple (Cormack et al., 2009
 | Qwen3-14B | https://huggingface.co/Qwen/Qwen3-14B | 14,8 milliards de paramètres, 32 768 jetons natifs, raisonnement activé par défaut |
 | Model Context Protocol | https://modelcontextprotocol.io | |
 | RFC 2104 (HMAC) | https://www.rfc-editor.org/info/rfc2104 | |
+
+## 4. Sources ajoutees le 03/11/2026 (pour la webographie de pmm)
+
+| Passage | Source | Lien | Remarque |
+|---|---|---|---|
+| Prix de l'instance (5.12) : 1,2409 USD/h a Paris (eu-west-3), 8 vCPU, 32 Gio, GPU L4, NVMe 450 Go | DoiT, comparateur de prix EC2 g6.2xlarge | https://www.doit.com/compute/spot/eu-west-3/g6.2xlarge | Site tiers, donnees « best effort » ; a confirmer sur la grille officielle AWS |
+| Prix du volume EBS : gp3 0,0928 USD par Go et par mois a Paris (gp2 : 0,116) | AWS Pricing, region eu-west-3 | https://aws-pricing.com/eu-west-3.html | Site tiers ; type de volume gp3 suppose |
+| Versions d'Odoo 18, 19 et 20 (annexe) : dates et nouveautes | Ecosire, « Latest Odoo version » | https://ecosire.com/fr/blog/latest-odoo-version | Blog tiers consulte le 03/11/2026 ; Odoo 20 (septembre 2026, agents IA et MCP, mode hors ligne) non confirme par une page officielle (documentation Odoo bloquee aux robots) |
+| Duree du support standard (3 ans par version majeure) | Meme page | idem | Non repris dans le texte |

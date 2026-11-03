@@ -89,9 +89,10 @@ def execute_runs(todo, runs, results_path, build_record, describe):
         run_store.append_run(results_path, record)
         runs[run_store.run_key(record)] = record
         print(f'[{number}/{len(todo)}] {item["id"]} pass {pass_number}: {describe(record)} ({record["seconds"]}s)', flush=True)
-        consecutive_errors = consecutive_errors + 1 if record['error'] else 0
+        is_backend_error = record.get('backend_error', bool(record['error']))
+        consecutive_errors = consecutive_errors + 1 if is_backend_error else 0
         if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-            print(f'{consecutive_errors} consecutive errors: the backend looks down. '
+            print(f'{consecutive_errors} consecutive backend errors: the backend looks down. '
                   'Restore it, then rerun with --retry-errors.')
             return False
     return True
@@ -118,5 +119,8 @@ def run_on_model(model, context_length, keep_loaded, execute, probes=None):
         print(f'[SKIP] Backend unavailable, no run started: {error}')
     finally:
         if not keep_loaded:
-            set_keep_alive(model, 0)
+            try:
+                set_keep_alive(model, 0)
+            except requests.RequestException as error:
+                print(f'[WARN] Could not unload model after the run: {type(error).__name__}: {error}')
     return 0 if finished else 3
