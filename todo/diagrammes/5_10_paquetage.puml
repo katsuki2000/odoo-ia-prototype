@@ -38,11 +38,9 @@ package "config\n(settings, identifiants Odoo,\nGoogle Drive)" as Config
 rectangle "Serveur Odoo 17\n(ORM et droits d'accès)" as OdooServer
 
 Addon ..> Api : HTTP REST asynchrone\n(JWT HS256)
-Api ..> Core : execute le graphe
-Core ..> Rag : branche documentaire\n(graph importe generate_node)
-Core ..> Erp : branche systeme ERP\n(graph importe orm_agent_node)
-Rag ..> Core : etat, preuves, verification
-Erp ..> Core : etat, preuves, schemas
+Api ..> Core : exécute le graphe
+Core <..> Rag : branche documentaire\n(graph importe generate_node ;\nétat, preuves et vérification en retour)
+Core <..> Erp : branche système ERP\n(graph importe orm_agent_node ;\nétat, preuves et schémas en retour)
 Erp ..> OdooServer : XML-RPC sous l'uid demandeur
 Api ..> Config
 Core ..> Config

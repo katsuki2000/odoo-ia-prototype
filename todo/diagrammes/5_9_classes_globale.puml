@@ -1,4 +1,5 @@
 @startuml 5_9_classes_globale
+set separator none
 skinparam classAttributeIconSize 0
 hide members
 
