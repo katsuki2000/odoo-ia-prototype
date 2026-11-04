@@ -1,6 +1,7 @@
 """Helper utilities for the ORM agent node."""
 
 import logging
+import re
 from typing import Any, List, Literal, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -39,9 +40,10 @@ def format_query_plan(plan: QueryPlan) -> str:
         f"- Résultat : {plan.result_kind}\n"
         f"- Ambiguïté : {plan.ambiguity or 'aucune'}\n"
         f"- Langue de la réponse : {plan.answer_language}, libellés Odoo non traduits\n"
-        "condition_filters doit couvrir le sujet [0] et chaque condition numérotée par un fragment de domaine "
-        "non vide. Le sujet doit avoir son propre filtre, même si le modèle semble correspondre au sujet. Le "
-        "domaine exécuté doit être exactement la concaténation de ces fragments, dans l'ordre des identifiants."
+        "condition_filters doit couvrir le sujet [0] et chaque condition numérotée. Le fragment [0] peut être vide "
+        "si le modèle sélectionné porte un sujet simple ; pour un sujet composé, il doit être non vide. Les fragments "
+        "[1..n] doivent être non vides. Le domaine "
+        "exécuté doit être exactement la concaténation des fragments non vides, dans l'ordre des identifiants."
     )
 
 
@@ -70,8 +72,12 @@ def validate_condition_filters(plan: QueryPlan | None, tool_name: str, arguments
             return False, f"Query refused: condition_id {condition_id} is not in the query plan."
         if condition_id in bound_ids:
             return False, f"Query refused: condition_id {condition_id} is bound more than once."
-        if not isinstance(fragment, list) or not fragment:
+        if not isinstance(fragment, list):
             return False, f"Query refused: condition {condition_id} needs a non-empty domain fragment."
+        if condition_id != 0 and not fragment:
+            return False, f"Query refused: condition {condition_id} needs a non-empty domain fragment."
+        if condition_id == 0 and not fragment and _subject_requires_domain_filter(plan):
+            return False, "Query refused: a compound subject needs a non-empty domain fragment."
         bound_ids.add(condition_id)
         bound_domain.extend(_normalize_domain_fragment(fragment))
 
@@ -124,6 +130,11 @@ def successful_tool_observation(observation: Any) -> bool:
     ))
 
 
+def is_query_contract_refusal(observation: Any) -> bool:
+    """Return whether the local query contract rejected the tool call before Odoo."""
+    return str(observation).startswith("Query refused:")
+
+
 def counted_instead_of_measured(plan: QueryPlan | None, tool_names: list[str]) -> bool:
     """True when a sum, total or average was asked and only rows were counted."""
     used = set(tool_names)
@@ -133,6 +144,16 @@ def counted_instead_of_measured(plan: QueryPlan | None, tool_names: list[str]) -
 def _build_llm(**kwargs):
     reasoning_effort = kwargs.pop("reasoning_effort", settings.ERP_REASONING_EFFORT)
     return get_chat_llm(reasoning_effort=reasoning_effort, **kwargs)
+
+
+def _normalize_business_phrase(value: str) -> str:
+    """Compare business phrases without making language- or model-specific guesses."""
+    return " ".join(re.findall(r"\w+", value.casefold(), flags=re.UNICODE))
+
+
+def _subject_requires_domain_filter(plan: QueryPlan) -> bool:
+    """Require a domain fragment when the subject carries multiple business terms."""
+    return len(_normalize_business_phrase(plan.subject).split()) >= 2
 
 
 def resolve_orm_tools() -> List[Any]:
@@ -164,14 +185,18 @@ def plan_orm_question(question: str, llm_builder=None) -> tuple[QueryPlan | None
                 "condition distincte, sauf lorsqu'une expression explique la définition de la précédente : combine "
                 "alors ces reformulations équivalentes en une seule condition. Le sujet doit aussi être mappé par un "
                 "filtre de domaine propre, même si le modèle semble le représenter. Numérote les conditions dans "
-                "leur ordre d'apparition. "
+                "leur ordre d'apparition. Si le sujet est une expression composée (par exemple « factures clients », "
+                "« commandes fournisseurs » ou « écritures comptables »), garde l'expression complète comme première "
+                "condition obligatoire et utilise comme sujet le type d'objet non qualifié ; ne laisse aucun qualificatif "
+                "dans le seul sujet. "
                 "Si une condition est ambiguë, signale-la dans ambiguity. "
                 "answer_language : nom de la langue dans laquelle la question est écrite."
             )),
             HumanMessage(content=question),
         ]
         result = invoke_llm(planner, messages)
-        return (result if isinstance(result, QueryPlan) else QueryPlan.model_validate(result)), 1
+        plan = result if isinstance(result, QueryPlan) else QueryPlan.model_validate(result)
+        return plan, 1
     except Exception as exc:
         logger.warning("ORM query planning unavailable: %s", type(exc).__name__)
         return None, 1

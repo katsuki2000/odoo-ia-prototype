@@ -33,6 +33,7 @@ from erp_data.runtime.validation import (
 MODEL_NOT_FOUND_HINT = " Find the right model with list_models and one keyword."
 
 _connector: Optional[OdooConnector] = None
+_FIELD_CACHE_MAX = 2048
 _field_cache: dict[tuple[str, str], Optional[dict]] = {}
 
 
@@ -110,6 +111,8 @@ def _field_info(model: str, name: str) -> Optional[dict]:
     None when unavailable; {} when Odoo answered and the field does not exist on the model."""
     key = (model, name)
     if key not in _field_cache:
+        if len(_field_cache) >= _FIELD_CACHE_MAX:
+            _field_cache.clear()
         uid = require_execution_uid()
         try:
             fields = _get_connector().fields_get(uid, model, [name])

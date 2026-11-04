@@ -131,9 +131,16 @@ class OdooConnector:
             ids = [int(company_id)] + [x for x in ids if x != int(company_id)]
         return {"allowed_company_ids": ids} if ids else {}
 
+    _ALLOWED_METHODS = frozenset({
+        "search_read", "search", "read", "search_count",
+        "name_search", "read_group", "fields_get", "get_available_models",
+    })
+
     def _execute_kw(
         self, uid: int, model: str, method: str, args: list, kwargs: dict | None = None, check_model: bool = True,
     ):
+        if method not in self._ALLOWED_METHODS:
+            raise OdooConnectorError(f"Method {method!r} is not allowed: only read-only ORM methods are permitted.")
         if check_model:
             self._check_whitelist(model)
         kwargs = dict(kwargs or {})

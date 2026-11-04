@@ -1,2 +1,2 @@
-"""erp_data: connecteur Odoo (ORM/XML-RPC), outils runtime, agent ERP.
+"""erp_data: Odoo connector (ORM/XML-RPC), runtime tools, ERP agent.
 """
