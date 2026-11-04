@@ -1,6 +1,6 @@
 @startuml 5_9_classes_globale
-title Figure 5.9 — Diagramme de classes de conception globale du système
 skinparam classAttributeIconSize 0
+hide members
 
 package "odoo_addons.miro_ai (Odoo 17)" {
   class MiroAiSystray <<Component OWL>> {
@@ -146,8 +146,4 @@ OrmAgentNode --> OrmRuntimeReadTools
 OrmRuntimeReadTools --> OdooConnector
 VerifyNode ..> AssistantResponse : réponse validée
 IngestionOrchestrator --> ChromaManager : stocke les vecteurs
-note right of OdooConnector
-  Appels XML-RPC (/xmlrpc/2/object) vers le serveur
-  Odoo, sous l'uid du demandeur.
-end note
 @enduml

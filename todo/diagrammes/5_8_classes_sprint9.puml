@@ -1,5 +1,4 @@
 @startuml 5_8_classes_sprint9
-title Figure 5.8 — Diagramme de classes de conception, Sprint 9
 skinparam classAttributeIconSize 0
 
 class MiroAiSettings <<models.Model>> {
@@ -35,6 +34,7 @@ class "read_tools" as OrmRuntimeReadTools <<module erp_data.runtime>> {
   +orm_search_count(model, domain) : OrmToolResult
   +orm_read_group(model, domain, fields, groupby, ...) : OrmToolResult
   +orm_name_search(model, name, ...) : OrmToolResult
+  +orm_list_models(query) : OrmToolResult
 }
 
 class OrmToolResult {

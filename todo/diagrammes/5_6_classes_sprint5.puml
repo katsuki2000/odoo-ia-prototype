@@ -1,5 +1,4 @@
 @startuml 5_6_classes_sprint5
-title Figure 5.6 — Diagramme de classes de conception, Sprint 5
 skinparam classAttributeIconSize 0
 
 class "generate_node" as GenerateNode <<module document_rag>> {

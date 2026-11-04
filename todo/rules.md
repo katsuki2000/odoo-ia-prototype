@@ -22,9 +22,8 @@ config/settings.py : l'environnement ne porte que ce qui change d'un poste ou d'
 > lorsque plusieurs options s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
 
 
-c moi qui m'occupe de la forme et de la mise en page, toi tu t'occupes que du contenu
-
 commit ; sens toi libre, mais le nom du commit doit etre explicite
 
 
 pour les diagrammes, mets le code (par ex puml) dans le dossier diagramme avant de les generer dans le doc
+pour le dates de consultations de la webographie, mettre des dates entre juillet et octobre

@@ -159,6 +159,76 @@ def test_condition_filter_accepts_a_single_domain_triplet_with_a_list_value():
         })
 
 
+def test_subject_filter_may_be_empty_when_the_selected_model_carries_a_simple_subject():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="écritures", conditions=["publiées"],
+        result_kind="count", answer_language="français",
+    )
+    parsed = search_count.args_schema.model_validate({
+        "model": "account.move",
+        "domain": [["state", "=", "posted"]],
+        "condition_filters": [
+            {"condition_id": 0, "domain": []},
+            {"condition_id": 1, "domain": [["state", "=", "posted"]]},
+        ],
+    }).model_dump(exclude_none=True)
+
+    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
+
+
+def test_compound_subject_requires_a_non_empty_subject_filter():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="factures clients", conditions=["publiées"],
+        result_kind="count", answer_language="français",
+    )
+    parsed = search_count.args_schema.model_validate({
+        "model": "account.move",
+        "domain": [["state", "=", "posted"]],
+        "condition_filters": [
+            {"condition_id": 0, "domain": []},
+            {"condition_id": 1, "domain": [["state", "=", "posted"]]},
+        ],
+    }).model_dump(exclude_none=True)
+
+    assert validate_condition_filters(plan, "search_count", parsed) == (
+        False, "Query refused: a compound subject needs a non-empty domain fragment.",
+    )
+    parsed["domain"] = [
+        ["move_type", "=", "out_invoice"],
+        ["state", "=", "posted"],
+    ]
+    parsed["condition_filters"][0]["domain"] = [["move_type", "=", "out_invoice"]]
+    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
+
+
+def test_condition_filter_normalizes_the_legacy_domain_fragment_key():
+    from erp_data.orm_agent_helpers import validate_condition_filters
+    from erp_data.runtime.langchain_tools import search_count
+
+    plan = QueryPlan(
+        subject="factures", conditions=["publiées"],
+        result_kind="count", answer_language="français",
+    )
+    parsed = search_count.args_schema.model_validate({
+        "model": "account.move",
+        "condition_filters": [
+            {"condition_id": 0, "domain_fragment": []},
+            {"condition_id": 1, "domain_fragment": [["state", "=", "posted"]]},
+        ],
+    }).model_dump(exclude_none=True)
+
+    assert parsed["condition_filters"][0]["domain"] == []
+    assert validate_condition_filters(
+        plan, "search_count", {**parsed, "domain": [["state", "=", "posted"]]},
+    ) == (True, None)
+
+
 def test_domain_schema_flattens_nested_fragments_and_accepts_condition_descriptions():
     from erp_data.orm_agent_helpers import validate_condition_filters
     from erp_data.runtime.langchain_tools import search_count
@@ -294,6 +364,50 @@ def test_query_planner_returns_structured_business_constraints(monkeypatch):
     plan, calls = plan_orm_question("Combien d'opportunités ouvertes ?", lambda **_kwargs: StructuredPlanner())
     assert plan == expected
     assert calls == 1
+
+
+def test_query_planner_keeps_the_compound_subject_available_for_domain_mapping(monkeypatch):
+    class StructuredPlanner:
+        def with_structured_output(self, _schema, method):
+            assert method == "json_schema"
+            return self
+
+    raw_plan = QueryPlan(
+        subject="factures clients",
+        conditions=["publiées"],
+        result_kind="count",
+        answer_language="français",
+    )
+    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
+    plan, calls = plan_orm_question(
+        "Combien de factures clients sont publiées ?", lambda **_kwargs: StructuredPlanner()
+    )
+
+    assert plan is not None
+    assert plan.subject == "factures clients"
+    assert plan.conditions == ["publiées"]
+    assert calls == 1
+
+
+def test_query_planner_keeps_an_explicit_subject_condition(monkeypatch):
+    class StructuredPlanner:
+        def with_structured_output(self, _schema, method):
+            assert method == "json_schema"
+            return self
+
+    raw_plan = QueryPlan(
+        subject="customer invoices",
+        conditions=["customer invoices", "posted"],
+        result_kind="count",
+        answer_language="English",
+    )
+    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
+    plan, _calls = plan_orm_question(
+        "How many posted customer invoices?", lambda **_kwargs: StructuredPlanner()
+    )
+
+    assert plan is not None
+    assert plan.conditions == ["customer invoices", "posted"]
 
 
 def test_search_count_wrapper_records_evidence_and_returns_json():
@@ -527,6 +641,41 @@ def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
     assert calls == {"llm": 2, "tool": 2}
     assert result["response"].answer == INCOMPLETE_QUERY_ANSWER
     assert result["timing"]["hop_count"] == 2
+
+
+def test_contract_refusal_does_not_consume_backend_correction_attempt(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.orm_agent_helpers import QueryPlan
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc1"}]),
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc2"}]),
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc3"}]),
+        AIMessage(content="Il y a 4 tâches.") ,
+    ])
+    outcomes = iter([
+        ("search_count", {}, "Query refused: missing condition_id", False),
+        ("search_count", {}, "ORM read refused: invalid selection value", False),
+        ("search_count", {}, "4 records", True),
+    ])
+
+    plan = QueryPlan(subject="tâches", conditions=["restantes"], result_kind="count", answer_language="français")
+    monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "invoke_llm", lambda *_args: next(replies))
+    monkeypatch.setattr(node, "execute_tool_call", lambda *_args, **_kwargs: next(outcomes))
+
+    result = node._run_react("Combien de tâches restantes ?", [], MagicMock(), "trace", plan=plan, planning_calls=1)
+
+    assert result.answer == "Il y a 4 tâches."
+    assert result.hops == 3
+    assert result.conditions_covered is True
 
 
 def test_prompt_asks_the_user_for_a_limit_when_a_result_is_truncated():

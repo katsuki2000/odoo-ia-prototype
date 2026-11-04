@@ -113,3 +113,6 @@ ORM_NAME_SEARCH_LIMIT = 20
 EMBEDDING_TIMEOUT = 30.0
 ORM_CONFIDENCE_WITH_DATA = 0.9
 ORM_CONFIDENCE_WITHOUT_DATA = 0.5
+ERP_BENCHMARK_MAX_ROWS = 50
+ERP_BENCHMARK_BANK_PATH = _ROOT / '.scratch' / 'miro_ai_eval_authoring' / 'draft_erp_questions.jsonl'
+ERP_BENCHMARK_CAPTURE_PATH = _ROOT / 'captures' / 'erp_benchmark_eval.jsonl'

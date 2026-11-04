@@ -1,5 +1,4 @@
 @startuml 5_5_classes_sprint4
-title Figure 5.5 — Diagramme de classes de conception, Sprint 4
 skinparam classAttributeIconSize 0
 
 class "search / search_hybrid" as Search <<module>> {

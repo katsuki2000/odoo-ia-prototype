@@ -94,10 +94,16 @@ def _coerce_condition_filters(value: Any) -> Any:
     value = _coerce_list(value)
     if not isinstance(value, list):
         return value
-    return [
-        item if isinstance(item, dict) else {"condition_id": index, "domain": item}
-        for index, item in enumerate(value)
-    ]
+    normalized = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            normalized.append({"condition_id": index, "domain": item})
+            continue
+        item = dict(item)
+        if "domain" not in item and "domain_fragment" in item:
+            item["domain"] = item.pop("domain_fragment")
+        normalized.append(item)
+    return normalized
 
 
 class ConditionFilter(BaseModel):
@@ -105,7 +111,7 @@ class ConditionFilter(BaseModel):
 
     condition_id: StrictInt = Field(ge=0)
     description: str | None = None
-    domain: Annotated[list[DomainToken], BeforeValidator(_coerce_domain_fragment)] = Field(min_length=1)
+    domain: Annotated[list[DomainToken], BeforeValidator(_coerce_domain_fragment)] = Field()
 
 
 ConditionFilters = Annotated[

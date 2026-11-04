@@ -1,5 +1,4 @@
 @startuml 5_4_classes_sprint3
-title Figure 5.4 — Diagramme de classes de conception, Sprint 3
 skinparam classAttributeIconSize 0
 
 class IngestionOrchestrator {
@@ -42,11 +41,6 @@ class OllamaEmbeddingFunction {
   +model : str = "bge-m3:latest"
   -_embed_batch(texts : list[str]) : list[list[float]]
 }
-
-note right of DocumentLoader
-  Formats pris en charge : .pdf, .txt, .md, .docx
-  (dispatch par extension, pas de classe mère).
-end note
 
 IngestionOrchestrator --> DocumentLoader : charge chaque fichier
 DocumentLoader ..> PDFLoader : .pdf

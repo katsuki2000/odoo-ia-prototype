@@ -1,5 +1,4 @@
 @startuml 5_2_modele_domaine
-title Figure 5.2 — Modèle du domaine du système
 hide methods
 skinparam classAttributeIconSize 0
 
@@ -69,12 +68,4 @@ JournalAudit "0..*" -- "0..*" ObservationORM : s'appuie sur
 ObservationORM "1" *-- "1..*" Preuve : produit
 JournalAudit "1" -- "0..1" RapportVerification : évalué par
 
-note bottom of ParametresMiroAI
-  Configuration globale de la connexion au
-  backend IA (aucun lien avec une société).
-end note
-note bottom of SessionConversation
-  Pas de modèle Odoo dédié : une session
-  est reconstituée à partir de miro.ai.log.
-end note
 @enduml

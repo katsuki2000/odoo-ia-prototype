@@ -27,6 +27,7 @@ from erp_data.orm_agent_helpers import (
     explain_refusals,
     force_final_synthesis,
     format_query_plan,
+    is_query_contract_refusal,
     plan_orm_question,
     resolve_orm_tools,
     successful_tool_observation,
@@ -79,6 +80,7 @@ def _run_react(
     conditions_covered = plan is None or not plan.conditions
     coverage_reminded = False
     query_refusals = 0
+    contract_refusals = 0
     llm_calls, hops = planning_calls, 0
 
     for iteration in range(REACT_RECURSION_LIMIT):
@@ -123,9 +125,14 @@ def _run_react(
             hops += 1
             messages.append(ToolMessage(content=str(observation), tool_call_id=tool_call["id"]))
             if not observation_succeeded:
-                query_refusals += 1
-                if query_refusals >= ORM_MAX_QUERY_REFUSALS:
-                    return ReactResult(None, observations, llm_calls, hops, False)
+                if is_query_contract_refusal(observation):
+                    contract_refusals += 1
+                    if contract_refusals >= ORM_MAX_QUERY_REFUSALS:
+                        return ReactResult(None, observations, llm_calls, hops, False)
+                else:
+                    query_refusals += 1
+                    if query_refusals >= ORM_MAX_QUERY_REFUSALS:
+                        return ReactResult(None, observations, llm_calls, hops, False)
 
     if not conditions_covered:
         return ReactResult(None, observations, llm_calls, hops, False)

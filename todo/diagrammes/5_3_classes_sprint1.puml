@@ -1,5 +1,4 @@
 @startuml 5_3_classes_sprint1
-title Figure 5.3 — Diagramme de classes de conception, Sprint 1
 skinparam classAttributeIconSize 0
 
 class "settings" as Settings <<module config.settings>> {

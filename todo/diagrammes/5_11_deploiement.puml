@@ -1,5 +1,4 @@
 @startuml 5_11_deploiement
-title Figure 5.11 — Diagramme de déploiement du système
 
 node "Poste utilisateur" as Poste <<device>> {
   node "Navigateur web" <<execution environment>> {
@@ -15,7 +14,7 @@ node "Serveur ERP" as Srv <<device>> {
   node "Serveur PostgreSQL" <<execution environment>> {
     database "Base Odoo\nport 5432" as Pg
   }
-  node "Conteneur Docker\nmiddleware IA" <<container>> {
+  node "Middleware IA" <<execution environment>> {
     component "Backend FastAPI et LangGraph\nport 8000 (API_HOST 127.0.0.1 par défaut)" as Api
     database "ChromaDB\n(fichiers, embeddings bge-m3)" as Chroma
     folder "Corpus documentaire\n(PDF, Markdown, DOCX)" as Docs
@@ -23,7 +22,7 @@ node "Serveur ERP" as Srv <<device>> {
 }
 
 node "Instance AWS g6.2xlarge\n(8 vCPU, 32 Gio, GPU NVIDIA L4 24 Go)" as Llm <<device>> {
-  node "Conteneur Docker\nOllama (GPU exposé)" <<container>> {
+  node "Service Ollama\n(GPU)" <<execution environment>> {
     component "API compatible OpenAI (/v1)\nmodèle qwen3:14b\nembeddings bge-m3\nport 11434" as OllamaApi
   }
 }

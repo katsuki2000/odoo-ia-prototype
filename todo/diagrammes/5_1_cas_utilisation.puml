@@ -1,5 +1,4 @@
 @startuml 5_1_cas_utilisation
-title Figure 5.1 — Diagramme de cas d'utilisation global du système
 left to right direction
 skinparam packageStyle rectangle
 

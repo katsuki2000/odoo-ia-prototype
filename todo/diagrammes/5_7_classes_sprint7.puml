@@ -1,5 +1,4 @@
 @startuml 5_7_classes_sprint7
-title Figure 5.7 — Diagramme de classes de conception, Sprint 7
 skinparam classAttributeIconSize 0
 
 class MiroAiSystray <<Component OWL>> {
