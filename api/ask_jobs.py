@@ -6,10 +6,11 @@ import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from typing import Literal
 
 from fastapi import HTTPException
 
-from api.public_errors import public_error_details
+from api.public_errors import public_http_exception
 from api.schemas import AskResponseV1
 from config.settings import ASK_JOB_MAX_PENDING, ASK_JOB_TTL_SECONDS, ASK_JOB_WORKERS
 
@@ -35,7 +36,7 @@ class AskJob:
     error_detail: str | None = None
 
     @property
-    def status(self) -> str:
+    def status(self) -> Literal['pending', 'done', 'error']:
         if self.finished_at is None:
             return 'pending'
         return 'error' if self.error_status else 'done'
@@ -71,16 +72,18 @@ class AskJobStore:
         return job if job is not None and job.owner_uid == owner_uid else None
 
     def _run(self, job: AskJob, work: Callable[[], AskResponseV1]) -> None:
-        result, status, detail = None, None, None
+        result, error = None, None
         try:
             result = work()
-        except HTTPException as error:
-            status, detail = error.status_code, str(error.detail)
-        except Exception as error:
+        except HTTPException as exc:
+            error = exc
+        except Exception as exc:
             logger.exception('Ask job failed.')
-            status, detail = public_error_details(error)
+            error = public_http_exception(exc)
         with self._lock:
-            job.result, job.error_status, job.error_detail = result, status, detail
+            job.result = result
+            if error is not None:
+                job.error_status, job.error_detail = error.status_code, str(error.detail)
             job.finished_at = time.monotonic()
 
     def _drop_expired(self) -> None:

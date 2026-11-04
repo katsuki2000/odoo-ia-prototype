@@ -46,14 +46,11 @@ class ErrorRouteStructureTests(unittest.TestCase):
                 handlers = [node for node in ast.walk(function) if isinstance(node, ast.ExceptHandler) and isinstance(node.type, ast.Name) and node.type.id == 'Exception']
                 self.assertEqual(len(handlers), 1)
                 handler = handlers[0]
-                self.assertTrue(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'public_error_details' for node in ast.walk(handler)))
+                self.assertTrue(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'public_http_exception' for node in ast.walk(handler)))
                 raise_node = handler.body[-1]
                 self.assertIsInstance(raise_node, ast.Raise)
                 self.assertIsInstance(raise_node.cause, ast.Constant)
                 self.assertIsNone(raise_node.cause.value)
-                detail_node = next(keyword.value for keyword in raise_node.exc.keywords if keyword.arg == 'detail')
-                self.assertIsInstance(detail_node, ast.Name)
-                self.assertEqual(detail_node.id, 'detail')
                 self.assertFalse(any(isinstance(node, ast.JoinedStr) for node in ast.walk(handler)))
 
     def test_question_validation_http_exceptions_are_preserved(self):

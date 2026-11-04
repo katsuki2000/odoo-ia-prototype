@@ -145,3 +145,36 @@ Résumé .......................................................................
 Abstract..............................................................................................................................................................................
 
 
+Quelques règlements à respecter dans le manuscrit
+
+1) Bien justifier l’alignement des textes (gauche, droite)
+2) Utiliser Times New Roman 12
+3) Ne pas souligner les titres, mettre en gras les titres
+4) Uniformiser les puces utilisés dans tous le document
+5) Format CV simple et clair (et non pas le style de CV pour postuler)
+6) Le sommaire propose un résumé des parties, chapitres et les titres au premier degré (Exemple : le sommaire
+se termine au 1.1) alors que la table des matières correspond à une liste complète des parties, chapitres, et les
+titres à n degré de tous les documents (Exemple :1.1.1)
+7) Dans les Remerciements
+- Citation par tiret
+- Utilisation de je, nous autorisé dans le remerciement mais pour le reste du document NON
+- Ordre de remerciement : Président de l’Université, Directeur de l’Ecole, Directeur de la société de stage,
+Chef de mention, Chef de parcours, Les rapporteurs, Les autres membres du Jury, etc.
+- Madame/Monsieur (Nom et Prénoms), titre, fonction, raison pour laquelle on remercie la personne
+8) A trier par ordre alphabétique :
+- Nomenclature
+- Dictionnaire des données
+- Glossaire
+- Mots-clés et Keywords (minimum 5 mots, maximum 8 mots)
+9) Actualiser la présentation de l’ENI
+10) Les Légendes :
+- Légende des figures en bas
+- Légende des tableaux en haut
+11) Il faut toujours mettre une phrase introductive présentant les figures et les tableaux
+12) Ne pas utiliser : ci-dessus, ci-dessous, précédent, suivant, Voici, Voilà
+13) Références :
+- Présentation Bibliographie : [1] Auteur, titre de l’ouvrage, année d’édition (publication) , Edition
+(éditeur, lieu), nombre de page
+- Présentation Webographie : [2] url , titre de la page, date de consultation.
+Exemple : [2] https:// ...., Titre du page, consulté le 18 octobre 2021
+- Si la bibliographie se termine par [6], le webographie commence par [7]

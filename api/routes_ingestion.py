@@ -6,12 +6,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.auth import require_admin
-from api.public_errors import public_error_details
+from api.public_errors import public_http_exception
 from api.schemas import (
-    IngestionStatusResponse,
+    IngestionStatusResponseV1,
     ReindexRequestV1,
     ReindexResponseV1,
-    ScheduledScanResponse,
+    ScheduledScanResponseV1,
 )
 from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.incremental import reindex_if_changed
@@ -23,7 +23,7 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(require_admin)])
+router = APIRouter(prefix='/api/v1', dependencies=[Depends(require_admin)])
 
 
 def _resolve_reindex_path(raw_path: str | None) -> Path | None:
@@ -36,28 +36,23 @@ def _resolve_reindex_path(raw_path: str | None) -> Path | None:
 
 
 def _total_chunks(manager: ChromaManager) -> int:
-    return int(manager.get_stats().get("total_chunks", 0) or 0)
+    return int(manager.get_stats().get('total_chunks', 0) or 0)
 
 
 def _count_supported_files(directory: Path) -> int:
-    return sum(is_supported_document(path) for path in directory.rglob("*") if path.is_file())
+    return sum(is_supported_document(path) for path in directory.rglob('*') if path.is_file())
 
 
-def _public_http_error(exc: Exception) -> HTTPException:
-    status_code, detail = public_error_details(exc)
-    return HTTPException(status_code=status_code, detail=detail)
-
-
-@router.post("/api/v1/reindex", response_model=ReindexResponseV1)
+@router.post('/reindex', response_model=ReindexResponseV1)
 def reindex_v1(request: ReindexRequestV1):
     """Trigger full or incremental ingestion."""
     started_at = start_timer()
     manager = ChromaManager()
     target_path = _resolve_reindex_path(request.path)
-    event_type = f"api_reindex_{request.scope}"
+    event_type = f'api_reindex_{request.scope}'
 
     try:
-        if request.scope == "incremental":
+        if request.scope == 'incremental':
             result = reindex_if_changed([target_path or DOCS_DIR], docs_manager=manager)
         else:
             docs_dir = target_path or DOCS_DIR
@@ -68,39 +63,39 @@ def reindex_v1(request: ReindexRequestV1):
                 docs_dir=docs_dir.parent if docs_dir.is_file() else docs_dir,
             )
     except Exception as exc:
-        logger.exception("Reindex failed.")
+        logger.exception('Reindex failed.')
         write_ingestion_event(
             event_type=event_type,
-            result={"failed_files": {str(target_path or "default_roots"): str(exc)}},
+            result={'failed_files': {str(target_path or 'default_roots'): str(exc)}},
             started_at=started_at,
-            status="error",
+            status='error',
         )
-        raise _public_http_error(exc) from None
+        raise public_http_exception(exc) from None
 
-    INGESTION_STATUS["last_ingestion_time"] = now_iso()
-    INGESTION_STATUS["last_result"] = result
+    INGESTION_STATUS['last_ingestion_time'] = now_iso()
+    INGESTION_STATUS['last_result'] = result
     write_ingestion_event(event_type=event_type, result=result, started_at=started_at)
     return ReindexResponseV1(
-        status="success",
+        status='success',
         scope=request.scope,
         result=result,
         total_chunks=_total_chunks(manager),
     )
 
 
-@router.get("/api/v1/ingestion/status", response_model=IngestionStatusResponse)
+@router.get('/ingestion/status', response_model=IngestionStatusResponseV1)
 def ingestion_status():
     """Return ingestion status and vectorstore stats."""
-    return IngestionStatusResponse(
-        last_ingestion_time=INGESTION_STATUS["last_ingestion_time"],
+    return IngestionStatusResponseV1(
+        last_ingestion_time=INGESTION_STATUS['last_ingestion_time'],
         total_chunks=_total_chunks(ChromaManager()),
         files_monitored=_count_supported_files(DOCS_DIR),
-        scheduler_status=INGESTION_STATUS["scheduler_status"],
-        last_scan_type=INGESTION_STATUS["last_scan_type"],
+        scheduler_status=INGESTION_STATUS['scheduler_status'],
+        last_scan_type=INGESTION_STATUS['last_scan_type'],
     )
 
 
-@router.post("/api/v1/ingestion/scheduled-scan", response_model=ScheduledScanResponse)
+@router.post('/ingestion/scheduled-scan', response_model=ScheduledScanResponseV1)
 def trigger_scheduled_scan():
     """Manually trigger one incremental scan of the documents folder."""
     try:
@@ -108,11 +103,11 @@ def trigger_scheduled_scan():
             PERIODIC_SCAN, [DOCS_DIR], docs_manager=ChromaManager(), status_dict=INGESTION_STATUS,
         )
     except Exception as exc:
-        logger.exception("Scheduled scan failed.")
-        raise _public_http_error(exc) from None
-    return ScheduledScanResponse(
-        status="success",
+        logger.exception('Scheduled scan failed.')
+        raise public_http_exception(exc) from None
+    return ScheduledScanResponseV1(
+        status='success',
         scan_type=PERIODIC_SCAN,
         result=result,
-        last_ingestion_time=INGESTION_STATUS["last_ingestion_time"],
+        last_ingestion_time=INGESTION_STATUS['last_ingestion_time'],
     )

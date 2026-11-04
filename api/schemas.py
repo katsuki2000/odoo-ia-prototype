@@ -12,9 +12,9 @@ class AskRequestV1(BaseModel):
     company_id: int
     language: str | None = Field(
         default=None,
-        description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
+        description='Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.',
     )
-    source_mode: Literal["documentation", "system"] | None = Field(
+    source_mode: Literal['documentation', 'system'] | None = Field(
         default=None,
         description=(
             "Source chosen by the user: 'documentation' forces the documentary route, "
@@ -34,13 +34,13 @@ class AskResponseV1(BaseModel):
     route: str | None = None
     evidence_dossier: list[dict] = Field(
         default_factory=list,
-        description="Facts produced by the tools during this turn, each with its provenance.",
+        description='Facts produced by the tools during this turn, each with its provenance.',
     )
 
 
 class AskJobRequestV1(AskRequestV1):
     """Request body for POST /api/v1/ask/jobs; the caller chooses the job id."""
-    job_id: str = Field(..., pattern=r"^[0-9a-f]{32}$")
+    job_id: str = Field(..., pattern=r'^[0-9a-f]{32}$')
 
 
 class AskJobAcceptedV1(BaseModel):
@@ -49,7 +49,7 @@ class AskJobAcceptedV1(BaseModel):
 
 class AskJobStatusV1(BaseModel):
     """State of an asynchronous ask job; result or error is set once it is no longer pending."""
-    status: Literal["pending", "done", "error"]
+    status: Literal['pending', 'done', 'error']
     question: str
     elapsed_ms: int
     result: AskResponseV1 | None = None
@@ -59,22 +59,22 @@ class AskJobStatusV1(BaseModel):
 
 class ReindexRequestV1(BaseModel):
     """Request body for /api/v1/reindex."""
-    scope: Literal["full", "incremental"] = Field(
-        "incremental",
+    scope: Literal['full', 'incremental'] = Field(
+        'incremental',
         description="'full' clears and rebuilds the index, 'incremental' processes changes only.",
     )
-    path: str | None = Field(None, description="Optional file or directory to process.")
+    path: str | None = Field(None, description='Optional file or directory to process.')
 
 
 class ReindexResponseV1(BaseModel):
     """Response body for /api/v1/reindex."""
-    status: str
-    scope: str
+    status: Literal['success']
+    scope: Literal['full', 'incremental']
     result: dict[str, Any]
     total_chunks: int
 
 
-class IngestionStatusResponse(BaseModel):
+class IngestionStatusResponseV1(BaseModel):
     """Response body for /api/v1/ingestion/status."""
     last_ingestion_time: str | None
     total_chunks: int
@@ -83,9 +83,9 @@ class IngestionStatusResponse(BaseModel):
     last_scan_type: str | None = None
 
 
-class ScheduledScanResponse(BaseModel):
+class ScheduledScanResponseV1(BaseModel):
     """Response body for /api/v1/ingestion/scheduled-scan."""
-    status: str
+    status: Literal['success']
     scan_type: str
     result: dict[str, Any]
     last_ingestion_time: str | None

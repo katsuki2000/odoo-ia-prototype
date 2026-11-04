@@ -14,18 +14,18 @@ from document_rag.ingestion.scheduler import INGESTION_STATUS, start_scan_loop
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     get_jwt_secret()
-    scheduler_status = INGESTION_STATUS["scheduler_status"]
+    scheduler_status = INGESTION_STATUS['scheduler_status']
     stop_event = start_scan_loop(SCHEDULER_INTERVAL_HOURS, INGESTION_STATUS)
-    scheduler_status["running"] = True
+    scheduler_status['running'] = True
     yield
     stop_event.set()
-    scheduler_status["running"] = False
+    scheduler_status['running'] = False
 
 
 app = FastAPI(
-    title="MIRO AI API",
-    description="REST API for querying the ERP internal knowledge base",
-    version="1.0.0",
+    title='MIRO AI API',
+    description='REST API for querying the ERP internal knowledge base',
+    version='1.0.0',
     lifespan=lifespan,
 )
 
@@ -33,8 +33,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type", "Accept-Language"],
+    allow_methods=['GET', 'POST'],
+    allow_headers=['Authorization', 'Content-Type', 'Accept-Language'],
 )
 
 app.include_router(routes_system.router)
@@ -42,6 +42,6 @@ app.include_router(routes_ask.router)
 app.include_router(routes_ingestion.router)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host=API_HOST, port=API_PORT)
