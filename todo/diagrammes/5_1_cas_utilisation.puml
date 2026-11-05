@@ -2,13 +2,13 @@
 left to right direction
 skinparam packageStyle rectangle
 
-actor "Utilisateur Odoo\n(interne / client)" as U
+actor "Utilisateur interne\n(MiroKE)" as UI
+actor "Utilisateur client" as UCL
 actor "Administrateur" as A
 actor "Odoo 17\n(ERP et sécurité)" as S <<Système>>
 
 rectangle "Assistant IA MIRO — Odoo 17" {
   usecase "Poser une question\n(systray OWL)" as UC1
-  usecase "S'authentifier sur Odoo 17" as UC2
   usecase "Fournir l'identité de session\n(uid, company_id, groupes)" as UC3
   usecase "Consulter l'historique\ndes conversations" as UC4
   usecase "Choisir le mode de source\n(Documentation / Système)" as UC5
@@ -21,19 +21,25 @@ rectangle "Assistant IA MIRO — Odoo 17" {
   usecase "Gérer l'ingestion documentaire\n(API admin / CLI)" as UC12
 }
 
-U --> UC1
-U --> UC4
+UI --> UC1
+UI --> UC4
+UCL --> UC1
+UCL --> UC4
 A --> UC10
 A --> UC11
 A --> UC12
 S --> UC3
 S --> UC9
 
-UC1 ..> UC2 : <<include>>
-UC2 ..> UC3 : <<include>>
+UC1 ..> UC3 : <<include>>
 UC1 ..> UC6 : <<include>>
 UC5 .up.> UC1 : <<extend>>
 UC7 .up.> UC1 : <<extend>>\n(route documentation)
 UC8 .up.> UC1 : <<extend>>\n(route système)
 UC8 ..> UC9 : <<include>>
+
+note bottom of UC1
+  Précondition : l'utilisateur
+  est déjà connecté à Odoo.
+end note
 @enduml

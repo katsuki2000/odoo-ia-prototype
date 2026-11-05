@@ -1,6 +1,8 @@
 @startuml 5_9_classes_globale
 set separator none
 skinparam classAttributeIconSize 0
+skinparam nodesep 15
+skinparam ranksep 30
 hide members
 
 package "odoo_addons.miro_ai (Odoo 17)" {
@@ -59,39 +61,66 @@ package "api (FastAPI)" {
 }
 
 package "core" {
-  class "graph" as Graph <<module core.graph>> {
-    +build_graph() : CompiledGraph
-    +query_graph(question, uid, ...) : AssistantResponse
+  package "core.graph (orchestrateur)" {
+    class "graph" as Graph <<module>> {
+      +build_graph() : CompiledGraph
+      +query_graph(question, uid, ...) : AssistantResponse
+    }
+    class "graph_nodes" as GraphNodes <<module>> {
+      +retrieve(state) : dict
+      +format_output(state) : dict
+    }
+    class "verify_node" as VerifyNode <<module>> {
+      +verify_answer(state) : dict
+    }
   }
-  class RAGState <<TypedDict>> {
-    +question : str
-    +uid : int | None
-    +route : str | None
-    +source_mode : str | None
-    +retrieved_chunks : list[dict]
-    +response : AssistantResponse | None
-  }
-  class "source_selection" as SourceSelection <<module core.routing>> {
-    +select_source(question) : SourceSelection
-    +route_decision(state) : str
-  }
-  class "verify_node" as VerifyNode <<module core.graph>> {
-    +verify_answer(state) : dict
-  }
-  class AssistantResponse {
-    +answer : str
-    +sources : list[SourceReference]
-    +confidence : float
-    +route : str | None
-    +verification : VerificationReport | None
-    +evidence_dossier : list[Evidence]
+  package "services partagés du noyau" {
+    class "routing" as Routing <<core.routing>> {
+      +route(state) : dict
+      +route_decision(state) : str
+    }
+    class "source_selection" as SourceSelection <<core.routing>> {
+      +select_source(question) : SourceSelection
+    }
+    class RAGState <<TypedDict>> {
+      +question : str
+      +uid : int | None
+      +route : str | None
+      +source_mode : str | None
+      +retrieved_chunks : list[dict]
+      +response : AssistantResponse | None
+    }
+    class AssistantResponse {
+      +answer : str
+      +sources : list[SourceReference]
+      +confidence : float
+      +route : str | None
+      +verification : VerificationReport | None
+      +evidence_dossier : list[Evidence]
+    }
+    class Evidence {
+      +evidence_id : str
+      +source_type : str
+      +claim : str
+      +value : Any
+      +scope : dict
+    }
+    class "evidence_collector" as EvidenceCollector <<core.evidence>> {
+      +start_evidence_collection() : void
+      +record_evidence(evidence) : void
+      +peek_turn_evidence() : list
+      +collect_and_clear_evidence() : list
+    }
+    class "session_store" as SessionStore <<core.session>> {
+      +get_session(session_id, owner_uid) : list
+      +update_session(session_id, chat_history, owner_uid) : void
+    }
   }
 }
 
 package "document_rag" {
   class "search" as Search <<module>> {
     +retrieve(query, top_k) : list[dict]
-    +hybrid_search(...) : list
   }
   class ChromaManager {
     +query(query_text, top_k, where) : dict
@@ -113,10 +142,20 @@ package "erp_data" {
   class "orm_agent_node" as OrmAgentNode <<module>> {
     +orm_agent_loop(state) : dict
   }
-  class "read_tools" as OrmRuntimeReadTools <<module>> {
+  class QueryPlan {
+    +subject : str
+    +conditions : list[str]
+    +result_kind : str
+  }
+  class "read_tools" as OrmRuntimeReadTools <<runtime>> {
     +orm_search_read(...) : OrmToolResult
     +orm_search_count(...) : OrmToolResult
     +orm_read_group(...) : OrmToolResult
+  }
+  class OrmToolResult {
+    +observation : OrmObservation
+    +evidence : list[Evidence]
+    +text : str
   }
   class OdooConnector {
     +authenticate(username) : int
@@ -125,26 +164,39 @@ package "erp_data" {
 }
 
 MiroAiSystray --> MiroAiController : RPC JSON
-MiroAiController ..> AskFlow : signe le JWT, émet la clé éphémère
+MiroAiController ..> AskFlow : JWT, clé éphémère
 MiroAiController ..> BackendClient
-MiroAiController ..> MiroAiSettings : lit les paramètres
-MiroAiController ..> MiroAiLog : journalise
-BackendClient ..> RoutesAsk : HTTP REST asynchrone (JWT HS256)
-RoutesAsk ..> Auth : authentifie
-RoutesAsk --> AskJobStore : dépose et suit le job
+MiroAiController ..> MiroAiSettings
+MiroAiController ..> MiroAiLog
+BackendClient ..> RoutesAsk : HTTP REST (JWT)
+RoutesAsk ..> Auth
+RoutesAsk --> AskJobStore : jobs
+RoutesAsk ..> SessionStore : historique
 AskJobStore "1" o-- "0..*" AskJob
-AskJobStore ..> Graph : exécute query_graph
+AskJobStore ..> Graph : query_graph
+
 Graph ..> RAGState
-Graph ..> SourceSelection : route
-Graph ..> Search : branche documentaire
-Graph ..> OrmAgentNode : branche système ERP
-Search --> ChromaManager : dense (bge-m3)
+Graph ..> Routing : route,\nroute_decision
+Graph ..> GraphNodes : retrieve,\nformat_output
+Graph ..> VerifyNode : verify_answer
+Graph ..> GenerateNode : generate
+Graph ..> OrmAgentNode : orm_agent_loop
+Graph ..> EvidenceCollector
+Routing ..> SourceSelection
+GraphNodes ..> Search : retrieve
+VerifyNode ..> EvidenceCollector
+AssistantResponse "1" o-- "0..*" Evidence : evidence_dossier
+
+Search --> ChromaManager : dense
 Search --> BM25Index : lexical
-Search ..> GenerateNode : passages récupérés
-GenerateNode ..> VerifyNode
-OrmAgentNode ..> VerifyNode
+GenerateNode ..> AssistantResponse : produit
+IngestionOrchestrator --> ChromaManager
+
+OrmAgentNode ..> QueryPlan
+OrmAgentNode ..> EvidenceCollector
+OrmAgentNode ..> AssistantResponse : produit
 OrmAgentNode --> OrmRuntimeReadTools
+OrmRuntimeReadTools ..> OrmToolResult
+OrmToolResult ..> Evidence
 OrmRuntimeReadTools --> OdooConnector
-VerifyNode ..> AssistantResponse : réponse validée
-IngestionOrchestrator --> ChromaManager : stocke les vecteurs
 @enduml

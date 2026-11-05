@@ -1,49 +1,57 @@
 @startuml 5_10_paquetage
 skinparam packageStyle folder
+left to right direction
+skinparam nodesep 20
+skinparam ranksep 45
+skinparam defaultFontSize 12
+skinparam rectangle {
+  BackgroundColor #FFFFFF
+}
 
 package "odoo_addons.miro_ai\n(module Odoo 17)" as Addon {
-  package "static.src\n(composant OWL)" as Owl
-  package "controllers" as Ctrl
-  package "models\n(miro.ai.settings, miro.ai.log)" as Models
-  package "security" as Sec
+  rectangle "controllers" as Ctrl
+  rectangle "models" as Models
+  rectangle "static.src (OWL)" as Owl
 }
 
-package "api\n(serveur FastAPI)" as Api {
-  package "routes_ask / routes_ingestion\n/ routes_system" as Routes
-  package "ask_jobs\n(file de jobs)" as Jobs
-  package "auth\n(JWT HS256)" as Auth
+package "api\n(FastAPI)" as Api {
+  rectangle "routes" as Routes
+  rectangle "ask_jobs" as Jobs
+  rectangle "auth (JWT)" as Auth
 }
 
-package "core\n(orchestration LangGraph)" as Core {
-  package "graph" as Graph
-  package "routing" as Routing
-  package "verification" as Verif
-  package "evidence" as Evid
-  package "llm\n(client OpenAI-compatible)" as Llm
-  package "session" as Sess
+package "core\n(LangGraph)" as Core {
+  rectangle "graph\n(orchestrateur)" as Graph
+  rectangle "routing" as Routing
+  rectangle "verification" as Verif
+  rectangle "evidence" as Evid
+  rectangle "llm" as Llm
+  rectangle "session" as Sess
 }
 
-package "document_rag\n(moteur RAG hybride)" as Rag {
-  package "ingestion\n(PDF, texte, Markdown, DOCX,\nGoogle Drive)" as Ingest
-  package "vectorstore\n(ChromaDB, BM25, fusion RRF)" as Vec
+package "document_rag" as Rag {
+  rectangle "ingestion" as Ingest
+  rectangle "vectorstore" as Vec
 }
 
-package "erp_data\n(agent ORM temps réel)" as Erp {
-  package "runtime\n(outils de lecture seule)" as Runtime
-  package "odoo_connector\n(XML-RPC)" as Conn
+package "erp_data" as Erp {
+  rectangle "runtime" as Runtime
+  rectangle "odoo_connector.py" as Conn
 }
 
-package "config\n(settings, identifiants Odoo,\nGoogle Drive)" as Config
+package "config" as Config {
+}
 
-rectangle "Serveur Odoo 17\n(ORM et droits d'accès)" as OdooServer
+rectangle "Serveur Odoo 17" as OdooServer
 
-Addon ..> Api : HTTP REST asynchrone\n(JWT HS256)
+Addon ..> Api : HTTP REST (JWT)
 Api ..> Core : exécute le graphe
-Core <..> Rag : branche documentaire\n(graph importe generate_node ;\nétat, preuves et vérification en retour)
-Core <..> Erp : branche système ERP\n(graph importe orm_agent_node ;\nétat, preuves et schémas en retour)
-Erp ..> OdooServer : XML-RPC sous l'uid demandeur
-Api ..> Config
-Core ..> Config
-Rag ..> Config
-Erp ..> Config
+Api ..> Rag : ingestion
+Api ..> Conn : santé Odoo
+Core <..> Rag : retrieve, generate /\nétat, LLM, preuves
+Core <..> Erp : orm_agent_loop /\nétat, LLM, preuves
+Conn ..> OdooServer : XML-RPC (uid demandeur)
+Rag -[hidden]down-> Erp
+Erp -[hidden]down-> Config
+note bottom of Config : lue par api, core,\ndocument_rag, erp_data
 @enduml
