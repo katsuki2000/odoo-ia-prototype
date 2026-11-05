@@ -129,7 +129,7 @@ def test_rescoring_uses_the_value_recorded_with_the_run(bench, tmp_path):
         ("12 records", "ok"),
         ("ORM read refused: access denied", "invalid"),
         ("ORM operation 'read' failed or was refused.", "invalid"),
-        ("Query refused: condition_filters must cover every plan condition.", "invalid"),
+        ("Query refused: the plan requires 2 domain filters, the domain has 1.", "invalid"),
         ("Tool 'missing_tool' is not available.", "unknown"),
     ],
 )

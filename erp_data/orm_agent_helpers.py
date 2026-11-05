@@ -1,11 +1,10 @@
 """Helper utilities for the ORM agent node."""
 
 import logging
-import re
 from typing import Any, List, Literal, Tuple
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from config import settings
 from core.llm.llm_client import get_chat_llm, invoke_llm
@@ -18,6 +17,7 @@ class QueryPlan(BaseModel):
 
     model_config = ConfigDict(strict=True, extra="forbid")
     subject: str = Field(min_length=1)
+    subject_scope: Literal["model", "subset"] = "model"
     conditions: list[str] = Field(default_factory=list)
     result_kind: Literal["count", "list", "aggregate", "top", "detail", "unknown"]
     ambiguity: str | None = None
@@ -28,96 +28,39 @@ MEASURE_TOOLS = frozenset({"read_group", "search_read", "read"})
 DOMAIN_QUERY_TOOLS = frozenset({"search", "search_read", "search_count", "read_group", "name_search"})
 
 
+def required_filter_count(plan: QueryPlan) -> int:
+    """Domain filters the plan demands: one per condition, plus one when the subject is a subset."""
+    return len(plan.conditions) + int(plan.subject_scope == "subset")
+
+
 def format_query_plan(plan: QueryPlan) -> str:
-    conditions = "\n".join(
-        f"[{condition_id}] {condition}"
-        for condition_id, condition in enumerate(plan.conditions, start=1)
-    ) or "aucune"
+    conditions = "\n".join(f"- {condition}" for condition in plan.conditions) or "aucune"
     return (
         "Plan métier obligatoire (à vérifier avec fields_get avant toute lecture) :\n"
-        f"- Sujet obligatoire [0] : {plan.subject}\n"
+        f"- Sujet obligatoire : {plan.subject}\n"
+        f"- Portée du sujet : {plan.subject_scope}\n"
         f"- Conditions obligatoires :\n{conditions}\n"
         f"- Résultat : {plan.result_kind}\n"
         f"- Ambiguïté : {plan.ambiguity or 'aucune'}\n"
         f"- Langue de la réponse : {plan.answer_language}, libellés Odoo non traduits\n"
-        "condition_filters doit couvrir le sujet [0] et chaque condition numérotée. Le fragment [0] peut être vide "
-        "si le modèle sélectionné porte un sujet simple ; pour un sujet composé, il doit être non vide. Les fragments "
-        "[1..n] doivent être non vides. Le domaine "
-        "exécuté doit être exactement la concaténation des fragments non vides, dans l'ordre des identifiants."
+        f"Le domaine exécuté doit contenir au moins {required_filter_count(plan)} filtres "
+        "[champ, opérateur, valeur] : un par condition obligatoire et, si la portée du sujet est `subset`, "
+        "un de plus pour le sujet."
     )
 
 
-def validate_condition_filters(plan: QueryPlan | None, tool_name: str, arguments: dict) -> tuple[bool, str | None]:
+def validate_domain_coverage(plan: QueryPlan | None, tool_name: str, arguments: dict) -> tuple[bool, str | None]:
+    """Return (covered, refusal): the executed domain needs one filter per plan requirement."""
     if plan is None or tool_name not in DOMAIN_QUERY_TOOLS:
         return False, None
-
-    domain = arguments.get("domain") or []
-    bindings = arguments.get("condition_filters") or []
-    if not isinstance(domain, list) or not isinstance(bindings, list):
-        return False, "Query refused: domain and condition_filters must be lists."
-
-    expected_ids = set(range(len(plan.conditions) + 1))
-    if expected_ids and not bindings:
-        return False, "Query refused: map the required plan conditions to condition_filters before reading data."
-    bound_ids = set()
-    bound_domain = []
-    for binding in bindings:
-        if not isinstance(binding, dict):
-            return False, "Query refused: each condition filter must identify a condition and its domain fragment."
-        condition_id = binding.get("condition_id")
-        fragment = binding.get("domain")
-        if isinstance(condition_id, bool) or not isinstance(condition_id, int):
-            return False, "Query refused: condition_id must be an integer from the query plan."
-        if condition_id not in expected_ids:
-            return False, f"Query refused: condition_id {condition_id} is not in the query plan."
-        if condition_id in bound_ids:
-            return False, f"Query refused: condition_id {condition_id} is bound more than once."
-        if not isinstance(fragment, list):
-            return False, f"Query refused: condition {condition_id} needs a non-empty domain fragment."
-        if condition_id != 0 and not fragment:
-            return False, f"Query refused: condition {condition_id} needs a non-empty domain fragment."
-        if condition_id == 0 and not fragment and _subject_requires_domain_filter(plan):
-            return False, "Query refused: a compound subject needs a non-empty domain fragment."
-        bound_ids.add(condition_id)
-        bound_domain.extend(_normalize_domain_fragment(fragment))
-
-    missing_ids = sorted(expected_ids - bound_ids)
-    if missing_ids:
+    required = required_filter_count(plan)
+    applied = sum(not isinstance(token, str) for token in arguments.get("domain") or [])
+    if applied < required:
         return False, (
-            "Query refused: condition_filters must cover every plan condition; "
-            f"missing condition_id values: {missing_ids}."
+            f"Query refused: the plan requires {required} domain filters, the domain has {applied}. "
+            "Add one [field, operator, value] filter for each missing condition."
         )
-    if _normalize_domain(bound_domain) != _normalize_domain(domain):
-        return False, "Query refused: domain must exactly match its condition_filters fragments."
     return True, None
-
-
-def _normalize_domain(value: Any) -> Any:
-    if isinstance(value, (list, tuple)):
-        return [_normalize_domain(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _normalize_domain(item) for key, item in value.items()}
-    return value
-
-
-def _normalize_domain_fragment(fragment: list) -> list:
-    if len(fragment) == 3 and isinstance(fragment[0], str) and isinstance(fragment[1], str):
-        return [fragment]
-    return fragment
-
-
-def _materialize_condition_domain(arguments: dict) -> dict:
-    if arguments.get("domain"):
-        return arguments
-    bindings = arguments.get("condition_filters") or []
-    fragments = []
-    for binding in bindings:
-        if not isinstance(binding, dict) or not isinstance(binding.get("domain"), list):
-            return arguments
-        fragments.extend(_normalize_domain_fragment(binding["domain"]))
-    if not fragments:
-        return arguments
-    return {**arguments, "domain": fragments}
 
 
 def successful_tool_observation(observation: Any) -> bool:
@@ -144,16 +87,6 @@ def counted_instead_of_measured(plan: QueryPlan | None, tool_names: list[str]) -
 def _build_llm(**kwargs):
     reasoning_effort = kwargs.pop("reasoning_effort", settings.ERP_REASONING_EFFORT)
     return get_chat_llm(reasoning_effort=reasoning_effort, **kwargs)
-
-
-def _normalize_business_phrase(value: str) -> str:
-    """Compare business phrases without making language- or model-specific guesses."""
-    return " ".join(re.findall(r"\w+", value.casefold(), flags=re.UNICODE))
-
-
-def _subject_requires_domain_filter(plan: QueryPlan) -> bool:
-    """Require a domain fragment when the subject carries multiple business terms."""
-    return len(_normalize_business_phrase(plan.subject).split()) >= 2
 
 
 def resolve_orm_tools() -> List[Any]:
@@ -186,9 +119,9 @@ def plan_orm_question(question: str, llm_builder=None) -> tuple[QueryPlan | None
                 "alors ces reformulations équivalentes en une seule condition. Le sujet doit aussi être mappé par un "
                 "filtre de domaine propre, même si le modèle semble le représenter. Numérote les conditions dans "
                 "leur ordre d'apparition. Si le sujet est une expression composée (par exemple « factures clients », "
-                "« commandes fournisseurs » ou « écritures comptables »), garde l'expression complète comme première "
-                "condition obligatoire et utilise comme sujet le type d'objet non qualifié ; ne laisse aucun qualificatif "
-                "dans le seul sujet. "
+                "« commandes fournisseurs » ou « écritures comptables »), renseigne `subject_scope=model` si elle nomme "
+                "le type d'objet porte par le modele, ou `subject_scope=subset` si elle designe une population a filtrer. "
+                "Ne choisis pas `subset` uniquement parce que l'expression contient plusieurs mots. "
                 "Si une condition est ambiguë, signale-la dans ambiguity. "
                 "answer_language : nom de la langue dans laquelle la question est écrite."
             )),
@@ -200,6 +133,13 @@ def plan_orm_question(question: str, llm_builder=None) -> tuple[QueryPlan | None
     except Exception as exc:
         logger.warning("ORM query planning unavailable: %s", type(exc).__name__)
         return None, 1
+
+
+def _validation_reasons(error: ValidationError) -> str:
+    return "; ".join(
+        f"{'.'.join(map(str, issue['loc']))}: {issue['msg']}"
+        for issue in error.errors(include_url=False, include_context=False, include_input=False)
+    )
 
 
 def execute_tool_call(
@@ -214,11 +154,11 @@ def execute_tool_call(
     tool = tool_map[tool_name]
     try:
         tool_args = tool.args_schema.model_validate(tool_args).model_dump(exclude_none=True)
-    except Exception as exc:
+    except ValidationError as exc:
         logger.error("Tool argument validation failed for %s: %s", tool_name, exc)
-        return tool_name, tool_args, f"Query refused: invalid arguments for {tool_name}.", False
-    tool_args = _materialize_condition_domain(tool_args)
-    coverage_complete, coverage_error = validate_condition_filters(plan, tool_name, tool_args)
+        reasons = _validation_reasons(exc)
+        return tool_name, tool_args, f"Query refused: invalid arguments for {tool_name}: {reasons}", False
+    coverage_complete, coverage_error = validate_domain_coverage(plan, tool_name, tool_args)
     if coverage_error:
         return tool_name, tool_args, coverage_error, False
 

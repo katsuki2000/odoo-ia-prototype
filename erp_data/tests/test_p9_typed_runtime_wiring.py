@@ -83,246 +83,123 @@ def test_orm_domain_schema_requires_triplets_and_rejects_object_leaves():
         })
 
 
-def test_condition_filters_require_all_plan_conditions_and_match_the_executed_domain():
-    from erp_data.orm_agent_helpers import validate_condition_filters
-
-    plan = QueryPlan(
-        subject="customer invoices",
-        conditions=["posted", "unpaid or partially paid"],
-        result_kind="count",
-        answer_language="English",
-    )
-    domain = [
-        ["move_type", "=", "out_invoice"],
-        ["state", "=", "posted"],
-        ["payment_state", "in", ["not_paid", "partial"]],
-    ]
-    bindings = [
-        {"condition_id": condition_id, "domain": [leaf]}
-        for condition_id, leaf in enumerate(domain)
-    ]
-
-    assert validate_condition_filters(
-        plan, "search_count", {"domain": domain, "condition_filters": bindings},
-    ) == (True, None)
-    assert validate_condition_filters(
-        plan, "search_count", {"domain": domain[:2], "condition_filters": bindings[:2]},
-    )[1] == "Query refused: condition_filters must cover every plan condition; missing condition_id values: [2]."
-    assert validate_condition_filters(
-        plan, "search_count", {"domain": domain, "condition_filters": bindings[1:]},
-    )[1] == "Query refused: condition_filters must cover every plan condition; missing condition_id values: [0]."
-    assert validate_condition_filters(
-        plan, "search_count", {
-            "domain": domain,
-            "condition_filters": bindings[:2] + [{
-                "condition_id": 2,
-                "domain": [["payment_state", "=", "not_paid"]],
-            }],
-        },
-    )[1] == "Query refused: domain must exactly match its condition_filters fragments."
-    assert validate_condition_filters(
-        plan, "search_count", {
-            "domain": domain,
-            "condition_filters": bindings + [bindings[0]],
-        },
-    )[1] == "Query refused: condition_id 0 is bound more than once."
+POSTED = ("state", "=", "posted")
+UNPAID = ("payment_state", "=", "not_paid")
 
 
-def test_condition_filter_accepts_a_single_domain_triplet_with_a_list_value():
-    from erp_data.orm_agent_helpers import validate_condition_filters
-    from erp_data.runtime.langchain_tools import ConditionFilter, search_count
-
-    condition_filter = ConditionFilter.model_validate({
-        "condition_id": 1,
-        "domain": ["state", "not in", ["won", "lost"]],
-    })
-
-    assert condition_filter.domain == [("state", "not in", ["won", "lost"])]
-    plan = QueryPlan(
-        subject="opportunities", conditions=["neither won nor lost"],
+def _plan(conditions, subject_scope="model"):
+    return QueryPlan(
+        subject="customer invoices", subject_scope=subject_scope, conditions=conditions,
         result_kind="count", answer_language="English",
     )
-    parsed = search_count.args_schema.model_validate({
-        "model": "crm.lead",
-        "domain": [["type", "=", "opportunity"], ["state", "not in", ["won", "lost"]]],
-        "condition_filters": [
-            {"condition_id": 0, "domain": ["type", "=", "opportunity"]},
-            {"condition_id": 1, "domain": ["state", "not in", ["won", "lost"]]},
-        ],
-    }).model_dump(exclude_none=True)
-    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
-    with pytest.raises(ValueError):
-        search_count.args_schema.model_validate({
-            "model": "crm.lead",
-            "domain": [],
-            "condition_filters": [{"condition_id": 0, "scope": "model", "domain": []}],
-        })
 
 
-def test_subject_filter_may_be_empty_when_the_selected_model_carries_a_simple_subject():
-    from erp_data.orm_agent_helpers import validate_condition_filters
+def _tool(name):
+    from erp_data.runtime import langchain_tools
+
+    tool = MagicMock()
+    tool.name = name
+    tool.args_schema = getattr(langchain_tools, name).args_schema
+    tool.invoke = MagicMock(return_value="4 records")
+    return tool
+
+
+def test_domain_coverage_needs_one_filter_per_plan_condition():
+    from erp_data.orm_agent_helpers import validate_domain_coverage
+
+    plan = _plan(["posted", "unpaid"])
+
+    assert validate_domain_coverage(plan, "search_count", {"domain": [POSTED, UNPAID]}) == (True, None)
+    assert validate_domain_coverage(plan, "search_count", {"domain": ["|", POSTED, UNPAID]}) == (True, None)
+    covered, refusal = validate_domain_coverage(plan, "search_count", {"domain": [POSTED]})
+    assert covered is False
+    assert refusal.startswith("Query refused: the plan requires 2 domain filters, the domain has 1.")
+    assert validate_domain_coverage(_plan(["posted"]), "search_count", {"domain": ["|"]})[0] is False
+    assert validate_domain_coverage(plan, "search_count", {})[0] is False
+
+
+def test_a_subset_subject_needs_one_more_filter():
+    from erp_data.orm_agent_helpers import validate_domain_coverage
+
+    plan = _plan(["posted"], subject_scope="subset")
+    subject = ("move_type", "=", "out_invoice")
+
+    assert validate_domain_coverage(plan, "search_count", {"domain": [POSTED]})[1].startswith(
+        "Query refused: the plan requires 2 domain filters"
+    )
+    assert validate_domain_coverage(plan, "search_count", {"domain": [subject, POSTED]}) == (True, None)
+
+
+def test_domain_coverage_is_not_enforced_without_a_plan_condition_or_for_schema_tools():
+    from erp_data.orm_agent_helpers import validate_domain_coverage
+
+    assert validate_domain_coverage(None, "search_count", {}) == (False, None)
+    assert validate_domain_coverage(_plan(["posted"]), "fields_get", {}) == (False, None)
+    assert validate_domain_coverage(_plan([]), "search_count", {"domain": []}) == (True, None)
+
+
+def test_domain_schema_flattens_nested_fragments():
     from erp_data.runtime.langchain_tools import search_count
 
-    plan = QueryPlan(
-        subject="écritures", conditions=["publiées"],
-        result_kind="count", answer_language="français",
-    )
-    parsed = search_count.args_schema.model_validate({
-        "model": "account.move",
-        "domain": [["state", "=", "posted"]],
-        "condition_filters": [
-            {"condition_id": 0, "domain": []},
-            {"condition_id": 1, "domain": [["state", "=", "posted"]]},
-        ],
-    }).model_dump(exclude_none=True)
-
-    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
-
-
-def test_compound_subject_requires_a_non_empty_subject_filter():
-    from erp_data.orm_agent_helpers import validate_condition_filters
-    from erp_data.runtime.langchain_tools import search_count
-
-    plan = QueryPlan(
-        subject="factures clients", conditions=["publiées"],
-        result_kind="count", answer_language="français",
-    )
-    parsed = search_count.args_schema.model_validate({
-        "model": "account.move",
-        "domain": [["state", "=", "posted"]],
-        "condition_filters": [
-            {"condition_id": 0, "domain": []},
-            {"condition_id": 1, "domain": [["state", "=", "posted"]]},
-        ],
-    }).model_dump(exclude_none=True)
-
-    assert validate_condition_filters(plan, "search_count", parsed) == (
-        False, "Query refused: a compound subject needs a non-empty domain fragment.",
-    )
-    parsed["domain"] = [
-        ["move_type", "=", "out_invoice"],
-        ["state", "=", "posted"],
-    ]
-    parsed["condition_filters"][0]["domain"] = [["move_type", "=", "out_invoice"]]
-    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
-
-
-def test_condition_filter_normalizes_the_legacy_domain_fragment_key():
-    from erp_data.orm_agent_helpers import validate_condition_filters
-    from erp_data.runtime.langchain_tools import search_count
-
-    plan = QueryPlan(
-        subject="factures", conditions=["publiées"],
-        result_kind="count", answer_language="français",
-    )
-    parsed = search_count.args_schema.model_validate({
-        "model": "account.move",
-        "condition_filters": [
-            {"condition_id": 0, "domain_fragment": []},
-            {"condition_id": 1, "domain_fragment": [["state", "=", "posted"]]},
-        ],
-    }).model_dump(exclude_none=True)
-
-    assert parsed["condition_filters"][0]["domain"] == []
-    assert validate_condition_filters(
-        plan, "search_count", {**parsed, "domain": [["state", "=", "posted"]]},
-    ) == (True, None)
-
-
-def test_domain_schema_flattens_nested_fragments_and_accepts_condition_descriptions():
-    from erp_data.orm_agent_helpers import validate_condition_filters
-    from erp_data.runtime.langchain_tools import search_count
-
-    plan = QueryPlan(
-        subject="customer invoices", conditions=["posted"],
-        result_kind="count", answer_language="English",
-    )
     parsed = search_count.args_schema.model_validate({
         "model": "account.move",
         "domain": [
             [["move_type", "=", "out_invoice"], ["payment_state", "=", "not_paid"]],
             [["state", "=", "posted"]],
         ],
-        "condition_filters": [
-            {
-                "condition_id": 0,
-                "description": "customer invoices not paid",
-                "domain": [["move_type", "=", "out_invoice"], ["payment_state", "=", "not_paid"]],
-            },
-            {"condition_id": 1, "description": "posted", "domain": ["state", "=", "posted"]},
-        ],
     }).model_dump(exclude_none=True)
 
-    assert validate_condition_filters(plan, "search_count", parsed) == (True, None)
+    assert parsed["domain"] == [("move_type", "=", "out_invoice"), UNPAID, POSTED]
 
 
-def test_execute_tool_call_refuses_incomplete_condition_mapping_before_orm():
+def test_execute_tool_call_refuses_a_domain_that_misses_a_condition_before_orm():
     from erp_data.orm_agent_helpers import execute_tool_call
-    from erp_data.runtime.langchain_tools import search_count
 
-    plan = QueryPlan(
-        subject="opportunités", conditions=["perdues", "sans motif de perte"],
-        result_kind="count", answer_language="français",
-    )
-    invoke = MagicMock(return_value="2 records")
-    tool = MagicMock(name="search_count")
-    tool.name = "search_count"
-    tool.args_schema = search_count.args_schema
-    tool.invoke = invoke
-    args = {
-        "model": "crm.lead",
-        "domain": [["type", "=", "opportunity"], ["lost_reason_id", "=", False]],
-        "condition_filters": [
-            {"condition_id": 0, "domain": [["type", "=", "opportunity"]]},
-            {"condition_id": 1, "domain": [["lost_reason_id", "=", False]]},
-        ],
-    }
-
+    tool = _tool("search_count")
     name, _arguments, observation, coverage_complete = execute_tool_call(
-        {"name": "search_count", "args": args}, [tool], plan,
+        {"name": "search_count", "args": {"model": "account.move", "domain": [list(POSTED)]}},
+        [tool], _plan(["posted", "unpaid"]),
     )
 
     assert name == "search_count"
-    assert observation.startswith("Query refused: condition_filters must cover every plan condition")
+    assert observation.startswith("Query refused: the plan requires 2 domain filters")
     assert coverage_complete is False
-    invoke.assert_not_called()
+    tool.invoke.assert_not_called()
 
 
-def test_execute_tool_call_materializes_an_ordered_condition_filter_list():
+def test_execute_tool_call_runs_a_domain_that_covers_the_plan():
     from erp_data.orm_agent_helpers import execute_tool_call
-    from erp_data.runtime.langchain_tools import search_count
 
-    plan = QueryPlan(
-        subject="customer invoices", conditions=["posted", "unpaid or partially paid"],
-        result_kind="count", answer_language="English",
-    )
-    tool = MagicMock(name="search_count")
-    tool.name = "search_count"
-    tool.args_schema = search_count.args_schema
-    tool.invoke = MagicMock(return_value="4 records")
-    raw_args = {
-        "model": "account.move",
-        "condition_filters": [
-            ["move_type", "=", "out_invoice"],
-            ["state", "=", "posted"],
-            ["payment_state", "in", ["not_paid", "partial"]],
-        ],
-    }
+    tool = _tool("search_count")
+    raw_args = {"model": "account.move", "domain": [list(POSTED), list(UNPAID)]}
 
-    name, arguments, observation, coverage_complete = execute_tool_call(
-        {"name": "search_count", "args": raw_args}, [tool], plan,
+    _name, arguments, observation, coverage_complete = execute_tool_call(
+        {"name": "search_count", "args": raw_args}, [tool], _plan(["posted", "unpaid"]),
     )
 
-    assert name == "search_count"
     assert observation == "4 records"
     assert coverage_complete is True
-    assert arguments["domain"] == [
-        ("move_type", "=", "out_invoice"),
-        ("state", "=", "posted"),
-        ("payment_state", "in", ["not_paid", "partial"]),
-    ]
-    assert [item["condition_id"] for item in arguments["condition_filters"]] == [0, 1, 2]
+    assert arguments["domain"] == [POSTED, UNPAID]
     tool.invoke.assert_called_once_with(arguments)
+
+
+def test_execute_tool_call_tells_the_model_why_its_arguments_were_rejected():
+    from erp_data.orm_agent_helpers import execute_tool_call
+
+    tool = _tool("list_models")
+    _name, _arguments, observation, coverage_complete = execute_tool_call(
+        {"name": "list_models", "args": {"filter": "fiscal"}}, [tool],
+    )
+
+    assert observation == "Query refused: invalid arguments for list_models: query: Field required"
+    assert coverage_complete is False
+    tool.invoke.assert_not_called()
+
+
+def test_condition_filters_is_no_longer_part_of_the_tool_contract():
+    from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
+
+    assert all("condition_filters" not in tool.args for tool in TYPED_ORM_LANGCHAIN_TOOLS)
 
 
 def test_orm_prompt_documents_the_odoo_domain_shape():
@@ -330,10 +207,14 @@ def test_orm_prompt_documents_the_odoo_domain_shape():
 
     assert "liste de triplets [champ, opérateur, valeur]" in ORM_AGENT_SYSTEM_PROMPT
     assert "N'envoie jamais une condition sous forme d'objet" in ORM_AGENT_SYSTEM_PROMPT
-    assert "condition_filters" in ORM_AGENT_SYSTEM_PROMPT
-    assert "Sujet obligatoire [0]" in format_query_plan(QueryPlan(
-        subject="opportunités", result_kind="count", answer_language="français",
+    assert "condition_filters" not in ORM_AGENT_SYSTEM_PROMPT
+    assert "subject_scope" in ORM_AGENT_SYSTEM_PROMPT
+    text = format_query_plan(QueryPlan(
+        subject="opportunités", subject_scope="subset", conditions=["perdues", "sans motif de perte"],
+        result_kind="count", answer_language="français",
     ))
+    assert "Sujet obligatoire : opportunités" in text
+    assert "au moins 3 filtres" in text
 
 
 def test_orm_messages_carry_the_business_plan():
@@ -374,6 +255,7 @@ def test_query_planner_keeps_the_compound_subject_available_for_domain_mapping(m
 
     raw_plan = QueryPlan(
         subject="factures clients",
+        subject_scope="subset",
         conditions=["publiées"],
         result_kind="count",
         answer_language="français",
@@ -385,6 +267,7 @@ def test_query_planner_keeps_the_compound_subject_available_for_domain_mapping(m
 
     assert plan is not None
     assert plan.subject == "factures clients"
+    assert plan.subject_scope == "subset"
     assert plan.conditions == ["publiées"]
     assert calls == 1
 

@@ -20,6 +20,7 @@ from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 from core.state import RAGState
 from erp_data.orm_agent_helpers import (
+    DOMAIN_QUERY_TOOLS,
     QueryPlan,
     _build_llm,
     counted_instead_of_measured,
@@ -47,10 +48,10 @@ INCOMPLETE_QUERY_ANSWER = (
     "n'ont pas été appliquées à une lecture réussie des données."
 )
 CONDITION_COVERAGE_REMINDER = (
-    "La requête exécutée ne couvre pas encore toutes les conditions obligatoires numérotées du plan. "
-    "Complète les fragments condition_filters en t'appuyant sur fields_get, puis exécute une lecture qui "
-    "applique toutes les conditions avant de répondre. Si une correspondance n'est pas démontrable, demande "
-    "une précision au lieu de conclure à partir du résultat partiel."
+    "La requête exécutée ne couvre pas encore toutes les conditions obligatoires du plan. "
+    "En t'appuyant sur fields_get, exécute une lecture dont le domaine applique chaque condition avant de "
+    "répondre. Si une correspondance n'est pas démontrable, demande une précision au lieu de conclure à "
+    "partir du résultat partiel."
 )
 
 
@@ -113,8 +114,7 @@ def _run_react(
             started = time.time()
             tool_name, tool_args, observation, coverage_complete = execute_tool_call(tool_call, tools, plan)
             observation_succeeded = successful_tool_observation(observation)
-            if tool_name in {"search", "search_read", "search_count", "read_group", "name_search"} \
-                    and observation_succeeded:
+            if tool_name in DOMAIN_QUERY_TOOLS and observation_succeeded:
                 conditions_covered = coverage_complete or plan is None or not plan.conditions
             observations.append(observation)
             tool_names.append(tool_name)

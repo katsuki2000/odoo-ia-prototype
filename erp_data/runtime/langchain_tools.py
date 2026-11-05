@@ -8,7 +8,7 @@ from copy import deepcopy
 from typing import Annotated, Any, Optional
 
 from langchain_core.tools import tool
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictInt
+from pydantic import BeforeValidator, Field
 
 from config import settings
 from core.evidence.evidence_collector import record_evidence
@@ -81,46 +81,6 @@ LooseDomain = Annotated[
     Optional[list[DomainToken]],
     BeforeValidator(_coerce_domain),
     Field(description='Odoo domain: a list of [field, operator, value] triplets and logical operators.'),
-]
-
-
-def _coerce_domain_fragment(value: Any) -> Any:
-    if _is_domain_leaf(value):
-        return [value]
-    return _coerce_domain(value)
-
-
-def _coerce_condition_filters(value: Any) -> Any:
-    value = _coerce_list(value)
-    if not isinstance(value, list):
-        return value
-    normalized = []
-    for index, item in enumerate(value):
-        if not isinstance(item, dict):
-            normalized.append({"condition_id": index, "domain": item})
-            continue
-        item = dict(item)
-        if "domain" not in item and "domain_fragment" in item:
-            item["domain"] = item.pop("domain_fragment")
-        normalized.append(item)
-    return normalized
-
-
-class ConditionFilter(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    condition_id: StrictInt = Field(ge=0)
-    description: str | None = None
-    domain: Annotated[list[DomainToken], BeforeValidator(_coerce_domain_fragment)] = Field()
-
-
-ConditionFilters = Annotated[
-    Optional[list[ConditionFilter]],
-    BeforeValidator(_coerce_condition_filters),
-    Field(description=(
-        "Map the numbered subject and every query-plan condition to exact, non-empty Odoo domain fragments."
-        " For compatibility, an ordered list of fragments is accepted and assigned identifiers by position."
-    )),
 ]
 
 
@@ -200,7 +160,6 @@ def fields_get(model: str, field_names: LooseStrList = None) -> str:
 def search(
     model: str,
     domain: LooseDomain = None,
-    condition_filters: ConditionFilters = None,
     limit: int = 0,
     order: str = "",
     offset: int = 0,
@@ -227,7 +186,6 @@ def read(model: str, ids: list[int], fields: list[str]) -> str:
 def search_read(
     model: str,
     domain: LooseDomain = None,
-    condition_filters: ConditionFilters = None,
     fields: LooseStrList = None,
     limit: int = 0,
     order: str = "",
@@ -248,7 +206,6 @@ def search_read(
 def search_count(
     model: str,
     domain: LooseDomain = None,
-    condition_filters: ConditionFilters = None,
 ) -> str:
     """Count records matching an Odoo domain (how many)."""
     return _invoke(lambda: _search_count(model, domain=domain or []))
@@ -260,7 +217,6 @@ def read_group(
     fields: list[str],
     groupby: LooseStrList = None,
     domain: LooseDomain = None,
-    condition_filters: ConditionFilters = None,
     lazy: bool = True,
 ) -> str:
     """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total."""
@@ -280,7 +236,6 @@ def name_search(
     model: str,
     name: str = "",
     domain: LooseDomain = None,
-    condition_filters: ConditionFilters = None,
     operator: str = "ilike",
     limit: int = 0,
 ) -> str:
