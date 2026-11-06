@@ -81,6 +81,9 @@ def _coerce_domain(value: Any) -> Any:
     return _flatten_domain_tokens(value) if isinstance(value, list) else value
 
 
+ModelName = Annotated[
+    str, Field(description="Technical name of the Odoo model, always required (for example account.move).")
+]
 LooseDomain = Annotated[
     Optional[list[DomainToken]],
     BeforeValidator(_coerce_domain),
@@ -156,7 +159,7 @@ def _invoke(call, retry_schema=True) -> str:
 
 
 @tool
-def fields_get(model: str, field_names: LooseStrList = None) -> str:
+def fields_get(model: ModelName, field_names: LooseStrList = None) -> str:
     """List every field of an Odoo model as name -> type and label. Pass field_names to get the full
     details (relation, selection values) of those fields."""
     return _invoke(lambda: _fields_get(model, field_names))
@@ -164,7 +167,7 @@ def fields_get(model: str, field_names: LooseStrList = None) -> str:
 
 @tool
 def search(
-    model: str,
+    model: ModelName,
     domain: LooseDomain = None,
     limit: int = 0,
     order: str = "",
@@ -183,14 +186,14 @@ def search(
 
 
 @tool
-def read(model: str, ids: list[int], fields: list[str]) -> str:
+def read(model: ModelName, ids: list[int], fields: list[str]) -> str:
     """Read explicit fields for known record ids. fields must be non-empty."""
     return _invoke(lambda: _read(model, ids=ids, fields=fields))
 
 
 @tool
 def search_read(
-    model: str,
+    model: ModelName,
     domain: LooseDomain = None,
     fields: LooseStrList = None,
     limit: int = 0,
@@ -210,7 +213,7 @@ def search_read(
 
 @tool
 def search_count(
-    model: str,
+    model: ModelName,
     domain: LooseDomain = None,
 ) -> str:
     """Count records matching an Odoo domain (how many)."""
@@ -219,7 +222,7 @@ def search_count(
 
 @tool
 def read_group(
-    model: str,
+    model: ModelName,
     fields: list[str],
     groupby: LooseStrList = None,
     domain: LooseDomain = None,
@@ -239,7 +242,7 @@ def read_group(
 
 @tool
 def name_search(
-    model: str,
+    model: ModelName,
     name: str = "",
     domain: LooseDomain = None,
     operator: str = "ilike",

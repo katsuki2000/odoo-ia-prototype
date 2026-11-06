@@ -74,6 +74,9 @@ def _public_value(value: Any) -> Any:
     return value
 
 
+UNSET_VALUE_FACTS = ("aucun", "aucune", "none")
+
+
 MONTHS = (
     ("January", "janvier"), ("February", "février"), ("March", "mars"), ("April", "avril"),
     ("May", "mai"), ("June", "juin"), ("July", "juillet"), ("August", "août"),
@@ -322,6 +325,8 @@ def _result_for_value(executor: ReadExecutor, plan: dict[str, Any]) -> OracleRes
     public = _public_value(raw)
     metadata = _field_metadata(executor, plan["model"], [plan["field"]])
     groups = _fact_variants(public, _selection_labels(metadata).get(plan["field"]))
+    if public is False:
+        groups = (*groups, *UNSET_VALUE_FACTS)
     return OracleResult(status="ok", kind=plan["kind"], expected_groups=(groups,), value=public)
 
 

@@ -55,12 +55,13 @@ def _path(field: str, model: str, fields: list[str]) -> dict[str, Any]:
 
 
 def build_plans() -> dict[str, dict[str, Any]]:
+    posted_entry = [["state", "=", "posted"]]
     posted_invoice = [["move_type", "=", "out_invoice"], ["state", "=", "posted"]]
     posted_bill = [["move_type", "=", "in_invoice"], ["state", "=", "posted"]]
     confirmed_sale = [["state", "=", "sale"]]
     confirmed_purchase = [["state", "=", "purchase"]]
     plans = {
-        "ERP-C-001": count("account.move", [["state", "=", "posted"]]),
+        "ERP-C-001": count("account.move", posted_entry),
         "ERP-C-002": count("account.move", posted_invoice),
         "ERP-C-003": aggregate("account.move", posted_invoice, "amount_total", "currency_id"),
         "ERP-C-004": aggregate("account.move", posted_bill, "amount_residual", "currency_id"),
@@ -158,7 +159,7 @@ def build_plans() -> dict[str, dict[str, Any]]:
         "ERP-N-010": count("mrp.production", [["state", "=", "done"], ["state", "=", "cancel"]]),
         "ERP-P-001": count("res.partner", []),
         "ERP-P-002": rows("res.company", [], ["name"]),
-        "ERP-P-003": count("account.move", posted_invoice),
+        "ERP-P-003": count("account.move", posted_entry),
         "ERP-P-004": rows("account.move", posted_invoice, ["name", "amount_residual"]),
         "ERP-P-005": rows("sale.order", [], ["name"]),
         "ERP-P-006": rows("purchase.order", [], ["name"]),

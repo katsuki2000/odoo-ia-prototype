@@ -18,7 +18,7 @@ class FakeExecutor:
                 {"id": 1, "state": "posted", "name": "M001", "partner_id": [2, "Acme"], "amount_total": 12.5, "currency_id": [1, "EUR"]},
                 {"id": 2, "state": "posted", "name": "M002", "partner_id": [2, "Acme"], "amount_total": 7.5, "currency_id": [1, "EUR"]},
             ],
-            "res.company": [{"id": 1, "name": "Miro", "currency_id": [1, "EUR"], "fiscalyear_last_month": "12"}],
+            "res.company": [{"id": 1, "name": "Miro", "currency_id": [1, "EUR"], "fiscalyear_last_month": "12", "period_lock_date": False}],
             "res.currency": [{"id": 1, "display_name": "EUR", "name": "EUR"}],
             "res.partner": [{"id": 2, "display_name": "Acme", "name": "Acme"}],
             "sale.order": [{"id": 3, "name": "SO001", "partner_id": [2, "Acme"]}],
@@ -87,6 +87,17 @@ def test_oracle_accepts_one_decimal_amounts_and_long_french_dates():
     assert any("12,5" in group for group in result.expected_groups)
     assert "1 janvier 2026" in _date_variants("2026-01-01") and "01 janvier 2026" in _date_variants("2026-01-01")
     assert "décembre" in evaluate_plan(FakeExecutor(), PLANS["ERP-V-004"]).expected_groups[0]
+
+
+def test_an_unset_value_is_scored_by_false_or_a_plain_none():
+    result = evaluate_plan(FakeExecutor(), PLANS["ERP-V-006"])
+    assert result.value is False
+    assert score_answer("Aucune date de verrouillage n'est définie.", result)["complete"] is True
+    assert score_answer("La date de verrouillage est le 3 mars 2026.", result)["complete"] is False
+
+
+def test_posted_entries_oracle_is_shared_by_the_global_and_the_profile_question():
+    assert PLANS["ERP-P-003"] == PLANS["ERP-C-001"]
 
 
 def test_zero_count_is_scored_by_the_number_or_a_plain_none_but_not_by_an_abstention():
