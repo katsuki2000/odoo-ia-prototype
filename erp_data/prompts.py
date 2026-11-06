@@ -35,11 +35,16 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "[[\"state\", \"=\", \"sale\"]] ; les opérateurs logiques (\"&\", \"|\", \"!\") sont des éléments séparés. "
     "N'envoie jamais une condition sous forme d'objet {field, operator, value}. "
     "Chaque condition du plan se traduit par un filtre [champ, opérateur, valeur] confirmé par fields_get. "
+    "Une question d'existence ou de comptage (« existe-t-il », « combien ») se répond par une lecture : "
+    "search_count ou search avec un filtre par condition. Ne conclus « aucun » que d'un résultat lu à zéro, "
+    "jamais du schéma seul, même si les conditions semblent contradictoires. "
     "Le plan indique la portée du sujet : avec `subject_scope=model`, le modèle choisi suffit pour le sujet ; "
     "avec `subject_scope=subset`, le sujet a aussi son filtre, et un modèle générique n'est jamais la preuve "
     "d'un qualificatif de population. Le système restreint déjà la lecture à l'identité du demandeur, à sa "
     "société et à ses droits d'accès : une condition qui désigne le contexte de lecture courant (« la société du "
     "contexte courant ») ne demande aucun filtre. "
+    "Une question « pour chaque X, quels Y » se lit depuis le modèle de X : liste tous les X, chacun avec ses Y "
+    "ou « aucun » quand sa relation est vide. Ne pars pas de Y : les X sans Y disparaîtraient. "
     "Si tu ne peux pas associer une condition à un champ et une valeur confirmés par fields_get, demande une "
     "précision ; ne réponds pas à partir d'un résultat partiel. "
     "Quand la question définit un état par opposition (par exemple ouvert = ni gagné ni perdu), cherche d'abord "
@@ -84,9 +89,9 @@ def build_orm_refusal_prompt(question: str, tool_observations: List[str]) -> str
     return (
         f"Question de l'utilisateur : {question}\n\n"
         "Aucune lecture de données dans Odoo n'a abouti. Résultats obtenus :\n" + "\n".join(tool_observations) +
-        "\n\nExplique en langage simple, dans la langue de la question, pourquoi rien n'a pu être lu "
-        "(modèle introuvable, droits insuffisants, filtre refusé) et ce que l'utilisateur peut préciser pour "
-        "que la recherche aboutisse. Ne donne ni donnée, ni exemple, ni valeur fictive, et n'écris aucun nom "
+        "\n\nExplique en langage simple, dans la langue de la question, pourquoi rien n'a pu être lu, "
+        "uniquement d'après ces résultats, sans supposer d'autre cause, et ce que l'utilisateur peut préciser "
+        "pour que la recherche aboutisse. Ne donne ni donnée, ni exemple, ni valeur fictive, et n'écris aucun nom "
         "d'outil, ni le mot ORM, ni détail technique de l'erreur."
     )
 
@@ -100,6 +105,12 @@ MEASURE_READ_REMINDER = (
     "La question demande une valeur calculée (somme, total, moyenne) et tu n'as fait que compter des lignes. "
     "Lis le champ numérique concerné avec read_group ou search_read, ou demande une précision si plusieurs "
     "modèles ou champs conviennent."
+)
+
+NO_READ_REMINDER = (
+    "Tu réponds sans avoir lu de données. Lis les enregistrements concernés (un filtre par condition du plan) "
+    "avant de conclure, même si le schéma semble donner la réponse. Demande une précision seulement si le terme "
+    "métier, le modèle ou la période reste ambigu."
 )
 
 
@@ -125,6 +136,7 @@ def build_orm_agent_messages(
 __all__ = [
     "EMPTY_REPLY_REMINDER",
     "MEASURE_READ_REMINDER",
+    "NO_READ_REMINDER",
     "ORM_AGENT_SYSTEM_PROMPT",
     "build_orm_refusal_prompt",
     "build_orm_synthesis_prompt",

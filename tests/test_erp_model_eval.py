@@ -154,18 +154,29 @@ def test_describe_tool_call_records_covers_plan_for_successful_domain_reads_only
     assert "covers_plan" not in describe_tool_call("missing", {}, "Tool 'missing' is not available.", True)
 
 
-def test_benchmark_records_keep_covers_plan_but_not_the_arguments():
+def test_describe_tool_call_records_the_row_count_when_known():
+    assert describe_tool_call("list_models", {"query": "x"}, "ok", row_count=0)["row_count"] == 0
+    assert "row_count" not in describe_tool_call("list_models", {"query": "x"}, "ok")
+
+
+def test_benchmark_records_keep_the_call_shape_but_no_data_value():
     script = Path(__file__).resolve().parent.parent / "scripts" / "run_erp_benchmark.py"
     spec = importlib.util.spec_from_file_location("run_erp_benchmark_script", script)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     calls = [
-        {"name": "search_count", "status": "ok", "args": {"domain": [["state", "=", "x"]]}, "covers_plan": True},
-        {"name": "fields_get", "status": "ok", "args": {"model": "account.move"}},
+        {"name": "search_count", "status": "ok", "covers_plan": True, "row_count": 1, "args": {
+            "model": "account.move", "domain": [("state", "=", "secret"), "|", ["move_type", "in", ["a", "b"]]]}},
+        {"name": "list_models", "status": "ok", "row_count": 0, "args": {"query": "paiement"}},
+        {"name": "name_search", "status": "ok", "args": {"model": "res.partner", "name": "Acme"}},
+        {"name": "read", "status": "invalid", "error": "refused", "args": {"ids": [7], "fields": ["name"]}},
     ]
     assert module._safe_tool_calls(calls) == [
-        {"name": "search_count", "status": "ok", "covers_plan": True},
-        {"name": "fields_get", "status": "ok"},
+        {"name": "search_count", "status": "ok", "row_count": 1, "covers_plan": True,
+         "model": "account.move", "domain": [["state", "="], "|", ["move_type", "in"]]},
+        {"name": "list_models", "status": "ok", "row_count": 0, "query": "paiement"},
+        {"name": "name_search", "status": "ok", "model": "res.partner"},
+        {"name": "read", "status": "invalid", "error": "refused"},
     ]
 
 

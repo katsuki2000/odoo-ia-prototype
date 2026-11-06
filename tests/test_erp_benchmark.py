@@ -2,7 +2,7 @@ from pathlib import Path
 import importlib
 
 from evaluation.erp_benchmark.bank import load_bank
-from evaluation.erp_benchmark.oracle import evaluate_plan
+from evaluation.erp_benchmark.oracle import _date_variants, evaluate_plan
 from evaluation.erp_benchmark.plans import PLANS
 from evaluation.erp_benchmark.runner import score_answer
 
@@ -61,15 +61,45 @@ def test_count_oracle_is_runtime_value_not_a_fixture():
     assert result.expected_groups == (("2",),)
 
 
-def test_aggregate_oracle_keeps_the_currency_with_the_total():
+def test_aggregate_oracle_buckets_by_currency_but_expects_only_the_amount():
     result = evaluate_plan(FakeExecutor(), PLANS["ERP-C-003"])
     assert result.value[0]["currency"] == "EUR"
-    assert any("20.00" in group for group in result.expected_groups)
+    assert len(result.expected_groups) == 1 and "EUR" not in result.expected_groups[0]
+    assert {"20", "20,0", "20.00"} <= set(result.expected_groups[0])
+    assert score_answer("EUR", result)["complete"] is False
 
 
 def test_selection_value_oracle_exposes_key_and_runtime_label():
     result = evaluate_plan(FakeExecutor(), PLANS["ERP-V-004"])
     assert set(("12", "December")) <= set(result.expected_groups[0])
+
+
+def test_list_oracle_expects_the_selection_label_and_no_currency():
+    result = evaluate_plan(FakeExecutor(), PLANS["ERP-L-001"])
+    assert not any("EUR" in group for group in result.expected_groups)
+    state_plan = {"kind": "rows", "model": "account.move", "domain": [], "fields": ["name", "state"]}
+    groups = evaluate_plan(FakeExecutor(), state_plan).row_groups[0]
+    assert ("posted", "Posted") == groups[1]
+
+
+def test_oracle_accepts_one_decimal_amounts_and_long_french_dates():
+    result = evaluate_plan(FakeExecutor(), PLANS["ERP-L-001"])
+    assert any("12,5" in group for group in result.expected_groups)
+    assert "1 janvier 2026" in _date_variants("2026-01-01") and "01 janvier 2026" in _date_variants("2026-01-01")
+    assert "décembre" in evaluate_plan(FakeExecutor(), PLANS["ERP-V-004"]).expected_groups[0]
+
+
+def test_zero_count_is_scored_by_the_number_or_a_plain_none_but_not_by_an_abstention():
+    executor = FakeExecutor()
+    executor.rows["account.move"] = []
+    result = evaluate_plan(executor, PLANS["ERP-N-001"])
+    assert result.empty and result.kind == "count"
+    assert score_answer("Il n'existe aucune écriture dans ces deux statuts.", result)["complete"] is True
+    assert score_answer("Il y en a 0.", result)["complete"] is True
+    refusal = score_answer("La recherche n'a pas abouti : aucune catégorie ne correspond.", result)
+    assert refusal["complete"] is False and refusal["abstention"] is True
+    unread = score_answer("Aucun modèle ne correspond à ce terme.", result, read_data=False)
+    assert unread["complete"] is False
 
 
 def test_empty_list_answer_is_scored_as_an_empty_result():
@@ -82,6 +112,20 @@ def test_empty_list_answer_is_scored_as_an_empty_result():
 def test_relation_plan_has_no_numeric_id_in_public_rows():
     result = evaluate_plan(FakeExecutor(), PLANS["ERP-R-001"])
     assert all("partner_id" not in str(row) and row["relation_1"] == [{"name": "Acme"}] for row in result.rows)
+
+
+def test_relation_empty_for_every_parent_is_an_empty_result():
+    result = evaluate_plan(FakeExecutor(), PLANS["ERP-R-003"])
+    assert result.count == 2 and result.empty
+    assert score_answer("Aucun paiement n'est lié à ces factures.", result)["complete"] is True
+    assert score_answer("La recherche n'a pas abouti : aucun paiement.", result)["complete"] is False
+    assert score_answer("Aucun paiement.", result, read_data=False)["complete"] is False
+
+
+def test_relation_with_related_values_is_not_empty():
+    result = evaluate_plan(FakeExecutor(), PLANS["ERP-R-001"])
+    assert not result.empty
+    assert score_answer("Aucune facture.", result)["complete"] is False
 
 
 def test_model_runner_reuses_the_existing_worker_signature(monkeypatch, tmp_path):

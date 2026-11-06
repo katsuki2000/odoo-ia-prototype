@@ -26,6 +26,7 @@ class QueryPlan(BaseModel):
 
 MEASURE_TOOLS = frozenset({"read_group", "search_read", "read"})
 DOMAIN_QUERY_TOOLS = frozenset({"search", "search_read", "search_count", "read_group", "name_search"})
+READ_TOOLS = DOMAIN_QUERY_TOOLS | {"read"}
 
 
 def required_filter_count(plan: QueryPlan) -> int:
@@ -75,6 +76,11 @@ def counted_instead_of_measured(plan: QueryPlan | None, tool_names: list[str]) -
     return bool(plan) and plan.result_kind == "aggregate" and "search_count" in used and not used & MEASURE_TOOLS
 
 
+def answered_without_reading(plan: QueryPlan | None, tool_names: list[str]) -> bool:
+    """True when the plan expects data and no record was read."""
+    return bool(plan) and plan.result_kind != "unknown" and not set(tool_names) & READ_TOOLS
+
+
 def _build_llm(**kwargs):
     reasoning_effort = kwargs.pop("reasoning_effort", settings.ERP_REASONING_EFFORT)
     return get_chat_llm(reasoning_effort=reasoning_effort, **kwargs)
@@ -109,7 +115,7 @@ def plan_orm_question(question: str, llm_builder=None) -> tuple[QueryPlan | None
                 "condition distincte, sauf lorsqu'une expression explique la définition de la précédente : combine "
                 "alors ces reformulations équivalentes en une seule condition. Les colonnes ou valeurs "
                 "demandées (« avec leur montant ») et la mention du contexte de lecture courant (« de la société "
-                "courante ») ne sont pas des conditions. Si le sujet est une expression composée (par exemple « factures clients », "
+                "courante ») ne sont pas des conditions. Dans « pour chaque X, quels Y », le sujet est X ; Y est la valeur demandée, pas une condition. Si le sujet est une expression composée (par exemple « factures clients », "
                 "« commandes fournisseurs » ou « écritures comptables »), renseigne `subject_scope=model` si elle nomme "
                 "le type d'objet porte par le modele, ou `subject_scope=subset` si elle designe une population a filtrer. "
                 "Ne choisis pas `subset` uniquement parce que l'expression contient plusieurs mots. "

@@ -136,6 +136,18 @@ def test_unknown_field_names_come_with_the_advice_to_read_the_full_list(_evidenc
     assert observation.endswith(langchain_tools.UNKNOWN_FIELDS_HINT)
 
 
+def test_list_models_without_match_advises_the_english_term(_request_scope, _evidence):
+    _request_scope.available_models.return_value = [{"model": "sale.order", "display_name": "Sales Order"}]
+    observation = langchain_tools.list_models.invoke({"query": "commande"})
+    assert observation.endswith(langchain_tools.NO_MODEL_HINT)
+
+
+def test_list_models_with_a_match_gets_no_hint(_request_scope, _evidence):
+    _request_scope.available_models.return_value = [{"model": "sale.order", "display_name": "Sales Order"}]
+    observation = langchain_tools.list_models.invoke({"query": "sale"})
+    assert langchain_tools.NO_MODEL_HINT not in observation
+
+
 def test_a_detailed_fields_get_gets_no_hint(_evidence):
     observation = langchain_tools.fields_get.invoke({"model": "account.move", "field_names": ["move_type"]})
     assert langchain_tools.FULL_LIST_HINT not in observation

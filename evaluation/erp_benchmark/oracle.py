@@ -74,12 +74,19 @@ def _public_value(value: Any) -> Any:
     return value
 
 
+MONTHS = (
+    ("January", "janvier"), ("February", "février"), ("March", "mars"), ("April", "avril"),
+    ("May", "mai"), ("June", "juin"), ("July", "juillet"), ("August", "août"),
+    ("September", "septembre"), ("October", "octobre"), ("November", "novembre"), ("December", "décembre"),
+)
+
+
 def _number_variants(value: int | float) -> tuple[str, ...]:
     if isinstance(value, bool) or not math.isfinite(float(value)):
         return (str(value),)
     raw = str(value)
     fixed = f"{value:.2f}"
-    variants = {raw, fixed, fixed.replace(".", ",")}
+    variants = {raw, raw.replace(".", ","), fixed, fixed.replace(".", ",")}
     if fixed.endswith(".00"):
         variants.update({fixed[:-3], fixed[:-3].replace(".", ",")})
     return tuple(sorted(variants))
@@ -92,11 +99,17 @@ def _date_variants(value: str) -> tuple[str, ...]:
             parsed = _datetime.date.fromisoformat(date_part)
         except ValueError:
             return (value,)
-        return (value, date_part, parsed.strftime("%d/%m/%Y"))
+        month = MONTHS[parsed.month - 1][1]
+        return (value, date_part, parsed.strftime("%d/%m/%Y"), f"{parsed.day} {month} {parsed.year}", f"{parsed.day:02d} {month} {parsed.year}")
     return (value,)
 
 
-def _fact_variants(value: Any) -> tuple[str, ...]:
+def _label_variants(label: str) -> tuple[str, ...]:
+    """A selection label, plus its French form when it is an English month name."""
+    return (label, *(french for english, french in MONTHS if english == label))
+
+
+def _fact_variants(value: Any, labels: dict[str, str] | None = None) -> tuple[str, ...]:
     value = _public_value(value)
     if value is None or value == "":
         return ()
@@ -105,8 +118,14 @@ def _fact_variants(value: Any) -> tuple[str, ...]:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return _number_variants(value)
     if isinstance(value, str):
-        return _date_variants(value) if len(value) >= 10 and value[4] == "-" else (value,)
+        variants = _date_variants(value) if len(value) >= 10 and value[4] == "-" else (value,)
+        label = (labels or {}).get(value)
+        return tuple(dict.fromkeys((*variants, *_label_variants(label)))) if label else variants
     return (str(value),)
+
+
+def _selection_labels(metadata: dict[str, dict[str, Any]]) -> dict[str, dict[str, str]]:
+    return {field: dict(info["selection"]) for field, info in metadata.items() if info.get("type") == "selection"}
 
 
 def _field_metadata(executor: ReadExecutor, model: str, fields: list[str]) -> dict[str, dict[str, Any]]:
@@ -153,16 +172,13 @@ def _related_ids(value: Any) -> list[int]:
 def _expand_relations(
     executor: ReadExecutor,
     rows: list[dict[str, Any]],
-    model: str,
-    fields: list[str],
-    max_rows: int,
+    metadata: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    metadata = _field_metadata(executor, model, fields)
     expanded = [dict(row) for row in rows]
     cache: dict[tuple[str, tuple[int, ...]], dict[int, dict[str, Any]]] = {}
-    for field in fields:
-        relation = metadata[field].get("relation")
-        if not relation or metadata[field].get("type") not in {"many2many", "one2many"}:
+    for field, info in metadata.items():
+        relation = info.get("relation")
+        if not relation or info.get("type") not in {"many2many", "one2many"}:
             continue
         ids = sorted({item for row in rows for item in _related_ids(row.get(field))})
         if not ids:
@@ -178,31 +194,25 @@ def _expand_relations(
     return expanded
 
 
-def _row_public_values(executor: ReadExecutor, model: str, rows: list[dict[str, Any]], fields: list[str], max_rows: int) -> list[dict[str, Any]]:
-    metadata = _field_metadata(executor, model, fields)
-    rows = _expand_relations(executor, rows, model, fields, max_rows)
-    result = []
-    for row in rows:
-        public = {}
-        for field in fields:
-            value = row.get(field)
-            if metadata[field].get("type") == "many2one":
-                public[field] = _public_value(value)
-            else:
-                public[field] = _public_value(value)
-        result.append(public)
-    return result
+def _row_public_values(
+    executor: ReadExecutor, rows: list[dict[str, Any]], metadata: dict[str, dict[str, Any]], fields: list[str]
+) -> list[dict[str, Any]]:
+    expanded = _expand_relations(executor, rows, metadata)
+    return [{field: _public_value(row.get(field)) for field in fields} for row in expanded]
 
 
-def _groups_for_row(row: dict[str, Any]) -> tuple[tuple[str, ...], ...]:
-    return tuple(group for value in row.values() for group in (_fact_variants(value),) if group)
+def _groups_for_row(row: dict[str, Any], labels: dict[str, dict[str, str]] | None = None) -> tuple[tuple[str, ...], ...]:
+    labels = labels or {}
+    return tuple(group for field, value in row.items() for group in (_fact_variants(value, labels.get(field)),) if group)
 
 
 def _result_for_rows(executor: ReadExecutor, plan: dict[str, Any], max_rows: int) -> OracleResult:
     fields = list(plan["fields"])
     raw_rows = _read_rows(executor, plan["model"], _resolve_tokens(plan["domain"], executor), fields, max_rows)
-    public_rows = _row_public_values(executor, plan["model"], raw_rows, fields, max_rows)
-    row_groups = tuple(_groups_for_row(row) for row in public_rows)
+    metadata = _field_metadata(executor, plan["model"], fields)
+    public_rows = _row_public_values(executor, raw_rows, metadata, fields)
+    labels = _selection_labels(metadata)
+    row_groups = tuple(_groups_for_row(row, labels) for row in public_rows)
     expected = tuple(group for row in row_groups for group in row)
     return OracleResult(
         status="ok",
@@ -243,15 +253,10 @@ def _result_for_aggregate(executor: ReadExecutor, plan: dict[str, Any], max_rows
         bucket["total"] += value
     if not totals:
         totals[""] = {"currency": "", "total": 0.0}
-    groups = []
-    for bucket in totals.values():
-        amount = _fact_variants(bucket["total"])
-        currency = _fact_variants(bucket["currency"])
-        groups.append(tuple(dict.fromkeys((*amount, *currency))))
     return OracleResult(
         status="ok",
         kind=plan["kind"],
-        expected_groups=tuple(groups),
+        expected_groups=tuple(_fact_variants(bucket["total"]) for bucket in totals.values()),
         value=[dict(item) for item in totals.values()],
         count=len(raw_rows),
         empty=not raw_rows,
@@ -280,6 +285,7 @@ def _result_for_relation(executor: ReadExecutor, plan: dict[str, Any], max_rows:
     raw_rows = _read_rows(executor, plan["model"], _resolve_tokens(plan["domain"], executor), fields, max_rows)
     output_rows = []
     row_groups = []
+    has_related = False
     for root in raw_rows:
         root_relation_fields = {chain[0]["field"] for chain in plan["paths"]}
         public_root = {field: _public_value(root.get(field)) for field in fields if field not in root_relation_fields}
@@ -292,6 +298,7 @@ def _result_for_relation(executor: ReadExecutor, plan: dict[str, Any], max_rows:
                 value = {field: _public_value(record.get(field)) for field in chain[-1]["fields"]}
                 values.append(value)
                 groups.extend(_groups_for_row(value))
+            has_related = has_related or bool(values)
             public[f"relation_{index + 1}"] = values
         output_rows.append(public)
         row_groups.append(tuple(groups))
@@ -303,7 +310,7 @@ def _result_for_relation(executor: ReadExecutor, plan: dict[str, Any], max_rows:
         row_groups=tuple(row_groups),
         count=len(output_rows),
         rows=tuple(output_rows),
-        empty=not output_rows,
+        empty=not has_related,
     )
 
 
@@ -313,13 +320,8 @@ def _result_for_value(executor: ReadExecutor, plan: dict[str, Any]) -> OracleRes
         raise NotApplicable(f"no record found for {plan['model']}")
     raw = rows[0].get(plan["field"])
     public = _public_value(raw)
-    groups = _fact_variants(public)
-    metadata = _field_metadata(executor, plan["model"], [plan["field"]])[plan["field"]]
-    if metadata.get("type") == "selection" and public is not None:
-        labels = dict(metadata.get("selection") or [])
-        label = labels.get(str(public))
-        if label:
-            groups = tuple(dict.fromkeys((*groups, label)))
+    metadata = _field_metadata(executor, plan["model"], [plan["field"]])
+    groups = _fact_variants(public, _selection_labels(metadata).get(plan["field"]))
     return OracleResult(status="ok", kind=plan["kind"], expected_groups=(groups,), value=public)
 
 

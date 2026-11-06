@@ -73,18 +73,26 @@ def _backend_error(result: dict) -> str | None:
     return backend[0].get("type", "backend error") if backend else None
 
 
+def _domain_shape(domain: list) -> list:
+    """Logical operators and [field, operator] pairs of a domain: the values stay out of the captures."""
+    return [token if isinstance(token, str) else list(token[:2]) for token in domain]
+
+
 def _safe_tool_calls(calls: list[dict]) -> list[dict]:
-    return [
-        {
-            key: call[key]
-            for key in ("name", "status", "error", "covers_plan")
-            if key in call
-        }
-        for call in calls
-    ]
+    """Tool calls as recorded in the captures: names, models, keyword, domain shape and counts, no data values."""
+    safe = []
+    for call in calls:
+        args = call.get("args") or {}
+        item = {key: call[key] for key in ("name", "status", "error", "row_count", "covers_plan") if key in call}
+        item.update({key: args[key] for key in ("model", "query") if key in args})
+        if "domain" in args:
+            item["domain"] = _domain_shape(args["domain"])
+        safe.append(item)
+    return safe
 
 
 def run_model(oracle_records, questions_by_id, session, password, model, reasoning_effort, passes, output, run_id, timeout_seconds, context_length):
+    from erp_data.orm_agent_helpers import DOMAIN_QUERY_TOOLS
     from scripts.run_erp_model_eval import _run_isolated_question
 
     applicable = [record for record in oracle_records if record.get("oracle_status") == "ok"]
@@ -109,7 +117,11 @@ def run_model(oracle_records, questions_by_id, session, password, model, reasoni
                 )
                 elapsed = round(time.monotonic() - started, 1)
                 answer = result.get("answer", "")
-                scored = score_answer(answer, result_from_record(oracle_record_item))
+                read_data = any(
+                    call.get("status") == "ok" and call["name"] in DOMAIN_QUERY_TOOLS | {"read"}
+                    for call in result.get("tool_calls", [])
+                )
+                scored = score_answer(answer, result_from_record(oracle_record_item), read_data)
                 record = {
                     "record_type": "model",
                     "run_id": run_id,

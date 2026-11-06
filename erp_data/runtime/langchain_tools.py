@@ -29,6 +29,10 @@ UNKNOWN_FIELDS_HINT = (
     "\nSome requested names are not fields of this model. Read the full list (fields_get without "
     "field_names) before concluding that a field does not exist."
 )
+NO_MODEL_HINT = (
+    "\nNo model matches this keyword. Technical model names are in English and labels follow the "
+    "interface language of the instance: retry with the English equivalent of the business term."
+)
 FULL_LIST_HINT = (
     "\nMatch every qualifier of the question (type, status, party, period) to a field of this list "
     "and apply each one as a filter or grouping."
@@ -85,6 +89,8 @@ LooseDomain = Annotated[
 
 
 def _schema_hint(result: OrmToolResult) -> str:
+    if result.observation.tool == "list_models":
+        return "" if result.observation.row_count else NO_MODEL_HINT
     if result.observation.tool != "fields_get":
         return ""
     if result.evidence and result.evidence[0].value.get("unknown_fields"):

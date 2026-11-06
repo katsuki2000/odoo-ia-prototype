@@ -369,7 +369,7 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
 
 def _run_loop_with_tool_outcome(
     monkeypatch, answer, record_read, explanation="Le modèle demandé est introuvable.", method="search_count",
-    plan=None, covers_plan=True,
+    plan=None, covers_plan=True, observation="observation",
 ):
     from langchain_core.messages import AIMessage
 
@@ -387,7 +387,7 @@ def _run_loop_with_tool_outcome(
     def fake_execute(_tc, _tools, _plan=None):
         if record_read:
             _record_read(method=method)
-        return "search_read", {}, "observation", covers_plan
+        return "search_read", {}, observation, covers_plan
 
     monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (plan, 0))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
@@ -399,8 +399,13 @@ def _run_loop_with_tool_outcome(
     return node.orm_agent_loop({"question": "Rapport des ventes ?"})
 
 
+REFUSED = "ORM read refused: model missing"
+
+
 def test_an_answer_after_only_refused_reads_is_replaced_by_the_explanation_and_cites_no_source(monkeypatch):
-    out = _run_loop_with_tool_outcome(monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False)
+    out = _run_loop_with_tool_outcome(
+        monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False, observation=REFUSED,
+    )
     response = out["response"]
     assert response.answer == "Le modèle demandé est introuvable."
     assert response.sources == []
@@ -411,17 +416,33 @@ def test_an_answer_after_only_refused_reads_is_replaced_by_the_explanation_and_c
 def test_the_fixed_message_replaces_the_answer_when_the_explanation_fails(monkeypatch):
     from erp_data.orm_agent_node import NO_READ_ANSWER
 
-    out = _run_loop_with_tool_outcome(monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False, explanation="")
+    out = _run_loop_with_tool_outcome(
+        monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False, explanation="", observation=REFUSED,
+    )
     assert out["response"].answer == NO_READ_ANSWER
 
 
 @pytest.mark.parametrize("method", ["get_available_models", "fields_get"])
 def test_a_schema_read_alone_does_not_count_as_data(monkeypatch, method):
-    out = _run_loop_with_tool_outcome(monkeypatch, "Il y a 14 employés actifs.", record_read=True, method=method)
+    out = _run_loop_with_tool_outcome(
+        monkeypatch, "Il y a 14 employés actifs.", record_read=True, method=method, observation=REFUSED,
+    )
     response = out["response"]
     assert response.answer == "Le modèle demandé est introuvable."
     assert response.sources == []
     assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
+
+
+@pytest.mark.parametrize("method", ["get_available_models", "fields_get"])
+def test_the_answer_is_kept_without_explanation_when_no_tool_failed_and_no_data_was_read(monkeypatch, method):
+    out = _run_loop_with_tool_outcome(
+        monkeypatch, "Aucun modèle ne correspond à votre question.", record_read=True, method=method,
+    )
+    response = out["response"]
+    assert response.answer == "Aucun modèle ne correspond à votre question."
+    assert response.sources == []
+    assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
+    assert out["timing"]["llm_call_count"] == 2
 
 
 def test_an_answer_after_a_successful_read_is_kept(monkeypatch):
@@ -561,6 +582,32 @@ def test_prompt_does_not_equate_related_display_names_with_business_state():
     assert "Ne remplace jamais cet état par des noms d'affichage" in ORM_AGENT_SYSTEM_PROMPT
 
 
+def test_prompt_requires_a_read_for_existence_and_count_questions():
+    assert "Une question d'existence ou de comptage" in ORM_AGENT_SYSTEM_PROMPT
+    assert "jamais du schéma seul" in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_prompt_lists_every_parent_for_a_for_each_question():
+    assert "pour chaque X, quels Y" in ORM_AGENT_SYSTEM_PROMPT
+    assert "Ne pars pas de Y" in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_query_planner_prompt_makes_the_parent_of_a_for_each_question_the_subject(monkeypatch):
+    class StructuredPlanner:
+        def with_structured_output(self, _schema, method):
+            return self
+
+    sent = []
+    monkeypatch.setattr(
+        "erp_data.orm_agent_helpers.invoke_llm",
+        lambda _llm, messages: sent.extend(messages) or QueryPlan(
+            subject="commandes", result_kind="list", answer_language="français"
+        ),
+    )
+    plan_orm_question("Pour chaque commande, quels transferts ?", lambda **_kwargs: StructuredPlanner())
+    assert "le sujet est X ; Y est la valeur demandée, pas une condition" in sent[0].content
+
+
 def test_refusal_prompt_forbids_data_and_technical_terms():
     from erp_data.prompts import build_orm_refusal_prompt
 
@@ -683,6 +730,85 @@ def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measur
     result = node.orm_agent_loop({"question": "Combien a-t-on dépensé le mois dernier ?"})
     assert result["response"].answer == "Total : 1200."
     assert seen[2] == MEASURE_READ_REMINDER
+
+
+@pytest.mark.parametrize(
+    ("kind", "tools", "expected"),
+    [
+        ("count", ["list_models", "fields_get"], True),
+        ("list", [], True),
+        ("detail", ["fields_get"], True),
+        ("count", ["fields_get", "search_count"], False),
+        ("detail", ["read"], False),
+        ("unknown", ["fields_get"], False),
+    ],
+)
+def test_a_plan_expecting_data_needs_a_record_read(kind, tools, expected):
+    from erp_data.orm_agent_helpers import answered_without_reading
+
+    plan = QueryPlan(subject="factures", result_kind=kind, answer_language="English")
+    assert answered_without_reading(plan, tools) is expected
+    assert answered_without_reading(None, tools) is False
+
+
+def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.prompts import NO_READ_REMINDER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([
+        AIMessage(content="Aucune facture ne peut avoir deux statuts."),
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc1"}]),
+        AIMessage(content="Aucune facture."),
+    ])
+    seen = []
+
+    def fake_invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+
+    def fake_execute(tool_call, _tools, _plan=None):
+        _record_read(method=tool_call["name"])
+        return tool_call["name"], {}, "observation", True
+
+    plan = QueryPlan(subject="factures", result_kind="count", answer_language="French")
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "Existe-t-il une facture brouillon et publiee ?"})
+    assert result["response"].answer == "Aucune facture."
+    assert seen[1] == NO_READ_REMINDER
+    assert result["timing"]["llm_call_count"] == 4
+
+
+def test_the_reminder_to_read_is_sent_only_once(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([AIMessage(content="Sur quelle période ?"), AIMessage(content="Précisez la période.")])
+    plan = QueryPlan(subject="factures", result_kind="list", answer_language="French")
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", lambda *_a: next(replies))
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "Liste des factures ?"})
+    assert result["response"].answer == "Précisez la période."
 
 
 def test_plan_text_asks_for_the_question_language_with_untranslated_odoo_labels():

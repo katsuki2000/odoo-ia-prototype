@@ -103,42 +103,42 @@ def _abstention(answer: str) -> bool:
     markers = (
         "jenepeuxpas",
         "jen'aipasacces",
+        "jen'aipaspu",
         "jenesaispas",
+        "n'apasabouti",
+        "n'apaspu",
+        "pasdedonneesdisponibles",
         "donneesindisponibles",
         "informationindisponible",
         "impossiblederepondre",
-        "no_data_answer",
-        "incomplete_query_answer",
     )
     return any(marker in folded for marker in markers)
 
 
-def score_answer(answer: str, oracle: OracleResult) -> dict[str, Any]:
-    if oracle.empty and oracle.kind in {"rows", "relation"}:
-        correct = _empty_answer(answer)
+def score_answer(answer: str, oracle: OracleResult, read_data: bool = True) -> dict[str, Any]:
+    """read_data: the agent read records; without a read, an empty result is a claim nothing supports."""
+    folded = normalize(answer)
+    abstention = _abstention(answer)
+    matches = [any(contains_fact(folded, fact) for fact in group) for group in oracle.expected_groups]
+    if oracle.empty and oracle.kind in {"rows", "relation", "count"}:
+        correct = read_data and ((_empty_answer(answer) and not abstention) or (bool(matches) and all(matches)))
         return {
             "fact_recall": 1.0 if correct else 0.0,
             "complete": correct,
-            "row_recall": 1.0 if correct else 0.0,
-            "abstention": _abstention(answer),
+            "row_recall": None if oracle.kind == "count" else float(correct),
+            "abstention": abstention,
         }
-    matches = [
-        any(contains_fact(normalize(answer), fact) for fact in group)
-        for group in oracle.expected_groups
-    ]
     matched = sum(matches)
-    fact_recall = matched / len(matches) if matches else 0.0
     row_matches = []
     cursor = 0
     for row in oracle.row_groups:
-        row_length = len(row)
-        row_matches.append(all(matches[cursor:cursor + row_length]))
-        cursor += row_length
+        row_matches.append(all(matches[cursor:cursor + len(row)]))
+        cursor += len(row)
     return {
-        "fact_recall": fact_recall,
+        "fact_recall": matched / len(matches) if matches else 0.0,
         "complete": bool(matches) and matched == len(matches),
         "row_recall": sum(row_matches) / len(row_matches) if row_matches else None,
-        "abstention": _abstention(answer),
+        "abstention": abstention,
     }
 
 

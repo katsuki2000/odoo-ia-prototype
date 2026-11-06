@@ -22,14 +22,16 @@ def classify_tool_observation(observation):
     return "ok"
 
 
-def describe_tool_call(name, arguments, observation, covers_plan=None):
-    """Benchmark record of a tool call: its arguments, the error when it was refused or unknown, and for a
-    successful domain read whether its domain holds a filter per plan requirement (absent for other calls,
-    where the measure does not apply)."""
+def describe_tool_call(name, arguments, observation, covers_plan=None, row_count=None):
+    """Benchmark record of a tool call: its arguments, the error when it was refused or unknown, the number of
+    rows it returned, and for a successful domain read whether its domain holds a filter per plan requirement
+    (absent for other calls, where the measure does not apply)."""
     from config import settings
     from erp_data.orm_agent_helpers import DOMAIN_QUERY_TOOLS
 
     call = {"name": name, "status": classify_tool_observation(observation), "args": arguments}
+    if row_count is not None:
+        call["row_count"] = row_count
     if call["status"] != "ok":
         call["error"] = str(observation)[:settings.OBSERVATION_PREVIEW_CHARS]
     elif name in DOMAIN_QUERY_TOOLS and covers_plan is not None:
@@ -44,7 +46,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
     import erp_data.orm_agent_helpers as helpers
     import erp_data.orm_agent_node as agent
     from evaluation.ollama_server import model_override
-    from core.evidence import start_evidence_collection
+    from core.evidence import peek_turn_evidence, start_evidence_collection
 
     tool_calls = []
     llm_errors = []
@@ -57,8 +59,11 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
     build_response = agent._build_response
 
     def tracked_tool_call(tool_call, all_tools, plan=None):
+        evidence_before = len(peek_turn_evidence())
         name, arguments, observation, covers_plan = execute_tool_call(tool_call, all_tools, plan)
-        call = describe_tool_call(name, arguments, observation, covers_plan)
+        evidence = peek_turn_evidence()
+        row_count = evidence[-1].scope.get("row_count") if len(evidence) > evidence_before else None
+        call = describe_tool_call(name, arguments, observation, covers_plan, row_count)
         tool_calls.append(call)
         result_queue.put({"event": "tool_call", "call": call})
         return name, arguments, observation, covers_plan

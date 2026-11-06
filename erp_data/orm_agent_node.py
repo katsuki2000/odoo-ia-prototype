@@ -23,6 +23,7 @@ from erp_data.orm_agent_helpers import (
     DOMAIN_QUERY_TOOLS,
     QueryPlan,
     _build_llm,
+    answered_without_reading,
     counted_instead_of_measured,
     execute_tool_call,
     explain_refusals,
@@ -33,7 +34,12 @@ from erp_data.orm_agent_helpers import (
     resolve_orm_tools,
     successful_tool_observation,
 )
-from erp_data.prompts import EMPTY_REPLY_REMINDER, MEASURE_READ_REMINDER, build_orm_agent_messages
+from erp_data.prompts import (
+    EMPTY_REPLY_REMINDER,
+    MEASURE_READ_REMINDER,
+    NO_READ_REMINDER,
+    build_orm_agent_messages,
+)
 from erp_data.runtime.read_tools import SCHEMA_METHODS
 
 logger = logging.getLogger(__name__)
@@ -43,6 +49,14 @@ NO_READ_ANSWER = (
     "Je n'ai pas pu lire les données nécessaires pour répondre : les accès ont été refusés ou ont échoué. "
     "Précisez le sujet, le statut ou la période, ou reformulez la question."
 )
+
+
+def _missing_read_reminder(plan: QueryPlan | None, tool_names: List[str]) -> Optional[str]:
+    if counted_instead_of_measured(plan, tool_names):
+        return MEASURE_READ_REMINDER
+    if answered_without_reading(plan, tool_names):
+        return NO_READ_REMINDER
+    return None
 
 
 class ReactResult(NamedTuple):
@@ -66,7 +80,7 @@ def _run_react(
     messages = build_orm_agent_messages(question, chat_history, query_plan=plan and format_query_plan(plan))
     observations: List[Any] = []
     tool_names: List[str] = []
-    measure_reminded = False
+    reminded: set[str] = set()
     query_refusals = 0
     contract_refusals = 0
     llm_calls, hops = planning_calls, 0
@@ -82,9 +96,10 @@ def _run_react(
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
-            if counted_instead_of_measured(plan, tool_names) and not measure_reminded:
-                measure_reminded = True
-                messages.append(HumanMessage(content=MEASURE_READ_REMINDER))
+            reminder = _missing_read_reminder(plan, tool_names)
+            if reminder and reminder not in reminded:
+                reminded.add(reminder)
+                messages.append(HumanMessage(content=reminder))
                 continue
             if str(ai_msg.content).strip():
                 return ReactResult(ai_msg.content, observations, llm_calls, hops)
@@ -121,10 +136,10 @@ def _run_react(
 
 def _build_response(question: str, result: ReactResult) -> tuple[AssistantResponse, int]:
     """Response and extra LLM calls. Sources and confidence rest on this turn's successful data reads: refused
-    calls and schema reads (model list, field list) are not data, so without one the model's answer is replaced
-    by an explanation of why nothing could be read."""
+    calls and schema reads (model list, field list) are not data. Without a data read and after a failed tool call,
+    the model's answer is replaced by an explanation of the failure; without a failure it is kept."""
     reads = [item for item in peek_turn_evidence() if item.scope.get("method") not in SCHEMA_METHODS]
-    if result.observations and not reads:
+    if not reads and any(not successful_tool_observation(item) for item in result.observations):
         explanation, extra_calls = explain_refusals(question, [str(item) for item in result.observations])
         answer = explanation or NO_READ_ANSWER
         return AssistantResponse(answer=answer, sources=[], confidence=ORM_CONFIDENCE_WITHOUT_DATA), extra_calls
