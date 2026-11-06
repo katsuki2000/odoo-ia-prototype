@@ -172,8 +172,7 @@ class TestIngestionOrchestrator(unittest.TestCase):
     def test_stats_by_type_tracking(self):
         """Test that stats track chunks by type."""
         self.orchestrator.stats["by_type"]["doc_pdf"] = 5
-        self.orchestrator.stats["by_type"]["code_python"] = 3
-        self.orchestrator.stats["by_type"]["doc_wiki"] = 2
+        self.orchestrator.stats["by_type"]["doc_wiki"] = 5
         self.orchestrator.stats["total_chunks"] = 10
 
         self.assertEqual(

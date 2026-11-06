@@ -235,8 +235,6 @@ class TestChromaManager(unittest.TestCase):
         stats = self.manager.get_stats()
 
         self.assertEqual(stats["total_chunks"], 0)
-        self.assertEqual(stats["by_type"]["code_python"], 0)
-        self.assertEqual(stats["by_type"]["code_xml"], 0)
         self.assertEqual(stats["by_type"]["doc_pdf"], 0)
         self.assertEqual(stats["by_type"]["doc_wiki"], 0)
 
@@ -244,18 +242,13 @@ class TestChromaManager(unittest.TestCase):
     def test_get_stats_populated(self):
         """Test getting stats from populated collection."""
         texts = [
-            "Python code", "Python code", "Python code",
-            "XML template", "XML template",
-            "PDF document",
+            "PDF document 1",
+            "PDF document 2",
             "Wiki article",
         ]
         metadatas = [
-            {"source": "file1.py", "type": "code_python", "module": "account"},
-            {"source": "file2.py", "type": "code_python", "module": "account"},
-            {"source": "file3.py", "type": "code_python", "module": "sale"},
-            {"source": "template1.xml", "type": "code_xml", "module": "account"},
-            {"source": "template2.xml", "type": "code_xml", "module": "sale"},
-            {"source": "doc.pdf", "type": "doc_pdf", "module": "stock"},
+            {"source": "doc1.pdf", "type": "doc_pdf", "module": "account"},
+            {"source": "doc2.pdf", "type": "doc_pdf", "module": "sale"},
             {"source": "wiki.md", "type": "doc_wiki", "module": "account"},
         ]
 
@@ -263,14 +256,11 @@ class TestChromaManager(unittest.TestCase):
 
         stats = self.manager.get_stats()
 
-        self.assertEqual(stats["total_chunks"], 7)
-        self.assertEqual(stats["by_type"]["code_python"], 3)
-        self.assertEqual(stats["by_type"]["code_xml"], 2)
-        self.assertEqual(stats["by_type"]["doc_pdf"], 1)
+        self.assertEqual(stats["total_chunks"], 3)
+        self.assertEqual(stats["by_type"]["doc_pdf"], 2)
         self.assertEqual(stats["by_type"]["doc_wiki"], 1)
-        self.assertEqual(stats["by_module"]["account"], 4)
-        self.assertEqual(stats["by_module"]["sale"], 2)
-        self.assertEqual(stats["by_module"]["stock"], 1)
+        self.assertEqual(stats["by_module"]["account"], 2)
+        self.assertEqual(stats["by_module"]["sale"], 1)
 
     @pytest.mark.embedding_server
     def test_delete_collection(self):

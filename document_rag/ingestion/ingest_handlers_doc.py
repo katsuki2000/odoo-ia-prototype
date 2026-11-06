@@ -1,4 +1,4 @@
-"""Ingest supported local documents into the documentation collection."""
+"""Ingest supported documents into the documentation collection."""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ def ingest_documents_dir(
     pdf_loader_cls: type[PDFLoader] = PDFLoader,
     wiki_loader_cls: type[WikiLoader] = WikiLoader,
 ) -> None:
+
     """Index supported files directly under a document directory."""
     if not docs_dir.is_dir():
         logger.warning("Document directory not found: %s", docs_dir)
@@ -40,7 +41,7 @@ def ingest_documents_dir(
         ("pdfs", pdf_files, pdf_loader_cls),
         ("wiki", wiki_files, wiki_loader_cls),
     )
-    for group, selected_files, loader_cls in loader_groups:
+    for (group, selected_files, loader_cls) in loader_groups:
         if not selected_files:
             continue
 

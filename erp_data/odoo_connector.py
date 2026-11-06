@@ -43,11 +43,9 @@ class OdooConnector:
 
     def __init__(self, url: str = None, db: str = None, password: str = None, technical: bool = False):
         """
-        Initialize the connector. Credentials can be passed directly or come from config/settings.py.
+        Initialize the connector. 
         Note: We do not store uid here because each query must pass the requesting user's uid.
         The password used here is the application token or user password for the XML-RPC connection.
-        Without an explicit password the service account password is read from the environment
-        when it is first needed; there is no default (see config/odoo_credentials.py).
 
         A technical connector reads instance metadata (installed modules, languages,
         registry labels) with the configured service account and ignores the per-request

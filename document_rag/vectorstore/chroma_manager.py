@@ -68,7 +68,7 @@ class ChromaManager:
         try:
             rows = self.collection.get(include=[])
             type_stats = {}
-            for doc_type in ['code_python', 'code_xml', 'code_js', 'code_csv', 'doc_pdf', 'doc_wiki']:
+            for doc_type in ['doc_pdf', 'doc_wiki']:
                 try:
                     type_stats[doc_type] = len(self.collection.get(where={'type': {'$eq': doc_type}}, include=[]).get('ids', []))
                 except Exception:
