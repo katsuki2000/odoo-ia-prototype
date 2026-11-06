@@ -42,25 +42,16 @@ def format_query_plan(plan: QueryPlan) -> str:
         f"- Conditions obligatoires :\n{conditions}\n"
         f"- Résultat : {plan.result_kind}\n"
         f"- Ambiguïté : {plan.ambiguity or 'aucune'}\n"
-        f"- Langue de la réponse : {plan.answer_language}, libellés Odoo non traduits\n"
-        f"Le domaine exécuté doit contenir au moins {required_filter_count(plan)} filtres "
-        "[champ, opérateur, valeur] : un par condition obligatoire et, si la portée du sujet est `subset`, "
-        "un de plus pour le sujet."
+        f"- Langue de la réponse : {plan.answer_language}, libellés Odoo non traduits"
     )
 
 
-def validate_domain_coverage(plan: QueryPlan | None, tool_name: str, arguments: dict) -> tuple[bool, str | None]:
-    """Return (covered, refusal): the executed domain needs one filter per plan requirement."""
+def domain_covers_plan(plan: QueryPlan | None, tool_name: str, arguments: dict) -> bool:
+    """Whether the domain holds one filter per plan requirement. A measure: it never refuses a query."""
     if plan is None or tool_name not in DOMAIN_QUERY_TOOLS:
-        return False, None
-    required = required_filter_count(plan)
+        return False
     applied = sum(not isinstance(token, str) for token in arguments.get("domain") or [])
-    if applied < required:
-        return False, (
-            f"Query refused: the plan requires {required} domain filters, the domain has {applied}. "
-            "Add one [field, operator, value] filter for each missing condition."
-        )
-    return True, None
+    return applied >= required_filter_count(plan)
 
 
 def successful_tool_observation(observation: Any) -> bool:
@@ -116,9 +107,9 @@ def plan_orm_question(question: str, llm_builder=None) -> tuple[QueryPlan | None
                 "prenante et toute autre précision dans les conditions. Les conditions restent exprimées en langage "
                 "métier : n'invente aucun nom technique de modèle, champ ou valeur. Chaque qualificatif est une "
                 "condition distincte, sauf lorsqu'une expression explique la définition de la précédente : combine "
-                "alors ces reformulations équivalentes en une seule condition. Le sujet doit aussi être mappé par un "
-                "filtre de domaine propre, même si le modèle semble le représenter. Numérote les conditions dans "
-                "leur ordre d'apparition. Si le sujet est une expression composée (par exemple « factures clients », "
+                "alors ces reformulations équivalentes en une seule condition. Les colonnes ou valeurs "
+                "demandées (« avec leur montant ») et la mention du contexte de lecture courant (« de la société "
+                "courante ») ne sont pas des conditions. Si le sujet est une expression composée (par exemple « factures clients », "
                 "« commandes fournisseurs » ou « écritures comptables »), renseigne `subject_scope=model` si elle nomme "
                 "le type d'objet porte par le modele, ou `subject_scope=subset` si elle designe une population a filtrer. "
                 "Ne choisis pas `subset` uniquement parce que l'expression contient plusieurs mots. "
@@ -158,9 +149,6 @@ def execute_tool_call(
         logger.error("Tool argument validation failed for %s: %s", tool_name, exc)
         reasons = _validation_reasons(exc)
         return tool_name, tool_args, f"Query refused: invalid arguments for {tool_name}: {reasons}", False
-    coverage_complete, coverage_error = validate_domain_coverage(plan, tool_name, tool_args)
-    if coverage_error:
-        return tool_name, tool_args, coverage_error, False
 
     try:
         observation = tool.invoke(tool_args)
@@ -170,7 +158,7 @@ def execute_tool_call(
             f"ORM operation '{tool_name}' failed or was refused. "
             "Check the requested model, fields, filters, and the requester's Odoo permissions."
         )
-    return tool_name, tool_args, observation, coverage_complete
+    return tool_name, tool_args, observation, domain_covers_plan(plan, tool_name, tool_args)
 
 
 def _single_answer(prompt: str) -> str:

@@ -104,38 +104,34 @@ def _tool(name):
     return tool
 
 
-def test_domain_coverage_needs_one_filter_per_plan_condition():
-    from erp_data.orm_agent_helpers import validate_domain_coverage
+def test_domain_covers_the_plan_with_one_filter_per_condition():
+    from erp_data.orm_agent_helpers import domain_covers_plan
 
     plan = _plan(["posted", "unpaid"])
 
-    assert validate_domain_coverage(plan, "search_count", {"domain": [POSTED, UNPAID]}) == (True, None)
-    assert validate_domain_coverage(plan, "search_count", {"domain": ["|", POSTED, UNPAID]}) == (True, None)
-    covered, refusal = validate_domain_coverage(plan, "search_count", {"domain": [POSTED]})
-    assert covered is False
-    assert refusal.startswith("Query refused: the plan requires 2 domain filters, the domain has 1.")
-    assert validate_domain_coverage(_plan(["posted"]), "search_count", {"domain": ["|"]})[0] is False
-    assert validate_domain_coverage(plan, "search_count", {})[0] is False
+    assert domain_covers_plan(plan, "search_count", {"domain": [POSTED, UNPAID]}) is True
+    assert domain_covers_plan(plan, "search_count", {"domain": ["|", POSTED, UNPAID]}) is True
+    assert domain_covers_plan(plan, "search_count", {"domain": [POSTED]}) is False
+    assert domain_covers_plan(_plan(["posted"]), "search_count", {"domain": ["|"]}) is False
+    assert domain_covers_plan(plan, "search_count", {}) is False
 
 
 def test_a_subset_subject_needs_one_more_filter():
-    from erp_data.orm_agent_helpers import validate_domain_coverage
+    from erp_data.orm_agent_helpers import domain_covers_plan
 
     plan = _plan(["posted"], subject_scope="subset")
     subject = ("move_type", "=", "out_invoice")
 
-    assert validate_domain_coverage(plan, "search_count", {"domain": [POSTED]})[1].startswith(
-        "Query refused: the plan requires 2 domain filters"
-    )
-    assert validate_domain_coverage(plan, "search_count", {"domain": [subject, POSTED]}) == (True, None)
+    assert domain_covers_plan(plan, "search_count", {"domain": [POSTED]}) is False
+    assert domain_covers_plan(plan, "search_count", {"domain": [subject, POSTED]}) is True
 
 
-def test_domain_coverage_is_not_enforced_without_a_plan_condition_or_for_schema_tools():
-    from erp_data.orm_agent_helpers import validate_domain_coverage
+def test_domain_coverage_is_not_measured_without_a_plan_or_for_schema_tools():
+    from erp_data.orm_agent_helpers import domain_covers_plan
 
-    assert validate_domain_coverage(None, "search_count", {}) == (False, None)
-    assert validate_domain_coverage(_plan(["posted"]), "fields_get", {}) == (False, None)
-    assert validate_domain_coverage(_plan([]), "search_count", {"domain": []}) == (True, None)
+    assert domain_covers_plan(None, "search_count", {}) is False
+    assert domain_covers_plan(_plan(["posted"]), "fields_get", {}) is False
+    assert domain_covers_plan(_plan([]), "search_count", {"domain": []}) is True
 
 
 def test_domain_schema_flattens_nested_fragments():
@@ -152,19 +148,19 @@ def test_domain_schema_flattens_nested_fragments():
     assert parsed["domain"] == [("move_type", "=", "out_invoice"), UNPAID, POSTED]
 
 
-def test_execute_tool_call_refuses_a_domain_that_misses_a_condition_before_orm():
+def test_execute_tool_call_runs_a_domain_that_misses_a_condition_and_reports_it():
     from erp_data.orm_agent_helpers import execute_tool_call
 
     tool = _tool("search_count")
-    name, _arguments, observation, coverage_complete = execute_tool_call(
+    name, arguments, observation, covers_plan = execute_tool_call(
         {"name": "search_count", "args": {"model": "account.move", "domain": [list(POSTED)]}},
         [tool], _plan(["posted", "unpaid"]),
     )
 
     assert name == "search_count"
-    assert observation.startswith("Query refused: the plan requires 2 domain filters")
-    assert coverage_complete is False
-    tool.invoke.assert_not_called()
+    assert observation == "4 records"
+    assert covers_plan is False
+    tool.invoke.assert_called_once_with(arguments)
 
 
 def test_execute_tool_call_runs_a_domain_that_covers_the_plan():
@@ -173,12 +169,12 @@ def test_execute_tool_call_runs_a_domain_that_covers_the_plan():
     tool = _tool("search_count")
     raw_args = {"model": "account.move", "domain": [list(POSTED), list(UNPAID)]}
 
-    _name, arguments, observation, coverage_complete = execute_tool_call(
+    _name, arguments, observation, covers_plan = execute_tool_call(
         {"name": "search_count", "args": raw_args}, [tool], _plan(["posted", "unpaid"]),
     )
 
     assert observation == "4 records"
-    assert coverage_complete is True
+    assert covers_plan is True
     assert arguments["domain"] == [POSTED, UNPAID]
     tool.invoke.assert_called_once_with(arguments)
 
@@ -187,12 +183,12 @@ def test_execute_tool_call_tells_the_model_why_its_arguments_were_rejected():
     from erp_data.orm_agent_helpers import execute_tool_call
 
     tool = _tool("list_models")
-    _name, _arguments, observation, coverage_complete = execute_tool_call(
+    _name, _arguments, observation, covers_plan = execute_tool_call(
         {"name": "list_models", "args": {"filter": "fiscal"}}, [tool],
     )
 
     assert observation == "Query refused: invalid arguments for list_models: query: Field required"
-    assert coverage_complete is False
+    assert covers_plan is False
     tool.invoke.assert_not_called()
 
 
@@ -209,12 +205,14 @@ def test_orm_prompt_documents_the_odoo_domain_shape():
     assert "N'envoie jamais une condition sous forme d'objet" in ORM_AGENT_SYSTEM_PROMPT
     assert "condition_filters" not in ORM_AGENT_SYSTEM_PROMPT
     assert "subject_scope" in ORM_AGENT_SYSTEM_PROMPT
+    assert "ne demande aucun filtre" in ORM_AGENT_SYSTEM_PROMPT
     text = format_query_plan(QueryPlan(
         subject="opportunités", subject_scope="subset", conditions=["perdues", "sans motif de perte"],
         result_kind="count", answer_language="français",
     ))
     assert "Sujet obligatoire : opportunités" in text
-    assert "au moins 3 filtres" in text
+    assert "Portée du sujet : subset" in text
+    assert "au moins" not in text
 
 
 def test_orm_messages_carry_the_business_plan():
@@ -370,7 +368,8 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
 
 
 def _run_loop_with_tool_outcome(
-    monkeypatch, answer, record_read, explanation="Le modèle demandé est introuvable.", method="search_count"
+    monkeypatch, answer, record_read, explanation="Le modèle demandé est introuvable.", method="search_count",
+    plan=None, covers_plan=True,
 ):
     from langchain_core.messages import AIMessage
 
@@ -388,8 +387,9 @@ def _run_loop_with_tool_outcome(
     def fake_execute(_tc, _tools, _plan=None):
         if record_read:
             _record_read(method=method)
-        return "search_read", {}, "observation", True
+        return "search_read", {}, "observation", covers_plan
 
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (plan, 0))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
     monkeypatch.setattr(node, "invoke_llm", lambda *_a: next(replies))
@@ -448,41 +448,19 @@ def test_a_clarifying_question_without_any_tool_call_is_kept(monkeypatch):
     assert response.sources == []
 
 
-def test_partial_answer_is_blocked_when_no_successful_query_covers_all_conditions(monkeypatch):
-    from langchain_core.messages import AIMessage
-
-    import erp_data.orm_agent_node as node
+def test_an_answer_is_kept_when_the_read_domain_misses_a_plan_condition(monkeypatch):
     from erp_data.orm_agent_helpers import QueryPlan
-    from erp_data.orm_agent_node import CONDITION_COVERAGE_REMINDER, INCOMPLETE_QUERY_ANSWER
-
-    class FakeLlm:
-        def bind_tools(self, _tools):
-            return self
-
-    replies = iter([AIMessage(content="Il y a 31 factures."), AIMessage(content="Il y a 31 factures.")])
-    seen = []
-
-    def fake_invoke(_llm, messages):
-        seen.append(messages[-1].content)
-        return next(replies)
 
     plan = QueryPlan(
-        subject="customer invoices",
-        conditions=["customer invoices", "posted", "unpaid"],
-        result_kind="count",
-        answer_language="English",
+        subject="customer invoices", conditions=["posted", "unpaid"],
+        result_kind="count", answer_language="English",
     )
-    monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (plan, 1))
-    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
-    monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
-    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
-    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+    response = _run_loop_with_tool_outcome(
+        monkeypatch, "Il y a 31 factures.", record_read=True, plan=plan, covers_plan=False,
+    )["response"]
 
-    result = node.orm_agent_loop({"question": "How many unpaid customer invoices are posted?"})
-    assert result["response"].answer == INCOMPLETE_QUERY_ANSWER
-    assert result["response"].sources == []
-    assert result["response"].confidence == 0.0
-    assert seen[1] == CONDITION_COVERAGE_REMINDER
+    assert response.answer == "Il y a 31 factures."
+    assert len(response.sources) == 1
 
 
 def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
@@ -490,7 +468,7 @@ def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
 
     import erp_data.orm_agent_node as node
     from erp_data.orm_agent_helpers import QueryPlan
-    from erp_data.orm_agent_node import INCOMPLETE_QUERY_ANSWER
+    from erp_data.orm_agent_node import NO_READ_ANSWER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -517,12 +495,13 @@ def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
     monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
     monkeypatch.setattr(node, "invoke_llm", fake_invoke)
     monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "explain_refusals", lambda _question, _observations: ("", 1))
     monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
 
     result = node.orm_agent_loop({"question": "How many posted customer invoices?"})
 
     assert calls == {"llm": 2, "tool": 2}
-    assert result["response"].answer == INCOMPLETE_QUERY_ANSWER
+    assert result["response"].answer == NO_READ_ANSWER
     assert result["timing"]["hop_count"] == 2
 
 
@@ -558,7 +537,6 @@ def test_contract_refusal_does_not_consume_backend_correction_attempt(monkeypatc
 
     assert result.answer == "Il y a 4 tâches."
     assert result.hops == 3
-    assert result.conditions_covered is True
 
 
 def test_prompt_asks_the_user_for_a_limit_when_a_result_is_truncated():

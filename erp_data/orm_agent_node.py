@@ -43,16 +43,6 @@ NO_READ_ANSWER = (
     "Je n'ai pas pu lire les données nécessaires pour répondre : les accès ont été refusés ou ont échoué. "
     "Précisez le sujet, le statut ou la période, ou reformulez la question."
 )
-INCOMPLETE_QUERY_ANSWER = (
-    "Je ne peux pas confirmer le résultat : toutes les conditions obligatoires de la question "
-    "n'ont pas été appliquées à une lecture réussie des données."
-)
-CONDITION_COVERAGE_REMINDER = (
-    "La requête exécutée ne couvre pas encore toutes les conditions obligatoires du plan. "
-    "En t'appuyant sur fields_get, exécute une lecture dont le domaine applique chaque condition avant de "
-    "répondre. Si une correspondance n'est pas démontrable, demande une précision au lieu de conclure à "
-    "partir du résultat partiel."
-)
 
 
 class ReactResult(NamedTuple):
@@ -60,7 +50,6 @@ class ReactResult(NamedTuple):
     observations: List[Any]
     llm_calls: int
     hops: int
-    conditions_covered: bool = True
 
 
 def _run_react(
@@ -78,8 +67,6 @@ def _run_react(
     observations: List[Any] = []
     tool_names: List[str] = []
     measure_reminded = False
-    conditions_covered = plan is None or not plan.conditions
-    coverage_reminded = False
     query_refusals = 0
     contract_refusals = 0
     llm_calls, hops = planning_calls, 0
@@ -91,16 +78,10 @@ def _run_react(
             ai_msg = invoke_llm(tool_llm, messages)
         except Exception as error:
             logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, error)
-            return ReactResult(None, observations, llm_calls, hops, conditions_covered)
+            return ReactResult(None, observations, llm_calls, hops)
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
-            if not conditions_covered:
-                if coverage_reminded:
-                    return ReactResult(None, observations, llm_calls, hops, False)
-                messages.append(HumanMessage(content=CONDITION_COVERAGE_REMINDER))
-                coverage_reminded = True
-                continue
             if counted_instead_of_measured(plan, tool_names) and not measure_reminded:
                 measure_reminded = True
                 messages.append(HumanMessage(content=MEASURE_READ_REMINDER))
@@ -112,10 +93,10 @@ def _run_react(
 
         for tool_call in ai_msg.tool_calls:
             started = time.time()
-            tool_name, tool_args, observation, coverage_complete = execute_tool_call(tool_call, tools, plan)
+            tool_name, tool_args, observation, covers_plan = execute_tool_call(tool_call, tools, plan)
             observation_succeeded = successful_tool_observation(observation)
             if tool_name in DOMAIN_QUERY_TOOLS and observation_succeeded:
-                conditions_covered = coverage_complete or plan is None or not plan.conditions
+                logger.info("Node [orm_agent_loop]: %s domain covers the plan: %s", tool_name, covers_plan)
             observations.append(observation)
             tool_names.append(tool_name)
             trace_logger.log_hop(
@@ -128,14 +109,12 @@ def _run_react(
                 if is_query_contract_refusal(observation):
                     contract_refusals += 1
                     if contract_refusals >= ORM_MAX_QUERY_REFUSALS:
-                        return ReactResult(None, observations, llm_calls, hops, False)
+                        return ReactResult(None, observations, llm_calls, hops)
                 else:
                     query_refusals += 1
                     if query_refusals >= ORM_MAX_QUERY_REFUSALS:
-                        return ReactResult(None, observations, llm_calls, hops, False)
+                        return ReactResult(None, observations, llm_calls, hops)
 
-    if not conditions_covered:
-        return ReactResult(None, observations, llm_calls, hops, False)
     answer, extra_calls = force_final_synthesis(question, observations)
     return ReactResult(answer, observations, llm_calls + extra_calls, hops)
 
@@ -144,10 +123,6 @@ def _build_response(question: str, result: ReactResult) -> tuple[AssistantRespon
     """Response and extra LLM calls. Sources and confidence rest on this turn's successful data reads: refused
     calls and schema reads (model list, field list) are not data, so without one the model's answer is replaced
     by an explanation of why nothing could be read."""
-    if not result.conditions_covered:
-        return AssistantResponse(
-            answer=INCOMPLETE_QUERY_ANSWER, sources=[], confidence=0.0,
-        ), 0
     reads = [item for item in peek_turn_evidence() if item.scope.get("method") not in SCHEMA_METHODS]
     if result.observations and not reads:
         explanation, extra_calls = explain_refusals(question, [str(item) for item in result.observations])
