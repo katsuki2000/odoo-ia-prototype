@@ -129,7 +129,7 @@ def test_rescoring_uses_the_value_recorded_with_the_run(bench, tmp_path):
         ("12 records", "ok"),
         ("ORM read refused: access denied", "invalid"),
         ("ORM operation 'read' failed or was refused.", "invalid"),
-        ("Query refused: the plan requires 2 domain filters, the domain has 1.", "invalid"),
+        ("Query refused: invalid arguments for list_models: query: Field required", "invalid"),
         ("Tool 'missing_tool' is not available.", "unknown"),
     ],
 )
@@ -143,6 +143,30 @@ def test_describe_tool_call_keeps_the_arguments_and_the_error_of_refused_calls_o
     refused = describe_tool_call("read_group", {"groupby": []}, "ORM read refused: " + "x" * 500)
     assert refused["status"] == "invalid" and refused["args"] == {"groupby": []}
     assert refused["error"].startswith("ORM read refused:") and len(refused["error"]) == 300
+
+
+def test_describe_tool_call_records_covers_plan_for_successful_domain_reads_only():
+    assert describe_tool_call("search_count", {}, "12 records", True)["covers_plan"] is True
+    assert describe_tool_call("search_read", {}, "3 records", False)["covers_plan"] is False
+    assert "covers_plan" not in describe_tool_call("search_count", {}, "12 records")
+    assert "covers_plan" not in describe_tool_call("fields_get", {}, "{}", False)
+    assert "covers_plan" not in describe_tool_call("search_count", {}, "ORM read refused: denied", True)
+    assert "covers_plan" not in describe_tool_call("missing", {}, "Tool 'missing' is not available.", True)
+
+
+def test_benchmark_records_keep_covers_plan_but_not_the_arguments():
+    script = Path(__file__).resolve().parent.parent / "scripts" / "run_erp_benchmark.py"
+    spec = importlib.util.spec_from_file_location("run_erp_benchmark_script", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    calls = [
+        {"name": "search_count", "status": "ok", "args": {"domain": [["state", "=", "x"]]}, "covers_plan": True},
+        {"name": "fields_get", "status": "ok", "args": {"model": "account.move"}},
+    ]
+    assert module._safe_tool_calls(calls) == [
+        {"name": "search_count", "status": "ok", "covers_plan": True},
+        {"name": "fields_get", "status": "ok"},
+    ]
 
 
 def test_run_once_records_tool_and_loop_metrics(monkeypatch, bench):

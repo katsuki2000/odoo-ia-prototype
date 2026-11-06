@@ -89,12 +89,12 @@ def show_expected(questions, execute):
         print(f'{item["id"]}: {expected}\n    {item["question"]}')
 
 
-def _run_isolated_question(question, uid, password, model, reasoning_effort, timeout_seconds):
+def _run_isolated_question(question, uid, password, model, reasoning_effort, timeout_seconds, company_id=None, company_ids=None):
     context = multiprocessing.get_context("spawn")
     result_queue = context.Queue()
     process = context.Process(
         target=run_question_worker,
-        args=(question, uid, password, settings.ODOO_DB, model, reasoning_effort, result_queue),
+        args=(question, uid, password, settings.ODOO_DB, model, reasoning_effort, result_queue, company_id, company_ids),
     )
     try:
         process.start()

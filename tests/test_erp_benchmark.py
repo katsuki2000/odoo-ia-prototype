@@ -99,7 +99,10 @@ def test_model_runner_reuses_the_existing_worker_signature(monkeypatch, tmp_path
 
     monkeypatch.setattr(worker, "_run_isolated_question", fake_worker)
     monkeypatch.setattr(benchmark, "run_on_model", fake_run_on_model)
-    session = type("Session", (), {"uid": 7, "login": "admin", "instance_fingerprint": "instance", "server_version": "17.0"})()
+    session = type("Session", (), {
+        "uid": 7, "login": "admin", "instance_fingerprint": "instance", "server_version": "17.0",
+        "active_company_id": 1, "allowed_company_ids": [1, 2],
+    })()
     question = {"id": "ERP-C-001", "question": "Combien ?"}
     oracle = {
         "question_id": "ERP-C-001",
@@ -114,4 +117,19 @@ def test_model_runner_reuses_the_existing_worker_signature(monkeypatch, tmp_path
     )
     assert exit_code == 0
     assert records[0]["complete"] is True
-    assert calls == [("Combien ?", 7, "secret", "qwen3:14b", None, 10)]
+    assert calls == [("Combien ?", 7, "secret", "qwen3:14b", None, 10, 1, [1, 2])]
+
+
+def _company_context(rows):
+    from evaluation.erp_benchmark.runner import XmlRpcReadSession
+
+    session = object.__new__(XmlRpcReadSession)
+    session.uid = 7
+    session._execute_raw = lambda *args, **kwargs: rows
+    return session._load_company_context()
+
+
+def test_active_company_comes_first_in_the_allowed_companies():
+    assert _company_context([{"company_id": [1, "A"], "company_ids": [2, 1]}]) == (1, [1, 2])
+    assert _company_context([{"company_id": [3, "C"], "company_ids": [2, 1]}]) == (3, [3, 2, 1])
+    assert _company_context([{"company_id": False, "company_ids": [2, 1]}]) == (None, [2, 1])

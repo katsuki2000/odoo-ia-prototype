@@ -77,7 +77,7 @@ def _safe_tool_calls(calls: list[dict]) -> list[dict]:
     return [
         {
             key: call[key]
-            for key in ("name", "status", "error")
+            for key in ("name", "status", "error", "covers_plan")
             if key in call
         }
         for call in calls
@@ -104,6 +104,8 @@ def run_model(oracle_records, questions_by_id, session, password, model, reasoni
                     model,
                     reasoning_effort,
                     timeout_seconds,
+                    session.active_company_id,
+                    session.allowed_company_ids or None,
                 )
                 elapsed = round(time.monotonic() - started, 1)
                 answer = result.get("answer", "")

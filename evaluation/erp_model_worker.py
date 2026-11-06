@@ -22,17 +22,22 @@ def classify_tool_observation(observation):
     return "ok"
 
 
-def describe_tool_call(name, arguments, observation):
-    """Benchmark record of a tool call: its arguments, and the error when it was refused or unknown."""
+def describe_tool_call(name, arguments, observation, covers_plan=None):
+    """Benchmark record of a tool call: its arguments, the error when it was refused or unknown, and for a
+    successful domain read whether its domain holds a filter per plan requirement (absent for other calls,
+    where the measure does not apply)."""
     from config import settings
+    from erp_data.orm_agent_helpers import DOMAIN_QUERY_TOOLS
 
     call = {"name": name, "status": classify_tool_observation(observation), "args": arguments}
     if call["status"] != "ok":
         call["error"] = str(observation)[:settings.OBSERVATION_PREVIEW_CHARS]
+    elif name in DOMAIN_QUERY_TOOLS and covers_plan is not None:
+        call["covers_plan"] = covers_plan
     return call
 
 
-def run_question(question, uid, api_key, db, model, reasoning_effort, result_queue):
+def run_question(question, uid, api_key, db, model, reasoning_effort, result_queue, company_id=None, company_ids=None):
     """Execute one question and return only benchmark-safe metadata to the parent."""
     from config import settings
     from erp_data.odoo_context import request_identity
@@ -52,11 +57,11 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
     build_response = agent._build_response
 
     def tracked_tool_call(tool_call, all_tools, plan=None):
-        name, arguments, observation, coverage_complete = execute_tool_call(tool_call, all_tools, plan)
-        call = describe_tool_call(name, arguments, observation)
+        name, arguments, observation, covers_plan = execute_tool_call(tool_call, all_tools, plan)
+        call = describe_tool_call(name, arguments, observation, covers_plan)
         tool_calls.append(call)
         result_queue.put({"event": "tool_call", "call": call})
-        return name, arguments, observation, coverage_complete
+        return name, arguments, observation, covers_plan
 
     def tracked_build_response(question, result):
         model_answers.append(result.answer)
@@ -83,7 +88,7 @@ def run_question(question, uid, api_key, db, model, reasoning_effort, result_que
 
     try:
         with ExitStack() as stack:
-            stack.enter_context(request_identity(uid, api_key, db=db))
+            stack.enter_context(request_identity(uid, api_key, company_id=company_id, company_ids=company_ids, db=db))
             stack.enter_context(patch.object(agent, "execute_tool_call", tracked_tool_call))
             stack.enter_context(patch.object(agent, "plan_orm_question", tracked_plan))
             stack.enter_context(patch.object(

@@ -58,8 +58,9 @@ class XmlRpcReadSession:
         active = company[0] if isinstance(company, list) and company and isinstance(company[0], int) else None
         allowed = row.get("company_ids") or []
         allowed = [item for item in allowed if isinstance(item, int)]
-        if active is not None and active not in allowed:
-            allowed.insert(0, active)
+        if active is not None:
+            # Odoo 17 takes the first allowed company as the current one.
+            allowed = [active] + [item for item in allowed if item != active]
         return active, allowed
 
     def _execute_raw(self, model: str, method: str, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
