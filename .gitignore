@@ -29,6 +29,7 @@ active_graph.json*
 
 # Generated measurement artefacts: evaluation runs, raw responses, dumps, traces (decision pmm)
 captures/
+todo/bench50_*.jsonl
 
 
 # Scratch work and thesis backups -- local only
