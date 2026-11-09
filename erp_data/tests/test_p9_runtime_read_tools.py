@@ -471,3 +471,25 @@ def test_odoo_traceback_is_reduced_to_its_last_line(requester_uid, mock_connecto
     message = str(exc.value)
     assert "Traceback" not in message and "File" not in message
     assert "ValueError: Invalid field crm.lead.foo in leaf ('foo', '=', 1)" in message
+
+
+@pytest.mark.parametrize(
+    "metadata, groupby, expected_groupby, expected_lazy",
+    [
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, [], ["currency_id"], False),
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["partner_id"], ["partner_id", "currency_id"], False),
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["currency_id"], ["currency_id"], True),
+        ({"amount_total": {"type": "monetary", "currency_field": "company_currency"}, "company_currency": {"store": False}}, [], [], True),
+        ({"amount_total": {"type": "float"}}, [], [], True),
+    ],
+)
+def test_orm_read_group_never_sums_amounts_of_different_currencies(
+    requester_uid, mock_connector, metadata, groupby, expected_groupby, expected_lazy
+):
+    mock_connector.fields_get.side_effect = lambda uid, model, names: {names[0]: metadata[names[0]]}
+    mock_connector.read_group.return_value = []
+    orm_read_group("sale.order", domain=[], fields=["amount_total:sum"], groupby=groupby)
+
+    call = mock_connector.read_group.call_args.kwargs
+    assert call["groupby"] == expected_groupby
+    assert call["lazy"] is expected_lazy

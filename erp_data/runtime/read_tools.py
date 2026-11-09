@@ -386,6 +386,17 @@ def orm_search_count(model: str, domain: Optional[list] = None) -> OrmToolResult
     )
 
 
+def _with_currency_groupby(model: str, fields: list[str], groupby: list[str]) -> list[str]:
+    """Add the stored currency field of each aggregated monetary field, so amounts of different currencies are never summed."""
+    extended = list(groupby)
+    for spec in fields:
+        info = _field_info(model, spec.split(":")[0])
+        currency = info.get("currency_field") if info and info.get("type") == "monetary" else None
+        if currency and currency not in extended and (_field_info(model, currency) or {}).get("store"):
+            extended.append(currency)
+    return extended
+
+
 def orm_read_group(
     model: str,
     domain: Optional[list],
@@ -400,6 +411,9 @@ def orm_read_group(
     if not fields:
         raise OrmRuntimeError("fields must be a non-empty list for read_group")
     groupby = validate_groupby(groupby)
+    grouped = _with_currency_groupby(model, fields, groupby)
+    lazy = lazy and grouped == groupby
+    groupby = grouped
     uid = require_execution_uid()
     request = {
         "model": model,
