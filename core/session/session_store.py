@@ -33,8 +33,3 @@ def update_session(session_id: str, chat_history: list[BaseMessage], *, owner_ui
         _SESSIONS.move_to_end(key)
         while len(_SESSIONS) > SESSION_MAX_COUNT:
             _SESSIONS.popitem(last=False)
-
-
-def clear_session(session_id: str, owner_uid: OwnerUid) -> None:
-    with _LOCK:
-        _SESSIONS.pop(_owned_key(session_id, owner_uid), None)
