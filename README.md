@@ -227,7 +227,7 @@ odoo-ia-prototype/
 └── requirements.txt            # Python dependencies
 ```
 
-The system mode runs one agent loop over the typed, read-only ORM tools (`fields_get`, `search`, `read`, `search_read`, `search_count`, `read_group`, `name_search`); it refuses out-of-scope, prompt-injection and mass-extraction requests before any tool call. The documentary path remains a separate RAG route.
+The system mode runs one agent loop over the typed, read-only ORM tools (`fields_get`, `search`, `read`, `search_read`, `search_count`, `read_group`, `name_search`); reads run under the requester's identity, so an instruction injected in a question cannot widen access, and out-of-scope questions get the fixed refusal from the prompt. The documentary path remains a separate RAG route.
 
 ---
 

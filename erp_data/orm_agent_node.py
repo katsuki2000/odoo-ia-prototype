@@ -13,7 +13,6 @@ from config.settings import (
     REACT_RECURSION_LIMIT,
 )
 from core.evidence import filter_disclosed_evidence, peek_turn_evidence
-from core.guardrails import PROMPT_INJECTION_REFUSAL_MSG, is_prompt_injection
 from core.llm import invoke_llm
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
@@ -162,17 +161,12 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     trace_logger = ReasoningTraceLogger()
     trace_id = new_trace_id()
-    if is_prompt_injection(question):
-        logger.info("Node [orm_agent_loop]: Prompt injection refused, no LLM call.")
-        result = ReactResult(PROMPT_INJECTION_REFUSAL_MSG, [], 0, 0)
-        response, extra_calls = AssistantResponse(answer=PROMPT_INJECTION_REFUSAL_MSG, sources=[], confidence=0.0), 0
-    else:
-        query_plan, planning_calls = plan_orm_question(question, _build_llm)
-        result = _run_react(
-            question, state.get("chat_history", []), trace_logger, trace_id,
-            plan=query_plan, planning_calls=planning_calls,
-        )
-        response, extra_calls = _build_response(question, result)
+    query_plan, planning_calls = plan_orm_question(question, _build_llm)
+    result = _run_react(
+        question, state.get("chat_history", []), trace_logger, trace_id,
+        plan=query_plan, planning_calls=planning_calls,
+    )
+    response, extra_calls = _build_response(question, result)
 
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
