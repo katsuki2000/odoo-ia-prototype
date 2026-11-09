@@ -31,7 +31,7 @@ def route(state: RAGState) -> dict:
     result = {'route': decision, 'timing': timing}
     if decision not in SOURCES:
         result['response'] = AssistantResponse(
-            answer='Would you like an answer based on the system or on the internal documents?',
+            answer='Souhaitez-vous une réponse fondée sur le système ou sur les documents internes ?',
             sources=[], confidence=0.0)
     logger.info('Source routing: route=%s confidence=%.2f', decision, confidence)
     return result

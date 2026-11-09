@@ -72,7 +72,7 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "l'utilisateur de fixer une limite (nombre de lignes) ou un filtre (période, statut, client). "
     "Pour une liste sans nombre précis, lis toutes les lignes : ne fixe pas de limite de ton choix, le système "
     "plafonne déjà la lecture ; si l'observation est tronquée, dis combien de lignes tu vois. "
-    "Si la question est hors périmètre Odoo ou ERP, réponds exactement : "
+    "Si la question est hors périmètre Odoo ou ERP, réponds par cette phrase, traduite dans la langue de la question si ce n'est pas le français : "
     f'"{OUT_OF_SCOPE_ANSWER}" '
     "Réponds dans la langue de la question, à partir des observations obtenues, en langage métier : le texte de "
     "la réponse ne contient ni nom d'outil, ni le mot ORM, ni domaine, ni nom de paramètre, ni observation brute, "

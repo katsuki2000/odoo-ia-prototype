@@ -67,6 +67,7 @@ def test_score_of_an_unanswerable_question_has_no_recall(bench):
     "Aucun plafond spécifique pour un repas du soir n'est mentionné dans les documents.",
     "Les documents ne précisent pas ce plafond.",
     "I have no reliable source to answer this question.",
+    "Cette question est hors de mon périmètre. Je suis spécialisé dans l'assistance interne et les procédures.",
     "This question is outside my scope. I specialize in internal assistance and procedures",
 ])
 def test_a_refusal_is_recognized_whatever_its_wording(bench, answer):

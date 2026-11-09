@@ -62,7 +62,7 @@ GENERATION_ERROR_PREFIX = 'Sorry, an error'
 ABSTENTION_PATTERN = re.compile('|'.join((
     r"pastrouve(?:cette|d'|del')?information", r'pasdesourcefiable', r'noreliablesource', r'aucune?(?:information|mention)',
     r"n'est(?:pas)?(?:mentionne|precise|indique|documente)", r'ne(?:mentionne|precise|documente)(?:nt)?pas', r'ne(?:contient|contiennent)pas',
-    r'pas(?:documente|precise|mentionne)', r'nefaitpaspartiedemonperimetre', r'outsidemyscope',
+    r'pas(?:documente|precise|mentionne)', r'nefaitpaspartiedemonperimetre', r'horsdemonperimetre', r'outsidemyscope',
 )))
 
 
