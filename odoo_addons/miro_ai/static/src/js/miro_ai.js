@@ -9,13 +9,12 @@ import {
     cancelledContent,
     communicationErrorLabel,
     connectionErrorLabel,
-    evidenceLabel,
     exchangeCountLabel,
     loadHistoryErrorLabel,
     loadSessionErrorLabel,
-    routeLabel,
     senderLabel,
     systrayInitialContent,
+    verifyLinkLabel,
 } from "@miro_ai/js/miro_ai_labels";
 
 const POLL_INTERVAL_MS = 2000;
@@ -92,8 +91,7 @@ export function formatMarkdown(text) {
 }
 
 /**
- * Builds a chat message object with sensible defaults for all optional
- * verification fields (sources, route, plan, etc.), so callers only need
+ * Builds a chat message object with sensible defaults, so callers only need
  * to override what actually differs (avoids repeating the same shape
  * everywhere a message is pushed).
  */
@@ -103,9 +101,6 @@ function createMessage(id, sender, content, extra = {}) {
         sender,
         content,
         formattedContent: markup(formatMarkdown(content)),
-        sources: [],
-        route: null,
-        confidence: 1.0,
         cancelled: false,
     }, extra);
 }
@@ -121,11 +116,7 @@ function buildMessagesFromHistory(history) {
     let nextId = 1;
     for (const turn of history || []) {
         messages.push(createMessage(nextId++, "user", turn.question || ""));
-        messages.push(createMessage(nextId++, "bot", turn.answer || "", {
-            sources: turn.sources || [],
-            route: turn.route || null,
-            confidence: turn.confidence !== undefined && turn.confidence !== null ? turn.confidence : 1.0,
-        }));
+        messages.push(createMessage(nextId++, "bot", turn.answer || ""));
     }
     return { messages, nextId };
 }
@@ -176,6 +167,7 @@ export class MiroAiSystray extends Component {
     setup() {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
+        this.action = useService("action");
         this.pendingRequest = null;
 
         this.state = useState({
@@ -214,8 +206,23 @@ export class MiroAiSystray extends Component {
         return exchangeCountLabel(count);
     }
 
-    getEvidenceLabel(count) {
-        return evidenceLabel(count);
+    getVerifyLinkLabel(msg) {
+        return verifyLinkLabel(msg.verifyLink.label);
+    }
+
+    /**
+     * Opens in Odoo the list the agent read, under the rights of the current user.
+     * The model and domain come from the backend evidence (never from the answer text).
+     */
+    openVerifyLink(link) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: link.label,
+            res_model: link.model,
+            domain: link.domain,
+            views: [[false, "list"], [false, "form"]],
+            target: "current",
+        });
     }
 
     startNewConversation() {
@@ -280,23 +287,6 @@ export class MiroAiSystray extends Component {
             ev.preventDefault();
             this.sendMessage();
         }
-    }
-
-    getRouteBadgeClass(route) {
-        switch (route) {
-            case "system": return "badge-system";
-            case "documentation": return "badge-documentation";
-            default: return "badge-secondary";
-        }
-    }
-
-    getRouteLabel(route) {
-        return routeLabel(route);
-    }
-
-    getConfidencePercent(confidence) {
-        if (confidence === null || confidence === undefined) return 100;
-        return Math.round(confidence * 100);
     }
 
     /**
@@ -365,9 +355,7 @@ export class MiroAiSystray extends Component {
 
             if (response && response.answer) {
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
-                    sources: response.sources || [],
-                    route: response.route || null,
-                    confidence: response.confidence !== undefined ? response.confidence : 1.0,
+                    verifyLink: response.verify_link || null,
                 }));
                 if (response.session_id) {
                     this.state.sessionId = response.session_id;
@@ -383,9 +371,7 @@ export class MiroAiSystray extends Component {
             } else {
                 console.error("MIRO AI Systray error:", error);
                 const errMsg = communicationErrorLabel();
-                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
-                    confidence: 0.0,
-                }));
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg));
                 this.notification.add(connectionErrorLabel(), { type: "danger" });
             }
         } finally {

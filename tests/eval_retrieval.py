@@ -279,7 +279,7 @@ def main():
 
     if count == 0:
         logger.error(
-            "ChromaDB is empty. Run ingestion first: python ingestion/ingest_all.py"
+            "ChromaDB is empty. Start the API so that the Drive synchronization fills it."
         )
         sys.exit(1)
 

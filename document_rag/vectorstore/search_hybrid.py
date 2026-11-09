@@ -20,7 +20,7 @@ def vector_search(chroma_manager: ChromaManager | list[ChromaManager], query: st
     for manager in managers:
         raw = manager.query(query_text=query, top_k=top_k, where=where)
         for item in raw.get('results', []):
-            if item['similarity'] < min_similarity:
+            if item['similarity'] < min_similarity or not item['document']:
                 continue
             results.append({'id': item['id'], 'document': item['document'], 'metadata': item['metadata'], 'score': item['similarity']})
     results = filter_current_drive_chunks(results, managers)

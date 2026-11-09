@@ -50,6 +50,8 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "contexte courant ») ne demande aucun filtre. "
     "Une question « pour chaque X, quels Y » se lit depuis le modèle de X : liste tous les X, chacun avec ses Y "
     "ou « aucun » quand sa relation est vide. Ne pars pas de Y : les X sans Y disparaîtraient. "
+    "Dans une liste d'enregistrements, chaque ligne commence par son nom ou sa référence, même si la question "
+    "ne la demande pas : sans elle, la ligne ne se distingue pas des autres. "
     "Si tu ne peux pas associer une condition à un champ et une valeur confirmés par fields_get, demande une "
     "précision ; ne réponds pas à partir d'un résultat partiel. "
     "Quand la question définit un état par opposition (par exemple ouvert = ni gagné ni perdu), cherche d'abord "
@@ -68,13 +70,14 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Une observation tronquée (truncated ou display_truncated) est partielle : ne la présente jamais comme "
     "complète, indique combien de lignes tu vois, utilise read_group ou search_count pour un total, et demande à "
     "l'utilisateur de fixer une limite (nombre de lignes) ou un filtre (période, statut, client). "
-    "Pour une liste sans nombre précis, lis un nombre raisonnable de lignes et propose à l'utilisateur d'en voir plus. "
+    "Pour une liste sans nombre précis, lis toutes les lignes : ne fixe pas de limite de ton choix, le système "
+    "plafonne déjà la lecture ; si l'observation est tronquée, dis combien de lignes tu vois. "
     "Si la question est hors périmètre Odoo ou ERP, réponds exactement : "
     f'"{OUT_OF_SCOPE_ANSWER}" '
     "Réponds dans la langue de la question, à partir des observations obtenues, en langage métier : le texte de "
     "la réponse ne contient ni nom d'outil, ni le mot ORM, ni domaine, ni nom de paramètre, ni observation brute, "
-    "et désigne les modèles et les champs par leur libellé exact tel que renvoyé par Odoo (langue de "
-    "l'interface), sans le traduire. Indique les limites. "
+    "et désigne les modèles, les champs et les valeurs de sélection (statuts, types) par leur libellé exact "
+    "tel que renvoyé par Odoo (langue de l'interface), sans le traduire. Indique les limites. "
     "Format Markdown uniquement, sans HTML brut."
 )
 
@@ -112,6 +115,11 @@ MEASURE_READ_REMINDER = (
     "modèles ou champs conviennent."
 )
 
+LIST_READ_REMINDER = (
+    "La question demande une liste et tu n'as fait que compter des lignes. Lis les enregistrements avec "
+    "search_read : le nom ou la référence de chaque ligne et les champs demandés."
+)
+
 NO_READ_REMINDER = (
     "Tu réponds sans avoir lu de données. Lis les enregistrements concernés (un filtre par condition du plan) "
     "avant de conclure, même si le schéma semble donner la réponse. Demande une précision seulement si le terme "
@@ -140,6 +148,7 @@ def build_orm_agent_messages(
 
 __all__ = [
     "EMPTY_REPLY_REMINDER",
+    "LIST_READ_REMINDER",
     "MEASURE_READ_REMINDER",
     "NO_READ_REMINDER",
     "ORM_AGENT_SYSTEM_PROMPT",

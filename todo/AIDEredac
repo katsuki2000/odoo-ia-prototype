@@ -1,16 +1,4 @@
-à faire dans le doc :
-integration DANS ou SUR? (à l'ENI , j'ai dit sur, chez mIRO on m'a juste demandé integration d'une IA privée)
-remerciements, je changerai moi meme
-LE CHOIX DES PARMAMÈTRES gardés
-ajout des captures
-reperer les redondance
- choix du modele d'embedding à documenter
- regler les chiffres
-ajout du RAGAS
-version postgres
-retrait de "je" et "nous" dans le doc, à part dans "remerciement"
 
-CORRIGE A PARTIE Limite de l'évaluation à la fin, c faux
 
 
  demo :

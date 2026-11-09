@@ -24,12 +24,5 @@ export const senderLabel = (sender) => (sender === "user" ? _t("You") : "MIRO AI
 
 export const exchangeCountLabel = (count) => _t("%s exchange(s)", count);
 
-export const evidenceLabel = (count) => _t("Evidence (%s)", count);
+export const verifyLinkLabel = (label) => _t("Check in Odoo: %s", label);
 
-export function routeLabel(route) {
-    switch (route) {
-        case "system": return _t("ERP data");
-        case "documentation": return _t("Documentation");
-        default: return route || _t("General");
-    }
-}

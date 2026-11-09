@@ -43,7 +43,7 @@ def test_ollama_host_drives_llm_and_embeddings():
     values = load_settings({'OLLAMA_HOST': 'https://llm.internal:11434'})
     assert values['LLM_BASE_URL'] == 'https://llm.internal:11434/v1'
     assert values['EMBEDDING_BASE_URL'] == 'https://llm.internal:11434/v1'
-    assert values['LLM_MODEL'] == 'qwen3:14b'
+    assert values['LLM_MODEL'] == 'gemma4:26b'
 
 
 def test_default_target_ignores_kaggle_variables():
@@ -53,7 +53,7 @@ def test_default_target_ignores_kaggle_variables():
 
 def test_models_are_constants_not_environment_settings():
     values = load_settings({'LLM_MODEL': 'from-env', 'OLLAMA_MODEL': 'from-env', 'EMBEDDING_MODEL': 'from-env'})
-    assert values['LLM_MODEL'] == 'qwen3:14b'
+    assert values['LLM_MODEL'] == 'gemma4:26b'
     assert values['EMBEDDING_MODEL'] == 'bge-m3:latest'
 
 

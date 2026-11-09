@@ -131,15 +131,21 @@ python3 odoo-bin -c odoo.conf -d odoo-dev -i maintenance --stop-after-init
 ```
 
 
-### Step 9 : Ingest documents into the vector store (ChromaDB)
+### Step 9 : Synchronize the documents into the vector store (ChromaDB)
+
+The documents live in the approved Google Drive folders (subfolders included; PDF, markdown, text and docx files, Google Docs are exported to docx). The API synchronizes them into the vector store at startup, then every 5 minutes (`sync_interval` in `config/google_drive.py`): new and changed files are added, and the chunks of files that left the approved folders are removed. It needs `GOOGLE_DRIVE_FOLDER_IDS`, `GOOGLE_DRIVE_APPROVED_FOR_RAG=true` and the read-only credentials (`GOOGLE_APPLICATION_CREDENTIALS`) in `.env`; without them the documentation mode has no source.
+
+Each cycle updates `last_ingestion_time` in `GET /api/v1/ingestion/status`; `ingestion.log` only receives a `drive_sync` event when something changed or failed.
 
 ```bash
 cd ~/odoo-ia-prototype
 source .venv/bin/activate
 
-# Index all internal documents (PDFs, markdown, text files) into ChromaDB
-python3 -m document_rag.ingestion.ingest_all
+# One synchronization, with the API stopped (--watch repeats it every 5 minutes)
+python3 -m document_rag.ingestion.google_drive_cli
 ```
+
+The API process must be the only one writing the index while it runs. A `google_drive_cli` run in another terminal leaves the running API with a stale index: it keeps returning deleted chunks, which breaks questions, and does not see the new ones. Use it with the API stopped, or restart the API afterwards.
 
 ---
 
@@ -244,6 +250,9 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `JWT_SECRET` | Yes | none | Signing secret shared with the Odoo addon (at least 32 bytes) |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
 | `ODOO_BENCH_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `tests/manual_check_odoo_assistant.py` sign in as |
+| `GOOGLE_DRIVE_FOLDER_IDS` | For the Drive corpus | none | Comma-separated IDs of the approved Drive folders; empty: the Drive synchronization does nothing |
+| `GOOGLE_DRIVE_APPROVED_FOR_RAG` | For the Drive corpus | `false` | Must be `true`: confirms that every RAG reader may see the selected folders |
+| `GOOGLE_APPLICATION_CREDENTIALS` | For the Drive corpus | none | Path to the read-only Google credentials file used by the Drive synchronization |
 
 ---
 
@@ -252,6 +261,8 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | Problem | Cause | Solution |
 |---|---|---|
 | `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the Ollama server or check `OLLAMA_HOST` |
-| `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
+| `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then restart the API: the Drive synchronization rebuilds the index |
 | MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |
+| A document added to Google Drive is not found by the assistant | The next API synchronization (every 5 minutes) has not run yet, the Drive variables are not set, or the index was written by another process while the API was running | Wait for the next synchronization and check the API log; if `google_drive_cli` was run in another terminal, restart the API |
+| `TypeError: expected string or bytes-like object, got 'NoneType'` while answering | The index was written by another process while the API was running, so the API still returns deleted chunks | Restart the API; run `google_drive_cli` with the API stopped |
 | `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_ADMIN_PASSWORD` in `.env` |

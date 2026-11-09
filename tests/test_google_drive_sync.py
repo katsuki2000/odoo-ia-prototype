@@ -3,15 +3,14 @@
 import ast
 import io
 import json
-import logging
 from pathlib import Path
 import unittest
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
 
 from document_rag.ingestion.google_drive_sync import synchronize_google_drive
 from document_rag.ingestion.periodic import run_periodically
 from document_rag.vectorstore.drive_guard import filter_current_drive_chunks
+from document_rag.vectorstore.search_hybrid import vector_search
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -153,17 +152,6 @@ class SharedDriveSyncTests(unittest.TestCase):
         self.manager.collection.get = lambda **kwargs: (_ for _ in ()).throw(RuntimeError('storage failure'))
         self.assertEqual(filter_current_drive_chunks([candidate(), candidate('local', 'local')], self.manager), [candidate('local', 'local')])
 
-    def test_local_inventory_excludes_remote_sources(self):
-        function = load_function('document_rag/ingestion/incremental.py', '_get_existing_sources',
-                                 {'ChromaManager': object, 'Any': object, 'logger': logging.getLogger(__name__), 'urlsplit': urlsplit})
-        self.assertEqual(function(self.manager), {'local.txt'})
-
-    def test_local_root_check_rejects_remote_urls(self):
-        function = load_function('document_rag/ingestion/incremental.py', '_is_under_roots',
-                                 {'Path': Path, 'logger': logging.getLogger(__name__), 'urlsplit': urlsplit,
-                                  'DEFAULT_SCAN_ROOT_CANDIDATES': [ROOT]})
-        self.assertFalse(function('https://' + 'drive.google.com/file/d/file_a/view', [ROOT]))
-
     def test_periodic_worker_retries_and_stops(self):
         class Stop:
             waits = 0
@@ -181,6 +169,14 @@ class SharedDriveSyncTests(unittest.TestCase):
         reports = []
         run_periodically(action, 300, reports.append, Stop())
         self.assertEqual([report['status'] for report in reports], ['failed', 'complete'])
+
+    def test_vector_search_drops_a_chunk_deleted_by_another_process(self):
+        class StaleIndex:
+            def query(self, query_text, top_k, where):
+                return {'results': [
+                    {'id': 'ghost', 'document': None, 'metadata': None, 'similarity': 0.9},
+                    {'id': 'local', 'document': 'Text', 'metadata': {'source': 'local.txt'}, 'similarity': 0.8}]}
+        self.assertEqual([item['id'] for item in vector_search(StaleIndex(), 'question')], ['local'])
 
     def test_post_expansion_guard_removes_an_inactive_neighbor(self):
         self.manager.collection.rows['neighbor'] = {'origin': 'google_drive', 'drive_file_id': 'old_file', 'drive_active': False}

@@ -2,11 +2,9 @@ import pytest
 
 docx = pytest.importorskip("docx")
 
-from document_rag.ingestion import ingest_handlers_doc
 from document_rag.ingestion.docx_reader import docx_to_markdown
 from document_rag.ingestion.file_formats import is_supported_document
-from document_rag.ingestion.incremental import _scan_supported_files
-from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
+from document_rag.ingestion.wiki_loader import WikiLoader
 
 
 def set_list_level(paragraph, level):
@@ -35,7 +33,6 @@ def build_document(path):
 @pytest.fixture
 def docs_dir(tmp_path):
     build_document(tmp_path / "plan.docx")
-    (tmp_path / "~$plan.docx").write_bytes(b"lock")
     (tmp_path / "notes.txt").write_text("Notes\n\n- a\n- b\n", encoding="utf-8")
     return tmp_path
 
@@ -69,29 +66,3 @@ def test_format_predicates_ignore_office_lock_files():
     assert is_supported_document("scan.PDF")
     assert not is_supported_document("~$plan.docx")
     assert not is_supported_document("data.csv")
-
-
-def test_incremental_scan_includes_docx_and_skips_lock_files(docs_dir):
-    names = sorted(path.name for path in _scan_supported_files([docs_dir]))
-    assert names == ["notes.txt", "plan.docx"]
-
-
-def test_ingest_documents_dir_indexes_docx_and_skips_lock_files(docs_dir):
-    class Manager:
-        def add_chunks(self, chunks, metadatas):
-            return list(range(len(chunks)))
-
-    stats = {"total_chunks": 0, "by_source": {}, "by_type": {}, "load_times": {}}
-    ingest_handlers_doc.ingest_documents_dir(docs_dir, Manager(), stats, chunk_size=200, chunk_overlap=20)
-    assert sorted(stats["by_source"]) == ["notes.txt", "plan.docx"]
-    assert stats["by_type"]["doc_wiki"] == stats["total_chunks"]
-
-
-def test_wiki_directory_loader_includes_docx_and_skips_office_lock_files(docs_dir):
-    documents = load_wiki_directory(docs_dir, chunk_size=200, chunk_overlap=20, scan_root=docs_dir)
-    sources = {
-        metadata["source"]
-        for document in documents
-        for metadata in document["metadatas"]
-    }
-    assert sources == {"notes.txt", "plan.docx"}

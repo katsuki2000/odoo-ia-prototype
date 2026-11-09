@@ -6,10 +6,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from urllib.error import HTTPError
 
+from filelock import FileLock
+
 from config.google_drive import DEFAULT_MAX_FILES
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.document_loader import load_document
-from document_rag.ingestion.google_drive import document_suffix, validate_drive_id
+from document_rag.ingestion.google_drive import GoogleDriveClient, document_suffix, validate_drive_id
 
 
 class DriveScopeUnavailable(Exception):
@@ -129,3 +131,17 @@ def synchronize_google_drive(client, folder_ids, manager, loader=None, chunk_siz
     result['chunks_deleted'] += deleted
     result['status'] = 'partial' if result['failed'] else 'complete'
     return result
+
+
+def drive_sync_lock(manager):
+    return FileLock(str(manager.db_path / '.google_drive_sync.lock'), timeout=0)
+
+
+def configured_synchronizer(settings, manager, chunk_size=RAG_CHUNK_SIZE, chunk_overlap=RAG_CHUNK_OVERLAP):
+    """Return the function that runs one synchronization of the approved Drive folders."""
+    client = GoogleDriveClient(timeout=settings.timeout, max_bytes=settings.max_bytes)
+
+    def synchronize():
+        return synchronize_google_drive(client, settings.folder_ids, manager, chunk_size=chunk_size,
+                                        chunk_overlap=chunk_overlap, max_files=settings.max_files)
+    return synchronize

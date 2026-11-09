@@ -493,3 +493,37 @@ def test_orm_read_group_never_sums_amounts_of_different_currencies(
     call = mock_connector.read_group.call_args.kwargs
     assert call["groupby"] == expected_groupby
     assert call["lazy"] is expected_lazy
+
+
+def _to_many_connector(mock_connector, name_rows):
+    mock_connector.fields_get.side_effect = lambda uid, model, names: {
+        "user_ids": {"type": "many2many", "relation": "res.users"},
+        "name": {"type": "char"},
+    }
+    mock_connector.search_read.return_value = [
+        {"id": 1, "name": "A", "user_ids": [6, 2]},
+        {"id": 2, "name": "B", "user_ids": []},
+        {"id": 3, "name": "C", "user_ids": [2]},
+    ]
+    mock_connector.read.side_effect = name_rows
+
+
+def test_search_read_names_the_ids_of_a_to_many_field(requester_uid, mock_connector):
+    _to_many_connector(mock_connector, lambda uid, model, ids, fields: [
+        {"id": 2, "display_name": "Marc Demo"}, {"id": 6, "display_name": "Mitchell Admin"},
+    ])
+    result = orm_search_read("project.task", fields=["name", "user_ids"])
+    rows = result.evidence[0].value
+    assert rows[0]["user_ids"] == [[6, "Mitchell Admin"], [2, "Marc Demo"]]
+    assert rows[1]["user_ids"] == [] and rows[2]["user_ids"] == [[2, "Marc Demo"]]
+    assert rows[0]["name"] == "A"
+    mock_connector.read.assert_called_once_with(7, "res.users", [2, 6], fields=["display_name"])
+
+
+def test_to_many_ids_are_kept_when_their_names_cannot_be_read(requester_uid, mock_connector):
+    def refused(uid, model, ids, fields):
+        raise OdooConnectorError("access denied")
+
+    _to_many_connector(mock_connector, refused)
+    rows = orm_search_read("project.task", fields=["name", "user_ids"]).evidence[0].value
+    assert rows[0]["user_ids"] == [6, 2]

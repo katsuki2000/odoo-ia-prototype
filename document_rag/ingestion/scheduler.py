@@ -1,61 +1,49 @@
-"""Incremental scan of the documents folder, run once at startup then periodically."""
+"""Periodic synchronization of the approved Drive folders into the index."""
 
 import logging
-from itertools import chain, repeat
 from threading import Event, Thread
 from typing import Any
 
-from config.settings import SCHEDULER_INTERVAL_HOURS
-from document_rag.ingestion.incremental import reindex_if_changed
-from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
+from config.google_drive import GoogleDriveSettings
+from document_rag.ingestion.google_drive_sync import configured_synchronizer, drive_sync_lock
+from document_rag.ingestion.logging_utils import now_iso, write_ingestion_event
 from document_rag.ingestion.periodic import run_periodically
-from document_rag.ingestion.scan_root import DOCS_DIR, ensure_docs_dir
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-STARTUP_SCAN = "startup_incremental_scan"
-PERIODIC_SCAN = "periodic_incremental_scan"
+DRIVE_SYNC = "drive_sync"
 
 INGESTION_STATUS: dict[str, Any] = {
     "last_ingestion_time": None,
-    "last_result": None,
-    "last_scan_type": None,
-    "scheduler_status": {
-        "interval_hours": SCHEDULER_INTERVAL_HOURS,
-        "running": False,
-    },
+    "scheduler_status": {"running": False},
 }
 
 
-def run_scan(scan_type, roots=None, docs_manager=None, status_dict=None):
-    started_at = start_timer()
-    if roots is None:
-        ensure_docs_dir()
-        roots = [DOCS_DIR]
-    result = reindex_if_changed(roots, docs_manager=docs_manager or ChromaManager())
-    if status_dict is not None:
-        status_dict["last_ingestion_time"] = now_iso()
-        status_dict["last_result"] = result
-        status_dict["last_scan_type"] = scan_type
-    write_ingestion_event(event_type=scan_type, result=result, started_at=started_at)
-    return result
+def start_drive_sync_loop():
+    """Synchronize the approved Drive folders now, then periodically, in a daemon thread.
 
-
-def start_scan_loop(interval_hours, status_dict, roots=None):
-    """Scan now, then every `interval_hours`, in a daemon thread; set the returned event to stop."""
+    The API process is the only writer of the index: a second writing process leaves the API with a stale one.
+    """
     stop_event = Event()
-    scan_types = chain([STARTUP_SCAN], repeat(PERIODIC_SCAN))
+    settings = GoogleDriveSettings.current()
+    if not settings.folder_ids or not settings.approved_for_rag:
+        logger.info("Drive synchronization off: set GOOGLE_DRIVE_FOLDER_IDS and GOOGLE_DRIVE_APPROVED_FOR_RAG=true.")
+        return stop_event
 
-    def scan():
-        try:
-            return run_scan(next(scan_types), roots, status_dict=status_dict)
-        except Exception:
-            logger.exception("Incremental scan failed")
-            raise
+    def synchronize():
+        manager = ChromaManager()
+        with drive_sync_lock(manager):
+            return configured_synchronizer(settings, manager)()
 
     def report(result):
-        logger.info("Incremental scan report: %s", result)
+        complete = result.get("status") == "complete"
+        (logger.info if complete else logger.warning)("Drive synchronization: %s", result)
+        if complete:
+            INGESTION_STATUS["last_ingestion_time"] = now_iso()
+        if not complete or any(result.get(key) for key in ("added", "updated", "chunks_deleted")):
+            write_ingestion_event(event_type=DRIVE_SYNC, result=result, status="success" if complete else "error")
 
-    Thread(target=run_periodically, args=(scan, interval_hours * 3600, report, stop_event), daemon=True).start()
+    Thread(target=run_periodically, args=(synchronize, settings.sync_interval, report, stop_event), daemon=True).start()
+    INGESTION_STATUS["scheduler_status"]["running"] = True
     return stop_event

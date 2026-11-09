@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
+from threading import Lock
 from typing import Any, Optional
 
 import chromadb
@@ -14,6 +15,8 @@ from document_rag.vectorstore.chroma_helpers import clean_metadata, format_query
 
 logger = logging.getLogger(__name__)
 COLLECTION_METADATA = {'hnsw:space': 'cosine', 'description': 'Odoo document chunks'}
+# chromadb is not thread-safe when two clients of the same path are created at once.
+_CLIENT_CREATION_LOCK = Lock()
 
 
 class ChromaManager:
@@ -24,7 +27,8 @@ class ChromaManager:
         from config.settings import EMBEDDING_MODEL
         self.embedding_model = embedding_model or EMBEDDING_MODEL
         self.collection_name = collection_name
-        self.client = chromadb.PersistentClient(path=str(self.db_path))
+        with _CLIENT_CREATION_LOCK:
+            self.client = chromadb.PersistentClient(path=str(self.db_path))
         self.collection = self.client.get_or_create_collection(name=collection_name,
             embedding_function=resolve_embedding_function(embedding_model=self.embedding_model),
             metadata=dict(COLLECTION_METADATA))

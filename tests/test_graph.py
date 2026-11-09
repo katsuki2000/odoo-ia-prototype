@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.schemas import AssistantResponse
+from core.schemas import AssistantResponse, SourceReference
 from core.graph.graph_nodes import format_output, retrieve
 from document_rag.generate_node import generate, _parse_raw_json_answer
 from document_rag.generate_helpers import verify_used_sources
@@ -74,6 +74,25 @@ def test_format_output_flags_a_low_quality_scan_without_changing_the_answer():
     result = format_output(state)
     assert result['response'].ocr_warning
     assert result['response'].answer == 'Voici la réponse.'
+
+
+def _source(title, source):
+    return SourceReference(source=source, doc_type='pdf', title=title, snippet='')
+
+
+def test_format_output_appends_source_links_to_the_answer():
+    sources = [_source('Guide [v2]', 'https://drive.example/a'), _source('Note', 'https://drive.example/b')]
+    state = {'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=sources)}
+    answer = format_output(state)['response'].answer
+    assert answer == (
+        'Voici la réponse.\n\n'
+        'Sources: [Guide (v2)](https://drive.example/a), [Note](https://drive.example/b)'
+    )
+
+
+def test_format_output_skips_sources_without_a_web_link():
+    state = {'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=[_source('Local', 'docs/a.md')])}
+    assert format_output(state)['response'].answer == 'Voici la réponse.'
 
 
 def test_used_sources_deduplicate_same_document():

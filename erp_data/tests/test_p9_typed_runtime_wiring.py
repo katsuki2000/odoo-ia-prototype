@@ -577,6 +577,11 @@ def test_prompt_asks_for_business_language_in_the_answer():
     assert "cite les" not in ORM_AGENT_SYSTEM_PROMPT
 
 
+def test_prompt_keeps_the_instance_labels_of_fields_and_selection_values_untranslated():
+    assert "les champs et les valeurs de sélection (statuts, types) par leur libellé exact" in ORM_AGENT_SYSTEM_PROMPT
+    assert "sans le traduire" in ORM_AGENT_SYSTEM_PROMPT
+
+
 def test_prompt_does_not_equate_related_display_names_with_business_state():
     assert "champ explicite de type booléen, sélection ou pourcentage" in ORM_AGENT_SYSTEM_PROMPT
     assert "Ne remplace jamais cet état par des noms d'affichage" in ORM_AGENT_SYSTEM_PROMPT
@@ -693,11 +698,34 @@ def test_counting_rows_does_not_answer_a_question_about_a_total(kind, tools, exp
     assert counted_instead_of_measured(None, tools) is False
 
 
-def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measure(monkeypatch):
+@pytest.mark.parametrize(
+    ("kind", "tools", "expected"),
+    [
+        ("list", ["fields_get", "search_count"], True),
+        ("list", ["search_count", "search_read"], False),
+        ("list", [], False),
+        ("aggregate", ["search_count"], False),
+    ],
+)
+def test_counting_rows_does_not_answer_a_question_about_a_list(kind, tools, expected):
+    from erp_data.orm_agent_helpers import counted_instead_of_listed
+
+    plan = QueryPlan(subject="commandes", result_kind=kind, answer_language="English")
+    assert counted_instead_of_listed(plan, tools) is expected
+    assert counted_instead_of_listed(None, tools) is False
+
+
+@pytest.mark.parametrize(
+    ("kind", "read_tool", "reminder_name"),
+    [("aggregate", "read_group", "MEASURE_READ_REMINDER"), ("list", "search_read", "LIST_READ_REMINDER")],
+)
+def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkeypatch, kind, read_tool, reminder_name):
     from langchain_core.messages import AIMessage
 
     import erp_data.orm_agent_node as node
-    from erp_data.prompts import MEASURE_READ_REMINDER
+    import erp_data.prompts as prompts
+
+    reminder = getattr(prompts, reminder_name)
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -706,7 +734,7 @@ def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measur
     replies = iter([
         AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc1"}]),
         AIMessage(content="Aucune dépense."),
-        AIMessage(content="", tool_calls=[{"name": "read_group", "args": {}, "id": "tc2"}]),
+        AIMessage(content="", tool_calls=[{"name": read_tool, "args": {}, "id": "tc2"}]),
         AIMessage(content="Total : 1200."),
     ])
     seen = []
@@ -719,7 +747,7 @@ def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measur
         _record_read(method=tool_call["name"])
         return tool_call["name"], {}, "observation", True
 
-    plan = QueryPlan(subject="dépenses", result_kind="aggregate", answer_language="English")
+    plan = QueryPlan(subject="dépenses", result_kind=kind, answer_language="English")
     monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
@@ -729,7 +757,7 @@ def test_a_count_answer_to_a_total_question_is_sent_back_once_to_read_the_measur
 
     result = node.orm_agent_loop({"question": "Combien a-t-on dépensé le mois dernier ?"})
     assert result["response"].answer == "Total : 1200."
-    assert seen[2] == MEASURE_READ_REMINDER
+    assert seen[2] == reminder
 
 
 @pytest.mark.parametrize(
@@ -841,3 +869,30 @@ def test_fields_get_exposes_the_currency_field_and_the_prompt_uses_it():
     assert "currency_field" in ORM_AGENT_SYSTEM_PROMPT
     assert "quand il est stocké" in ORM_AGENT_SYSTEM_PROMPT
     assert "plusieurs sortes d'enregistrements" in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_domain_leaves_written_as_flat_items_are_grouped():
+    from erp_data.runtime.langchain_tools import _coerce_domain
+
+    assert _coerce_domain(["|", "state", "=", "draft", "state", "=", "sent"]) == [
+        "|", ["state", "=", "draft"], ["state", "=", "sent"],
+    ]
+    assert _coerce_domain(["&", "state", "=", "refuse", ["state", "in", ["a", "b"]]]) == [
+        "&", ["state", "=", "refuse"], ["state", "in", ["a", "b"]],
+    ]
+    assert _coerce_domain(["move_type", "in", ["out_invoice", "out_refund"], "state", "=", "posted"]) == [
+        ["move_type", "in", ["out_invoice", "out_refund"]], ["state", "=", "posted"],
+    ]
+    assert _coerce_domain(["|", ["a", "=", 1], ["b", "=", 2]]) == ["|", ["a", "=", 1], ["b", "=", 2]]
+
+
+def test_prompt_asks_for_the_record_name_in_every_list_row():
+    assert "chaque ligne commence par son nom ou sa référence" in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_prompt_reads_whole_lists_and_the_observation_limit_holds_them():
+    from config import settings
+
+    assert "lis toutes les lignes" in ORM_AGENT_SYSTEM_PROMPT
+    assert "nombre raisonnable" not in ORM_AGENT_SYSTEM_PROMPT
+    assert settings.ORM_OBSERVATION_MAX_CHARS >= 16000

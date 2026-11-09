@@ -24,6 +24,7 @@ from erp_data.runtime.read_tools import (
     orm_search_read as _search_read,
 )
 from erp_data.runtime.types import OrmToolResult
+from erp_data.runtime.validation import DOMAIN_LEAF_OPS, DOMAIN_LOGICAL_OPS
 
 UNKNOWN_FIELDS_HINT = (
     "\nSome requested names are not fields of this model. Read the full list (fields_get without "
@@ -73,6 +74,23 @@ def _is_domain_leaf(value: Any) -> bool:
     )
 
 
+def _group_flat_leaves(items: list) -> list:
+    """Small models also write a leaf as three consecutive items: 'state', '=', 'draft'."""
+    grouped, index = [], 0
+    while index < len(items):
+        item = items[index]
+        is_flat_leaf = (
+            isinstance(item, str)
+            and item not in DOMAIN_LOGICAL_OPS
+            and index + 2 < len(items)
+            and isinstance(items[index + 1], str)
+            and items[index + 1] in DOMAIN_LEAF_OPS
+        )
+        grouped.append(items[index:index + 3] if is_flat_leaf else item)
+        index += 3 if is_flat_leaf else 1
+    return grouped
+
+
 def _flatten_domain_tokens(value: Any) -> Any:
     if isinstance(value, str):
         text = value.strip()
@@ -81,7 +99,7 @@ def _flatten_domain_tokens(value: Any) -> Any:
     if _is_domain_leaf(value):
         return [value]
     if isinstance(value, list):
-        return [token for item in value for token in _flatten_domain_tokens(item)]
+        return [token for item in _group_flat_leaves(value) for token in _flatten_domain_tokens(item)]
     return [value]
 
 
@@ -110,6 +128,10 @@ def _schema_hint(result: OrmToolResult) -> str:
     return "" if result.observation.request["field_names"] else FULL_LIST_HINT
 
 
+def _dumps(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False, default=str, separators=(",", ":"))
+
+
 def _format_observation(result: OrmToolResult) -> str:
     payload = {
         "tool": result.observation.tool,
@@ -122,26 +144,26 @@ def _format_observation(result: OrmToolResult) -> str:
         settings.ORM_FIELDS_INDEX_MAX_CHARS if result.observation.tool == "fields_get"
         else settings.ORM_OBSERVATION_MAX_CHARS
     )
-    body = json.dumps(payload, ensure_ascii=False, default=str)
+    body = _dumps(payload)
     output_truncated = len(body) > limit
     if output_truncated:
         payload["display_truncated"] = True
         value = payload.get("value")
         if isinstance(value, dict) and isinstance(value.get("fields"), dict):
             fields = value["fields"]
-            while fields and len(json.dumps(payload, ensure_ascii=False, default=str)) > limit:
+            while fields and len(_dumps(payload)) > limit:
                 fields.pop(next(reversed(fields)))
         elif isinstance(value, list):
-            while value and len(json.dumps(payload, ensure_ascii=False, default=str)) > limit:
+            while value and len(_dumps(payload)) > limit:
                 value.pop()
-        body = json.dumps(payload, ensure_ascii=False, default=str)
+        body = _dumps(payload)
         if len(body) > limit:
-            body = json.dumps({
+            body = _dumps({
                 "tool": result.observation.tool,
                 "model": result.observation.model,
                 "display_truncated": True,
                 "value_summary": "Output too large to display; narrow fields or reduce the record limit.",
-            }, ensure_ascii=False)
+            })
     notice = (
         "\nDisplayed output is truncated; omitted fields or records are not evidence. "
         "Ask the user for a row limit or a narrower filter."

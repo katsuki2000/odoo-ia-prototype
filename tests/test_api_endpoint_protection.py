@@ -16,11 +16,7 @@ from api import auth
 from api.main import app
 
 SECRET = "s" * 40
-ADMIN_ROUTES = [
-    ("post", "/api/v1/reindex"),
-    ("get", "/api/v1/ingestion/status"),
-    ("post", "/api/v1/ingestion/scheduled-scan"),
-]
+ADMIN_ROUTES = [("get", "/api/v1/ingestion/status")]
 AUTHENTICATED_ROUTES = [
     ("post", "/api/v1/ask"),
     ("get", "/api/v1/ask/jobs/nonexistent-id"),
@@ -79,12 +75,11 @@ def test_system_request_without_requester_api_key_is_rejected_before_graph(clien
     query_graph.assert_not_called()
 
 
-def test_scheduled_scan_reachable_with_an_admin_token(client):
-    with patch("api.routes_ingestion.run_scan") as scan:
-        scan.return_value = {"status": "success", "files_scanned": 0, "chunks_added": 0, "duration_ms": 0}
-        response = client.post("/api/v1/ingestion/scheduled-scan", headers=_headers(is_admin=True))
-    assert response.status_code != 403
-    assert response.status_code != 401
+def test_ingestion_status_reachable_with_an_admin_token(client):
+    with patch("api.routes_ingestion.ChromaManager") as manager:
+        manager.return_value.get_stats.return_value = {"total_chunks": 0}
+        response = client.get("/api/v1/ingestion/status", headers=_headers(is_admin=True))
+    assert response.status_code == 200
 
 
 def test_require_admin_accepts_only_a_true_admin_claim():

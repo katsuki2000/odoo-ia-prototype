@@ -24,6 +24,13 @@ msgid "%s exchange(s)"
 msgstr "%s échange(s)"
 
 #. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Check in Odoo: %s"
+msgstr "Vérifier dans Odoo : %s"
+
+#. module: miro_ai
 #: model:ir.actions.act_window,name:miro_ai.action_miro_ai_log
 msgid "AI Request Log"
 msgstr "Journal des requêtes IA"
@@ -166,23 +173,9 @@ msgid "Display Name"
 msgstr "Nom affiché"
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Documentation"
-msgstr "Documentaire"
-
-#. module: miro_ai
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
 msgid "Duration (ms)"
 msgstr "Durée (ms)"
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "ERP data"
-msgstr "Données ERP"
 
 #. module: miro_ai
 #: model:ir.model.fields.selection,name:miro_ai.selection__miro_ai_log__state__error
@@ -203,13 +196,6 @@ msgstr "Erreurs"
 
 #. module: miro_ai
 #. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Evidence (%s)"
-msgstr "Preuves (%s)"
-
-#. module: miro_ai
-#. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
 msgid "From the documentation"
@@ -221,13 +207,6 @@ msgstr "D'après la documentation"
 #, python-format
 msgid "From the system"
 msgstr "D'après le système"
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "General"
-msgstr "Général"
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__answer
@@ -520,13 +499,6 @@ msgstr "Sources (JSON brut)"
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__sources_count
 msgid "Sources count"
 msgstr "Nb de sources"
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
-#, python-format
-msgid "Sources:"
-msgstr "Sources :"
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__state

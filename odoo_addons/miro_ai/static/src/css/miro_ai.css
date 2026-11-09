@@ -46,9 +46,7 @@
 .miro-ai-message,
 .message-content,
 .miro-drawer-messages,
-.miro-drawer-message,
-.verification-content,
-.source-snippet {
+.miro-drawer-message {
     user-select: text !important;
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
@@ -177,77 +175,6 @@
     color: #64748b;
     background-color: #f1f5f9;
     border-style: dashed;
-}
-
-/* ── Badges de Routage & Confiance ── */
-.miro-meta-badges .badge {
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 6px;
-}
-
-.badge-system {
-    background-color: #16a34a;
-    color: #ffffff;
-}
-
-.badge-documentation {
-    background-color: #ea580c;
-    color: #ffffff;
-}
-
-/* ── Niveau Vérification & Preuves Dépliable (Chevron Discuss) ── */
-.miro-verification-disclosure {
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: all 0.2s ease-in-out;
-}
-
-.verification-summary {
-    cursor: pointer;
-    padding: 8px 12px;
-    background-color: #f1f5f9;
-    user-select: none;
-    font-size: 0.82rem;
-    color: #334155;
-    display: flex;
-    align-items: center;
-    list-style: none;
-}
-
-.verification-summary::-webkit-details-marker {
-    display: none;
-}
-
-.verification-chevron {
-    transition: transform 0.2s ease;
-    font-size: 0.75rem;
-}
-
-details[open] .verification-chevron {
-    transform: rotate(90deg);
-}
-
-.verification-content {
-    background-color: #ffffff;
-    border-top: 1px solid #e2e8f0;
-    font-size: 0.85rem;
-}
-
-.source-snippet {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 0.8rem;
-    white-space: pre-wrap;
-    border: 1px solid #e2e8f0;
-    max-height: 180px;
-    overflow-y: auto;
-}
-
-.investigation-steps-list li {
-    line-height: 1.4;
 }
 
 /* ── Styles Markdown ── */
@@ -456,11 +383,6 @@ details[open] .verification-chevron {
     padding: 10px 14px;
 }
 
-.badge-xs {
-    font-size: 0.68rem;
-    padding: 2px 5px;
-}
-
 /* Source selector (documentation / system); none selected = automatic routing */
 .miro-source-toggle {
     display: flex;
@@ -481,4 +403,13 @@ details[open] .verification-chevron {
     background: #714b67;
     border-color: #714b67;
     color: #fff;
+}
+
+/* "Check in Odoo" link under an ERP answer */
+.miro-verify-link {
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+.miro-verify-link:hover {
+    text-decoration: underline;
 }

@@ -31,6 +31,7 @@ from erp_data.runtime.validation import (
 )
 
 MODEL_NOT_FOUND_HINT = " Find the right model with list_models and one keyword."
+TO_MANY_TYPES = frozenset({"many2many", "one2many"})
 
 _connector: Optional[OdooConnector] = None
 _FIELD_CACHE_MAX = 2048
@@ -120,6 +121,26 @@ def _field_info(model: str, name: str) -> Optional[dict]:
             return None
         _field_cache[key] = (fields.get(name) or {}) if isinstance(fields, dict) else None
     return _field_cache[key]
+
+
+def _with_relation_names(records: list[dict], model: str, fields: list[str]) -> list[dict]:
+    """Odoo returns a to-many field as bare ids: give each id its name, as a many2one does ([id, name])."""
+    uid = require_execution_uid()
+    for name in fields:
+        info = _field_info(model, name)
+        if not info or info.get("type") not in TO_MANY_TYPES:
+            continue
+        ids = sorted({i for record in records for i in record.get(name) or [] if isinstance(i, int)})
+        if not ids:
+            continue
+        try:
+            rows = _get_connector().read(uid, info["relation"], ids, fields=["display_name"])
+        except OdooConnectorError:
+            continue
+        names = {row["id"]: row["display_name"] for row in rows}
+        for record in records:
+            record[name] = [[i, names.get(i, str(i))] for i in record.get(name) or []]
+    return records
 
 
 def _selection_choices(model: str, path: str) -> Optional[list]:
@@ -295,8 +316,8 @@ def orm_read(
         raise OrmRuntimeError("fields must be an explicit non-empty list for read")
     uid = require_execution_uid()
     request = {"model": model, "ids": ids, "fields": fields}
-    records = _run_validated(
-        lambda: _get_connector().read(uid, model, ids, fields=fields)
+    records = _with_relation_names(
+        _run_validated(lambda: _get_connector().read(uid, model, ids, fields=fields)), model, fields
     )
     return _build_result(
         tool="read",
@@ -351,6 +372,7 @@ def orm_search_read(
             **extra,
         )
     ), capped)
+    records = _with_relation_names(records, model, fields)
     return _build_result(
         tool="search_read",
         method="search_read",

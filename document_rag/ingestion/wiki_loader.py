@@ -12,7 +12,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 from document_rag.ingestion.docx_reader import docx_to_markdown
-from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
@@ -144,35 +143,3 @@ class WikiLoader:
     @staticmethod
     def _compute_hash(text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()[:12]
-
-
-def load_wiki_directory(
-    directory: str | Path,
-    chunk_size: int = RAG_CHUNK_SIZE,
-    chunk_overlap: int = RAG_CHUNK_OVERLAP,
-    scan_root: Optional[str | Path] = None,
-) -> list[dict[str, Any]]:
-    directory = Path(directory)
-    if not directory.is_dir():
-        raise ValueError(f"Directory not found: {directory}")
-
-    root = Path(scan_root) if scan_root is not None else directory
-    loader = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    documents = []
-
-    load_methods = {
-        ".txt": loader.load_text_file,
-        ".md": loader.load_markdown_file,
-        ".docx": loader.load_docx_file,
-    }
-    for path in sorted(directory.iterdir()):
-        method = load_methods.get(path.suffix.lower())
-        if not path.is_file() or method is None or not is_supported_document(path):
-            continue
-        try:
-            documents.append(method(path, scan_root=root))
-        except Exception:
-            logger.exception("Failed to process document: %s", path.name)
-
-    logger.info("Loaded %d text-based documents from %s", len(documents), directory)
-    return documents

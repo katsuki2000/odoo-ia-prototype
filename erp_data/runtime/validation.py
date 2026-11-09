@@ -5,8 +5,8 @@ from config import settings
 from erp_data.odoo_connector import MODEL_NAME_RE
 from erp_data.runtime.errors import OrmRuntimeError
 
-_DOMAIN_OPS = frozenset({"&", "|", "!"})
-_DOMAIN_LEAF_OPS = frozenset({
+DOMAIN_LOGICAL_OPS = frozenset({"&", "|", "!"})
+DOMAIN_LEAF_OPS = frozenset({
     "=", "!=", ">", ">=", "<", "<=", "like", "not like", "ilike",
     "not ilike", "=like", "=ilike", "in", "not in", "child_of", "parent_of",
     "any", "not any", "=?",
@@ -53,7 +53,7 @@ def validate_domain(domain: Any) -> list:
         raise OrmRuntimeError("domain must be a list")
     for item in domain:
         if isinstance(item, str):
-            if item not in _DOMAIN_OPS:
+            if item not in DOMAIN_LOGICAL_OPS:
                 raise OrmRuntimeError(f"invalid domain operator: {item!r}")
             continue
         if isinstance(item, (list, tuple)):
@@ -62,7 +62,7 @@ def validate_domain(domain: Any) -> list:
             field, op, _val = item
             if not isinstance(field, str) or not _FIELD_PATH_RE.fullmatch(field):
                 raise OrmRuntimeError(f"invalid domain field: {field!r}")
-            if not isinstance(op, str) or op not in _DOMAIN_LEAF_OPS:
+            if not isinstance(op, str) or op not in DOMAIN_LEAF_OPS:
                 raise OrmRuntimeError(f"invalid domain leaf operator: {op!r}")
             if op in {"in", "not in"} and (
                 not isinstance(_val, (list, tuple))

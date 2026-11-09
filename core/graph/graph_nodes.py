@@ -5,6 +5,8 @@ from document_rag.vectorstore.search import get_retriever, retrieve as search_re
 from core.schemas import QueryRoute
 from core.state import RAGState
 
+_TITLE_BRACKETS = str.maketrans('[]', '()')
+
 
 def answered_by_documents(state: RAGState) -> bool:
     return state.get('route') == QueryRoute.DOCUMENTARY.value or state.get('source_mode') == 'documentation'
@@ -17,11 +19,19 @@ def retrieve(state: RAGState) -> dict:
     return {'retrieved_chunks': chunks}
 
 
+def sources_line(sources) -> str:
+    links = [f"[{s.title.translate(_TITLE_BRACKETS)}]({s.source})"
+             for s in sources if s.source.startswith(('http://', 'https://'))]
+    return 'Sources: ' + ', '.join(links) if links else ''
+
+
 def format_output(state: RAGState) -> dict:
     response = state.get('response')
     chunks = state.get('retrieved_chunks', [])
     if response:
         response.route = state.get('route')
+        if line := sources_line(response.sources):
+            response.answer += '\n\n' + line
     if response and chunks and answered_by_documents(state):
         metadata = chunks[0].get('metadata') or {}
         if metadata.get('ocr_quality') == 'low' and metadata.get('type', '') in ('doc_pdf', 'pdf'):

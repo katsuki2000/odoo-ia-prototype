@@ -7,19 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api import routes_ask, routes_ingestion, routes_system
 from api.auth import get_jwt_secret
-from config.settings import API_HOST, API_PORT, CORS_ALLOWED_ORIGINS, SCHEDULER_INTERVAL_HOURS
-from document_rag.ingestion.scheduler import INGESTION_STATUS, start_scan_loop
+from config.settings import API_HOST, API_PORT, CORS_ALLOWED_ORIGINS
+from document_rag.ingestion.scheduler import INGESTION_STATUS, start_drive_sync_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     get_jwt_secret()
-    scheduler_status = INGESTION_STATUS['scheduler_status']
-    stop_event = start_scan_loop(SCHEDULER_INTERVAL_HOURS, INGESTION_STATUS)
-    scheduler_status['running'] = True
+    stop_event = start_drive_sync_loop()
     yield
     stop_event.set()
-    scheduler_status['running'] = False
+    INGESTION_STATUS['scheduler_status']['running'] = False
 
 
 app = FastAPI(

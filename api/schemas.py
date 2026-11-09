@@ -57,35 +57,8 @@ class AskJobStatusV1(BaseModel):
     error_detail: str | None = None
 
 
-class ReindexRequestV1(BaseModel):
-    """Request body for /api/v1/reindex."""
-    scope: Literal['full', 'incremental'] = Field(
-        'incremental',
-        description="'full' clears and rebuilds the index, 'incremental' processes changes only.",
-    )
-    path: str | None = Field(None, description='Optional file or directory to process.')
-
-
-class ReindexResponseV1(BaseModel):
-    """Response body for /api/v1/reindex."""
-    status: Literal['success']
-    scope: Literal['full', 'incremental']
-    result: dict[str, Any]
-    total_chunks: int
-
-
 class IngestionStatusResponseV1(BaseModel):
     """Response body for /api/v1/ingestion/status."""
     last_ingestion_time: str | None
     total_chunks: int
-    files_monitored: int
     scheduler_status: dict[str, Any] | None = None
-    last_scan_type: str | None = None
-
-
-class ScheduledScanResponseV1(BaseModel):
-    """Response body for /api/v1/ingestion/scheduled-scan."""
-    status: Literal['success']
-    scan_type: str
-    result: dict[str, Any]
-    last_ingestion_time: str | None

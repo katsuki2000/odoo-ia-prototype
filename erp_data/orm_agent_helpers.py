@@ -70,10 +70,19 @@ def is_query_contract_refusal(observation: Any) -> bool:
     return str(observation).startswith("Query refused:")
 
 
+def _only_counted(plan: QueryPlan | None, tool_names: list[str], result_kind: str) -> bool:
+    used = set(tool_names)
+    return bool(plan) and plan.result_kind == result_kind and "search_count" in used and not used & MEASURE_TOOLS
+
+
 def counted_instead_of_measured(plan: QueryPlan | None, tool_names: list[str]) -> bool:
     """True when a sum, total or average was asked and only rows were counted."""
-    used = set(tool_names)
-    return bool(plan) and plan.result_kind == "aggregate" and "search_count" in used and not used & MEASURE_TOOLS
+    return _only_counted(plan, tool_names, "aggregate")
+
+
+def counted_instead_of_listed(plan: QueryPlan | None, tool_names: list[str]) -> bool:
+    """True when a list was asked and only rows were counted."""
+    return _only_counted(plan, tool_names, "list")
 
 
 def answered_without_reading(plan: QueryPlan | None, tool_names: list[str]) -> bool:

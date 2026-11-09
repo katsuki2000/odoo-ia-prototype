@@ -21,19 +21,14 @@ def main():
             parser.exit(2, 'Approve the selected corpus for all RAG readers with GOOGLE_DRIVE_APPROVED_FOR_RAG=true.\n')
         if args.chunk_size <= 0 or not 0 <= args.chunk_overlap < args.chunk_size:
             raise ValueError('Invalid chunk size or overlap.')
-        from filelock import FileLock
-        from document_rag.ingestion.google_drive import GoogleDriveClient
-        from document_rag.ingestion.google_drive_sync import synchronize_google_drive
+        from document_rag.ingestion.google_drive_sync import configured_synchronizer, drive_sync_lock
         from document_rag.ingestion.periodic import run_periodically
         from document_rag.vectorstore.chroma_manager import ChromaManager
-        client = GoogleDriveClient(timeout=settings.timeout, max_bytes=settings.max_bytes)
         manager = ChromaManager()
-        def synchronize():
-            return synchronize_google_drive(client, settings.folder_ids, manager,
-                                            chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap, max_files=settings.max_files)
+        synchronize = configured_synchronizer(settings, manager, args.chunk_size, args.chunk_overlap)
         def emit(result):
             print(json.dumps(result, ensure_ascii=False), flush=True)
-        with FileLock(str(manager.db_path / '.google_drive_sync.lock'), timeout=0):
+        with drive_sync_lock(manager):
             if args.watch:
                 run_periodically(synchronize, settings.sync_interval, emit)
                 return 0

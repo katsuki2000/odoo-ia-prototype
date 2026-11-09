@@ -23,6 +23,13 @@ msgid "%s exchange(s)"
 msgstr ""
 
 #. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Check in Odoo: %s"
+msgstr ""
+
+#. module: miro_ai
 #: model:ir.actions.act_window,name:miro_ai.action_miro_ai_log
 msgid "AI Request Log"
 msgstr ""
@@ -165,22 +172,8 @@ msgid "Display Name"
 msgstr ""
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Documentation"
-msgstr ""
-
-#. module: miro_ai
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
 msgid "Duration (ms)"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "ERP data"
 msgstr ""
 
 #. module: miro_ai
@@ -202,13 +195,6 @@ msgstr ""
 
 #. module: miro_ai
 #. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Evidence (%s)"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
 msgid "From the documentation"
@@ -219,13 +205,6 @@ msgstr ""
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
 msgid "From the system"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "General"
 msgstr ""
 
 #. module: miro_ai
@@ -518,13 +497,6 @@ msgstr ""
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__sources_count
 msgid "Sources count"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
-#, python-format
-msgid "Sources:"
 msgstr ""
 
 #. module: miro_ai

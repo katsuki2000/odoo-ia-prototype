@@ -94,6 +94,8 @@ def test_an_unset_value_is_scored_by_false_or_a_plain_none():
     assert result.value is False
     assert score_answer("Aucune date de verrouillage n'est définie.", result)["complete"] is True
     assert score_answer("La date de verrouillage est le 3 mars 2026.", result)["complete"] is False
+    assert score_answer("La date de verrouillage n'est pas définie.", result)["complete"] is True
+    assert score_answer("Les dates ne sont pas configurées pour la société.", result)["complete"] is True
 
 
 def test_posted_entries_oracle_is_shared_by_the_global_and_the_profile_question():
@@ -188,3 +190,38 @@ def test_active_company_comes_first_in_the_allowed_companies():
     assert _company_context([{"company_id": [1, "A"], "company_ids": [2, 1]}]) == (1, [1, 2])
     assert _company_context([{"company_id": [3, "C"], "company_ids": [2, 1]}]) == (3, [3, 2, 1])
     assert _company_context([{"company_id": False, "company_ids": [2, 1]}]) == (None, [2, 1])
+
+
+def test_a_datetime_is_accepted_in_the_french_date_and_time_format_of_an_answer():
+    variants = _date_variants("2026-10-22 13:33:29")
+    assert "22/10/2026 13:33:29" in variants and "22/10/2026 13:33" in variants
+    assert "22/10/2026" in variants
+
+
+class RelationExecutor:
+    def __init__(self, rows, field_types):
+        self.rows, self.field_types = rows, field_types
+
+    def execute(self, model, method, args, kwargs=None):
+        if method == "fields_get":
+            return {field: self.field_types[field] for field in args[0]}
+        if method == "search_read":
+            return self.rows
+        if method == "read":
+            return [{"id": item, "display_name": f"User {item}"} for item in args[0]]
+        raise AssertionError((model, method))
+
+
+def test_a_to_many_value_gives_one_group_per_name():
+    types = {"user_ids": {"type": "many2many", "relation": "res.users", "selection": False}}
+    executor = RelationExecutor([{"id": 1, "user_ids": [6, 2]}], types)
+    plan = {"kind": "rows", "model": "project.task", "domain": [], "fields": ["user_ids"]}
+    assert evaluate_plan(executor, plan).expected_groups == (("User 6",), ("User 2",))
+
+
+def test_the_display_name_is_accepted_for_the_name_of_a_record():
+    types = {"name": {"type": "char", "selection": False}}
+    rows = [{"id": 1, "name": "Sick leave", "display_name": "Paul on Sick leave: 1.00 days"}]
+    plan = {"kind": "rows", "model": "hr.leave", "domain": [], "fields": ["name"]}
+    (group,) = evaluate_plan(RelationExecutor(rows, types), plan).expected_groups
+    assert {"Sick leave", "Paul on Sick leave: 1.00 days"} <= set(group)

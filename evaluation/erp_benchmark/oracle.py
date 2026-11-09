@@ -63,7 +63,7 @@ def _resolve_tokens(value: Any, executor: ReadExecutor | None = None) -> Any:
 
 
 def _is_id_pair(value: Any) -> bool:
-    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], int)
+    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], int) and isinstance(value[1], str)
 
 
 def _public_value(value: Any) -> Any:
@@ -74,7 +74,7 @@ def _public_value(value: Any) -> Any:
     return value
 
 
-UNSET_VALUE_FACTS = ("aucun", "aucune", "none")
+UNSET_VALUE_FACTS = ("aucun", "aucune", "none", "pas defini", "non defini", "pas configure", "non configure")
 
 
 MONTHS = (
@@ -103,7 +103,9 @@ def _date_variants(value: str) -> tuple[str, ...]:
         except ValueError:
             return (value,)
         month = MONTHS[parsed.month - 1][1]
-        return (value, date_part, parsed.strftime("%d/%m/%Y"), f"{parsed.day} {month} {parsed.year}", f"{parsed.day:02d} {month} {parsed.year}")
+        french_date = parsed.strftime("%d/%m/%Y")
+        with_time = (f"{french_date} {value[11:19]}", f"{french_date} {value[11:16]}") if len(value) >= 16 else ()
+        return (value, date_part, french_date, *with_time, f"{parsed.day} {month} {parsed.year}", f"{parsed.day:02d} {month} {parsed.year}")
     return (value,)
 
 
@@ -153,11 +155,12 @@ def _read_rows(
     fields: list[str],
     max_rows: int,
 ) -> list[dict[str, Any]]:
+    alias_fields = ["display_name"] if "name" in fields and "display_name" not in fields else []
     rows = executor.execute(
         model,
         "search_read",
         [domain],
-        {"fields": fields, "limit": max_rows + 1, "order": "id"},
+        {"fields": [*fields, *alias_fields], "limit": max_rows + 1, "order": "id"},
     )
     if len(rows) > max_rows:
         raise NotApplicable(f"result has more than the {max_rows}-row evaluation limit")
@@ -204,9 +207,21 @@ def _row_public_values(
     return [{field: _public_value(row.get(field)) for field in fields} for row in expanded]
 
 
-def _groups_for_row(row: dict[str, Any], labels: dict[str, dict[str, str]] | None = None) -> tuple[tuple[str, ...], ...]:
+def _groups_for_row(
+    row: dict[str, Any], labels: dict[str, dict[str, str]] | None = None, display_name: str | None = None
+) -> tuple[tuple[str, ...], ...]:
+    """One group of accepted forms per value; a list gives one group per element, and the display name is an
+    accepted form of the name."""
     labels = labels or {}
-    return tuple(group for field, value in row.items() for group in (_fact_variants(value, labels.get(field)),) if group)
+    groups = []
+    for field, value in row.items():
+        for item in value if isinstance(value, list) else [value]:
+            variants = _fact_variants(item, labels.get(field))
+            if field == "name" and display_name:
+                variants = tuple(dict.fromkeys((*variants, *_fact_variants(display_name))))
+            if variants:
+                groups.append(variants)
+    return tuple(groups)
 
 
 def _result_for_rows(executor: ReadExecutor, plan: dict[str, Any], max_rows: int) -> OracleResult:
@@ -215,7 +230,9 @@ def _result_for_rows(executor: ReadExecutor, plan: dict[str, Any], max_rows: int
     metadata = _field_metadata(executor, plan["model"], fields)
     public_rows = _row_public_values(executor, raw_rows, metadata, fields)
     labels = _selection_labels(metadata)
-    row_groups = tuple(_groups_for_row(row, labels) for row in public_rows)
+    row_groups = tuple(
+        _groups_for_row(row, labels, raw.get("display_name")) for row, raw in zip(public_rows, raw_rows)
+    )
     expected = tuple(group for row in row_groups for group in row)
     return OracleResult(
         status="ok",
@@ -293,7 +310,7 @@ def _result_for_relation(executor: ReadExecutor, plan: dict[str, Any], max_rows:
         root_relation_fields = {chain[0]["field"] for chain in plan["paths"]}
         public_root = {field: _public_value(root.get(field)) for field in fields if field not in root_relation_fields}
         public = dict(public_root)
-        groups = list(_groups_for_row(public_root))
+        groups = list(_groups_for_row(public_root, display_name=root.get("display_name")))
         for index, chain in enumerate(plan["paths"]):
             related = _follow_path(executor, root, chain, max_rows)
             values = []

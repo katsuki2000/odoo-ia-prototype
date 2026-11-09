@@ -24,6 +24,7 @@ from erp_data.orm_agent_helpers import (
     QueryPlan,
     _build_llm,
     answered_without_reading,
+    counted_instead_of_listed,
     counted_instead_of_measured,
     execute_tool_call,
     explain_refusals,
@@ -36,6 +37,7 @@ from erp_data.orm_agent_helpers import (
 )
 from erp_data.prompts import (
     EMPTY_REPLY_REMINDER,
+    LIST_READ_REMINDER,
     MEASURE_READ_REMINDER,
     NO_READ_REMINDER,
     build_orm_agent_messages,
@@ -54,6 +56,8 @@ NO_READ_ANSWER = (
 def _missing_read_reminder(plan: QueryPlan | None, tool_names: List[str]) -> Optional[str]:
     if counted_instead_of_measured(plan, tool_names):
         return MEASURE_READ_REMINDER
+    if counted_instead_of_listed(plan, tool_names):
+        return LIST_READ_REMINDER
     if answered_without_reading(plan, tool_names):
         return NO_READ_REMINDER
     return None

@@ -28,7 +28,8 @@ def _target_setting(name, default=''):
 OLLAMA_HOST = _target_setting('OLLAMA_HOST')
 _ollama_url = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
 LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollama_url)
-LLM_MODEL = 'qwen3:14b'
+
+LLM_MODEL = 'gemma4:26b'
 LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
 # Reasoning effort sent with the request: 'none' switches the reasoning off on models that support it, None keeps
 # the model default.
@@ -37,7 +38,6 @@ ERP_REASONING_EFFORT = None
 ROUTING_REASONING_EFFORT = None
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
 LLM_MAX_RETRIES = 1
-SCHEDULER_INTERVAL_HOURS = 6
 ERP_MODEL_EVAL_TIMEOUT_SECONDS = 180
 EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollama_url)
 EMBEDDING_MODEL = 'bge-m3:latest'
@@ -75,7 +75,6 @@ JWT_SECRET_MIN_BYTES = 32
 GOOGLE_DRIVE_FOLDER_IDS = tuple(dict.fromkeys(
     value.strip() for value in os.getenv('GOOGLE_DRIVE_FOLDER_IDS', '').split(',') if value.strip()))
 GOOGLE_DRIVE_APPROVED_FOR_RAG = os.getenv('GOOGLE_DRIVE_APPROVED_FOR_RAG', '').lower() == 'true'
-RAG_DOCS_PATH = str(_ROOT / 'document_rag' / 'documents')
 RAG_CHUNK_SIZE = 512
 RAG_CHUNK_OVERLAP = 50
 DOCUMENT_MAX_TOKENS = 2048
@@ -104,7 +103,7 @@ QUESTION_PREVIEW_CHARS = 80
 OBSERVATION_PREVIEW_CHARS = 300
 CHAT_HISTORY_MAX_MESSAGES = 10
 ORM_RUNTIME_MAX_ROWS = 200
-ORM_OBSERVATION_MAX_CHARS = 8000
+ORM_OBSERVATION_MAX_CHARS = 16000
 ORM_FIELDS_INDEX_MAX_CHARS = 16000
 ORM_SYNTHESIS_MAX_TOKENS = 1024
 REACT_RECURSION_LIMIT = 10

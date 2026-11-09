@@ -3,7 +3,6 @@ Integration tests for Step 2 Day 5 - Complete ingestion pipeline validation.
 
 Validates:
 - OCR detection and quality assessment
-- Multi-document ingestion
 - Metadata schema correctness
 - Incremental indexing
 """
@@ -15,11 +14,11 @@ from pathlib import Path
 
 import pytest
 
-from document_rag.ingestion.ingest_all import IngestionOrchestrator
+from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
 class TestIngestionPipeline(unittest.TestCase):
-    """End-to-end ingestion pipeline tests."""
+    """Loader and index pipeline tests."""
 
     @classmethod
     def setUpClass(cls):
@@ -28,18 +27,13 @@ class TestIngestionPipeline(unittest.TestCase):
         cls.db_path = Path(cls.temp_dir) / "chroma_db"
 
     def setUp(self):
-        """Initialize orchestrator for each test."""
-        self.orchestrator = IngestionOrchestrator(
-            chroma_db_path=self.db_path,
-            collection_name="test_pipeline",
-            chunk_size=300,
-            chunk_overlap=30,
-        )
+        """Initialize the document index for each test."""
+        self.manager = ChromaManager(db_path=self.db_path, collection_name="test_pipeline")
 
     def tearDown(self):
         """Clean up after each test."""
         try:
-            self.orchestrator.docs_manager.delete_collection()
+            self.manager.delete_collection()
         except Exception:
             pass
 
@@ -63,7 +57,7 @@ class TestIngestionPipeline(unittest.TestCase):
             chunks = result["chunks"]
             metadatas = result["metadatas"]
 
-            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
+            ids = self.manager.add_chunks(chunks, metadatas)
 
             # Verify metadata completeness
             required_fields = [
@@ -150,25 +144,6 @@ class TestIngestionPipeline(unittest.TestCase):
         finally:
             os.unlink(txt_path)
 
-    def test_multi_format_ingestion(self):
-        """Test ingestion of multiple document formats."""
-        test_dir = Path(self.temp_dir) / "multi_format"
-        test_dir.mkdir(exist_ok=True)
-
-        # Create sample files of different types
-        (test_dir / "doc1.txt").write_text("Text document content here.")
-        (test_dir / "doc2.md").write_text("# Markdown\n\nMarkdown content here.")
-
-        try:
-            result = self.orchestrator.ingest_all(docs_dir=test_dir)
-
-            # Verify we got results
-            self.assertGreaterEqual(result.get("total_chunks", 0), 0)
-
-        except Exception as e:
-            # Some loaders might not be available
-            pass
-
     @pytest.mark.embedding_server
     def test_retrieval_after_ingestion(self):
         """Test that ingested documents are retrievable."""
@@ -197,10 +172,10 @@ class TestIngestionPipeline(unittest.TestCase):
             metadatas = result["metadatas"]
 
             # Ingest (wiki/text content goes to docs_manager)
-            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
+            ids = self.manager.add_chunks(chunks, metadatas)
 
             # Try to retrieve
-            query_result = self.orchestrator.docs_manager.query(
+            query_result = self.manager.query(
                 "What is the sales process?",
                 top_k=2,
             )
@@ -232,17 +207,17 @@ class TestIngestionPipeline(unittest.TestCase):
             metadatas = result["metadatas"]
 
             # Ingest (wiki/text content goes to docs_manager)
-            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
+            ids = self.manager.add_chunks(chunks, metadatas)
             initial_count = len(ids)
 
             # Delete by source
             source_name = str(txt_path)
-            deleted = self.orchestrator.docs_manager.delete_by_source(source_name)
+            deleted = self.manager.delete_by_source(source_name)
 
             self.assertEqual(deleted, initial_count)
 
             # Verify chunks are gone
-            stats = self.orchestrator.docs_manager.get_stats()
+            stats = self.manager.get_stats()
             self.assertEqual(stats["total_chunks"], 0)
 
         finally:
@@ -256,9 +231,9 @@ class TestIngestionPipeline(unittest.TestCase):
             {"source": "file1.pdf", "type": "doc_pdf", "module": "stock"},
             {"source": "file2.txt", "type": "doc_wiki", "module": "sale"},
         ]
-        self.orchestrator.docs_manager.add_chunks(doc_texts, doc_metadatas)
+        self.manager.add_chunks(doc_texts, doc_metadatas)
 
-        stats = self.orchestrator.docs_manager.get_stats()
+        stats = self.manager.get_stats()
 
         self.assertEqual(stats["total_chunks"], 2)
         self.assertEqual(stats["by_type"]["doc_pdf"], 1)

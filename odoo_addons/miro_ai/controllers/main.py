@@ -13,6 +13,7 @@ from .backend_client import (
     BackendError, BackendInvalidResponse, get_from_backend, job_response_object,
     post_to_backend,
 )
+from .verify_link import verify_link
 
 _logger = logging.getLogger(__name__)
 
@@ -48,6 +49,18 @@ def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='s
         _logger.warning("MIRO AI: audit log write failed: %s", log_err)
 
 
+def _verify_link_payload(evidence_dossier):
+    """Link to the list the agent read, under the rights of the current user; None when not possible."""
+    link = verify_link(evidence_dossier)
+    if link is None:
+        return None
+    model = link['model']
+    env = request.env
+    if model not in env or not env[model].check_access_rights('read', raise_exception=False):
+        return None
+    return {'model': model, 'label': env['ir.model']._get(model).name, 'domain': link['domain']}
+
+
 def _answer_payload(data, session_id):
     answer = data.get('answer', _("The backend returned no answer."))
     if data.get('ocr_warning'):
@@ -58,6 +71,7 @@ def _answer_payload(data, session_id):
         'session_id': data.get('session_id', session_id),
         'route': data.get('route'),
         'confidence': data.get('confidence', 1.0),
+        'verify_link': _verify_link_payload(data.get('evidence_dossier')),
     }
 
 

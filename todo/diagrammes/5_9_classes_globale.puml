@@ -133,8 +133,8 @@ package "document_rag" {
   class "generate_node" as GenerateNode <<module>> {
     +generate(state) : dict
   }
-  class IngestionOrchestrator {
-    +ingest_all(docs_dir) : dict
+  class "google_drive_sync" as DriveSync <<module>> {
+    +synchronize_google_drive(client, folder_ids, manager) : dict
   }
 }
 
@@ -190,7 +190,7 @@ AssistantResponse "1" o-- "0..*" Evidence : evidence_dossier
 Search --> ChromaManager : dense
 Search --> BM25Index : lexical
 GenerateNode ..> AssistantResponse : produit
-IngestionOrchestrator --> ChromaManager
+DriveSync --> ChromaManager
 
 OrmAgentNode ..> QueryPlan
 OrmAgentNode ..> EvidenceCollector

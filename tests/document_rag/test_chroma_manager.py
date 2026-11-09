@@ -10,8 +10,11 @@ Tests cover:
 """
 
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from threading import Lock, Thread
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -304,6 +307,32 @@ class TestChromaManager(unittest.TestCase):
         self.assertIsInstance(cleaned["dict"], str)  # Dict converted to JSON string
         self.assertIsInstance(cleaned["list"], str)  # List converted to JSON string
         self.assertIsInstance(cleaned["complex"], str)  # Complex object converted to string
+
+
+def test_clients_of_the_same_path_are_never_created_concurrently(tmp_path):
+    running, peak, guard = 0, 0, Lock()
+
+    def slow_client(path):
+        nonlocal running, peak
+        with guard:
+            running += 1
+            peak = max(peak, running)
+        time.sleep(0.05)
+        with guard:
+            running -= 1
+        return MagicMock()
+
+    with (
+        patch("document_rag.vectorstore.chroma_manager.chromadb.PersistentClient", side_effect=slow_client),
+        patch("document_rag.vectorstore.chroma_manager.resolve_embedding_function"),
+    ):
+        threads = [Thread(target=ChromaManager, kwargs={"db_path": tmp_path}) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+    assert peak == 1
 
 
 if __name__ == "__main__":

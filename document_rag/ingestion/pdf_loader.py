@@ -171,29 +171,3 @@ class PDFLoader:
     @staticmethod
     def _compute_hash(text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()[:12]
-
-
-def load_pdf_directory(
-    directory: str | Path,
-    chunk_size: int = RAG_CHUNK_SIZE,
-    chunk_overlap: int = RAG_CHUNK_OVERLAP,
-    scan_root: Optional[str | Path] = None,
-) -> list[dict[str, Any]]:
-    directory = Path(directory)
-    if not directory.is_dir():
-        raise ValueError(f"Directory not found: {directory}")
-
-    root = Path(scan_root) if scan_root is not None else directory
-    loader = PDFLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    documents = []
-
-    for pdf_file in directory.glob("*.pdf"):
-        try:
-            logger.info("Processing %s...", pdf_file.name)
-            result = loader.load_and_chunk(pdf_file, scan_root=root)
-            documents.append(result)
-        except Exception as e:
-            logger.error("Error processing %s: %s", pdf_file, e)
-
-    logger.info("Loaded %d PDF documents from %s", len(documents), directory)
-    return documents

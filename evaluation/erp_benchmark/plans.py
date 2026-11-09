@@ -165,7 +165,7 @@ def build_plans() -> dict[str, dict[str, Any]]:
         "ERP-P-009": rows("hr.employee", [], ["name"]),
         "ERP-P-010": rows("hr.attendance", [], ["employee_id", "check_in", "check_out"]),
         "ERP-P-011": rows("hr.leave", [], ["name", "state"]),
-        "ERP-P-012": rows("hr.expense.sheet", [], ["name", "total_amount"]),
+        "ERP-P-012": rows("hr.expense", [], ["name", "total_amount"]),
         "ERP-P-013": rows("project.task", [], ["name", "project_id"]),
         "ERP-P-014": rows("mrp.production", [], ["name"]),
         "ERP-P-015": rows("pos.order", [], ["name"]),
