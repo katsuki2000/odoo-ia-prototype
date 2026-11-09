@@ -821,3 +821,22 @@ def test_plan_text_asks_for_the_question_language_with_untranslated_odoo_labels(
 
 def test_prompt_forbids_a_currency_that_the_data_does_not_show():
     assert "N'ajoute aucune devise ni unité absente des observations" in ORM_AGENT_SYSTEM_PROMPT
+
+
+def test_domain_leaves_written_as_strings_are_parsed():
+    from erp_data.runtime.langchain_tools import _coerce_domain
+
+    assert _coerce_domain(["['payment_type', '=', 'inbound']"]) == [["payment_type", "=", "inbound"]]
+    assert _coerce_domain(["('state', '=', 'posted')"]) == [["state", "=", "posted"]]
+    assert _coerce_domain(["[('move_type', '=', 'in_invoice'), ('state', '=', 'posted')]"]) == [
+        ("move_type", "=", "in_invoice"), ("state", "=", "posted"),
+    ]
+    assert _coerce_domain(["|", ["a", "=", 1], "['b', '=', 2]"]) == ["|", ["a", "=", 1], ["b", "=", 2]]
+
+
+def test_fields_get_exposes_the_currency_field_and_the_prompt_uses_it():
+    from erp_data.odoo_connector import FIELD_ATTRIBUTES
+
+    assert "currency_field" in FIELD_ATTRIBUTES
+    assert "currency_field" in ORM_AGENT_SYSTEM_PROMPT
+    assert "plusieurs sortes d'enregistrements" in ORM_AGENT_SYSTEM_PROMPT

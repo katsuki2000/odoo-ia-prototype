@@ -39,6 +39,17 @@ FULL_LIST_HINT = (
 )
 
 
+def _parse_sequence(text: str) -> Optional[list]:
+    for load in (ast.literal_eval, json.loads):
+        try:
+            parsed = load(text)
+        except (ValueError, SyntaxError):
+            continue
+        if isinstance(parsed, (list, tuple)):
+            return list(parsed)
+    return None
+
+
 def _coerce_list(value: Any) -> Any:
     """Small models often send a list argument as a string ('state' or "['a', 'b']").
     Turn those into a real list so the tool schema accepts them; leave anything else untouched."""
@@ -47,15 +58,9 @@ def _coerce_list(value: Any) -> Any:
     text = value.strip()
     if not text:
         return None
-    if text.startswith("["):
-        try:
-            parsed = ast.literal_eval(text)
-        except (ValueError, SyntaxError):
-            try:
-                parsed = json.loads(text)
-            except ValueError:
-                parsed = None
-        if isinstance(parsed, list):
+    if text.startswith(("[", "(")):
+        parsed = _parse_sequence(text)
+        if parsed is not None:
             return parsed
     return [part.strip().strip("'\"") for part in text.split(",") if part.strip()]
 
@@ -69,7 +74,11 @@ def _is_domain_leaf(value: Any) -> bool:
 
 
 def _flatten_domain_tokens(value: Any) -> Any:
-    if _is_domain_leaf(value) or isinstance(value, str):
+    if isinstance(value, str):
+        text = value.strip()
+        parsed = _parse_sequence(text) if text.startswith(("[", "(")) else None
+        return [value] if parsed is None else _flatten_domain_tokens(parsed)
+    if _is_domain_leaf(value):
         return [value]
     if isinstance(value, list):
         return [token for item in value for token in _flatten_domain_tokens(item)]

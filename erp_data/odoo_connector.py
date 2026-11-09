@@ -33,6 +33,11 @@ TECHNICAL_ONLY_MODELS = frozenset({
 })
 
 
+FIELD_ATTRIBUTES = (
+    "string", "type", "help", "relation", "selection", "required", "readonly", "store", "currency_field",
+)
+
+
 class OdooConnectorError(Exception):
     """Custom exception for Odoo connection or enforcement errors."""
     pass
@@ -248,5 +253,5 @@ class OdooConnector:
             model,
             "fields_get",
             [field_names] if field_names else [],
-            {"attributes": ["string", "type", "help", "relation", "selection", "required", "readonly", "store"]},
+            {"attributes": list(FIELD_ATTRIBUTES)},
         )
