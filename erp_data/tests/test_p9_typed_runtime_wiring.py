@@ -839,4 +839,5 @@ def test_fields_get_exposes_the_currency_field_and_the_prompt_uses_it():
 
     assert "currency_field" in FIELD_ATTRIBUTES
     assert "currency_field" in ORM_AGENT_SYSTEM_PROMPT
+    assert "n'est pas stocké" in ORM_AGENT_SYSTEM_PROMPT
     assert "plusieurs sortes d'enregistrements" in ORM_AGENT_SYSTEM_PROMPT
