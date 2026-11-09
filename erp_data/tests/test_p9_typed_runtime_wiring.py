@@ -5,9 +5,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from config.settings import ORM_CONFIDENCE_WITH_DATA, ORM_CONFIDENCE_WITHOUT_DATA
-from core.evidence.evidence import EvidenceSourceType, make_evidence
-from core.evidence.evidence_collector import (
+from core.evidence import (
+    EvidenceSourceType,
     collect_and_clear_evidence,
+    make_evidence,
     record_evidence,
     start_evidence_collection,
 )

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 from unittest.mock import patch
-from core.routing.routing import route
-from core.routing.source_selection import SourceSelection
+from core.routing import route
+from core.source_selection import SourceSelection
 
 
 def _route_question(question: str, selection: SourceSelection) -> str:
@@ -13,7 +13,7 @@ def _route_question(question: str, selection: SourceSelection) -> str:
         "chat_history": [],
         "timing": {},
     }
-    with patch("core.routing.routing.select_source", return_value=selection):
+    with patch("core.routing.select_source", return_value=selection):
         return route(state)["route"]
 
 

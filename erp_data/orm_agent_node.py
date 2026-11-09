@@ -12,10 +12,9 @@ from config.settings import (
     ORM_MAX_QUERY_REFUSALS,
     REACT_RECURSION_LIMIT,
 )
-from core.evidence.disclosure import filter_disclosed_evidence
-from core.evidence.evidence_collector import peek_turn_evidence
+from core.evidence import filter_disclosed_evidence, peek_turn_evidence
 from core.guardrails import PROMPT_INJECTION_REFUSAL_MSG, is_prompt_injection
-from core.llm.llm_client import invoke_llm
+from core.llm import invoke_llm
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 from core.state import RAGState

@@ -2,9 +2,10 @@ import pytest
 from langchain_core.messages import AIMessage
 from langgraph.graph import END, START, StateGraph
 
-from core.evidence.evidence import EvidenceSourceType, make_evidence
-from core.evidence.evidence_collector import (
+from core.evidence import (
+    EvidenceSourceType,
     collect_and_clear_evidence,
+    make_evidence,
     record_evidence,
     start_evidence_collection,
 )

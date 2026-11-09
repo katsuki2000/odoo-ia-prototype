@@ -79,7 +79,7 @@ package "core" {
       +route(state) : dict
       +route_decision(state) : str
     }
-    class "source_selection" as SourceSelection <<core.routing>> {
+    class "source_selection" as SourceSelection <<core.source_selection>> {
       +select_source(question) : SourceSelection
     }
     class RAGState <<TypedDict>> {
@@ -105,7 +105,7 @@ package "core" {
       +value : Any
       +scope : dict
     }
-    class "evidence_collector" as EvidenceCollector <<core.evidence>> {
+    class "evidence" as EvidenceCollector <<core.evidence>> {
       +start_evidence_collection() : void
       +record_evidence(evidence) : void
       +peek_turn_evidence() : list

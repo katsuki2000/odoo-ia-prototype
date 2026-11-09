@@ -1,17 +1,17 @@
 import pytest
 
 import config.settings as settings
-from core.llm import llm_client
+from core import llm
 from evaluation import ollama_server
 from evaluation.preflight import BackendUnavailable
 
 
 @pytest.mark.parametrize("model", ["qwen3:8b", "gpt-oss:20b"])
 def test_model_override_replaces_then_restores_settings(model):
-    before = (settings.LLM_MODEL, llm_client.LLM_MODEL)
+    before = (settings.LLM_MODEL, llm.LLM_MODEL)
     with ollama_server.model_override(model):
-        assert (settings.LLM_MODEL, llm_client.LLM_MODEL) == (model, model)
-    assert (settings.LLM_MODEL, llm_client.LLM_MODEL) == before
+        assert (settings.LLM_MODEL, llm.LLM_MODEL) == (model, model)
+    assert (settings.LLM_MODEL, llm.LLM_MODEL) == before
 
 
 def _fake_server(monkeypatch, capabilities, loaded):

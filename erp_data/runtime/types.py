@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.evidence.evidence import Evidence
+from core.evidence import Evidence
 
 
 class OrmObservation(BaseModel):

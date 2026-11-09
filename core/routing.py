@@ -5,8 +5,8 @@ import time
 
 from config.settings import SOURCE_SELECTION_MIN_CONFIDENCE
 from core.schemas import AssistantResponse, QueryRoute
+from core.source_selection import select_source
 from core.state import RAGState
-from core.routing.source_selection import select_source
 
 logger = logging.getLogger(__name__)
 SOURCE_CLARIFICATION = 'source_clarification'

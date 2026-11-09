@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 ENGINES = ("document_rag", "erp_data")
 KERNEL = ("core.llm", "core.session", "core.schemas", "core.evidence")
-ORCHESTRATION = ("core.graph", "core.routing", "core.verification")
+ORCHESTRATION = ("core.graph", "core.routing", "core.source_selection", "core.verification")
 
 KNOWN_VIOLATIONS = frozenset()
 

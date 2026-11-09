@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from config import settings
-from core.llm.llm_client import get_chat_llm, invoke_llm
+from core.llm import get_chat_llm, invoke_llm
 
 logger = logging.getLogger(__name__)
 

@@ -119,7 +119,7 @@ class Recorder:
 
 
 class _ReductionHandler(logging.Handler):
-    """Counts the 'contexte reduit' warnings emitted by core.llm.llm_client."""
+    """Counts the 'contexte reduit' warnings emitted by core.llm."""
 
     def __init__(self, recorder: Recorder) -> None:
         super().__init__(level=logging.WARNING)
@@ -160,7 +160,7 @@ def install_probe(recorder: Recorder) -> None:
 
     ChatOpenAI._generate = wrapped_sync
     ChatOpenAI._agenerate = wrapped_async
-    logging.getLogger("core.llm.llm_client").addHandler(_ReductionHandler(recorder))
+    logging.getLogger("core.llm").addHandler(_ReductionHandler(recorder))
 
 
 def resolve_window(requested: Optional[int]) -> tuple[int, str]:

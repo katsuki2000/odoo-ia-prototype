@@ -11,13 +11,12 @@ from langgraph.graph import StateGraph, START, END
 from config.settings import QUESTION_PREVIEW_CHARS
 from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
-from core.routing.routing import route, route_decision
+from core.routing import route, route_decision
 from document_rag.generate_node import generate
 from erp_data.orm_agent_node import orm_agent_loop
 from core.graph.graph_nodes import retrieve, format_output
 from core.graph.verify_node import verify_answer
-from core.evidence.disclosure import filter_disclosed_evidence
-from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
+from core.evidence import collect_and_clear_evidence, filter_disclosed_evidence, start_evidence_collection
 from erp_data.odoo_context import request_identity
 
 logger = logging.getLogger(__name__)

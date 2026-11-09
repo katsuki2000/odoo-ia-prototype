@@ -13,7 +13,7 @@ class BackendUnavailable(RuntimeError):
 
 
 def probe_llm() -> None:
-    from core.llm.llm_client import get_chat_llm
+    from core.llm import get_chat_llm
 
     get_chat_llm(max_tokens=PROBE_MAX_TOKENS).invoke(PROBE_TEXT)
 

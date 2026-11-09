@@ -1,7 +1,7 @@
 """Benchmark routing accuracy."""
 import json
 import logging
-from core.routing.routing import route
+from core.routing import route
 from core.schemas import QueryRoute
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 

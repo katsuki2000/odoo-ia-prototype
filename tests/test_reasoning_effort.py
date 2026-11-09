@@ -3,7 +3,7 @@
 from langchain_core.messages import HumanMessage
 
 import config.settings as settings
-from core.llm.llm_client import get_chat_llm
+from core.llm import get_chat_llm
 from document_rag import generate_node
 
 

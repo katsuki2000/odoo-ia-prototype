@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from api.schemas import AskRequestV1
-from core.routing.routing import route_decision
+from core.routing import route_decision
 from core.schemas import QueryRoute
 
 

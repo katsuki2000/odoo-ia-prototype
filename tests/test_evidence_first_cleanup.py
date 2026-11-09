@@ -44,7 +44,7 @@ class Graph:
 class RoutingTests(unittest.TestCase):
     def setUp(self):
         self.select = Mock(return_value=NS(source='system', confidence=.9))
-        self.ns = load('core/routing/routing.py', {'route', 'route_decision'}, {
+        self.ns = load('core/routing.py', {'route', 'route_decision'}, {
             'time': time, 'SOURCE_SELECTION_MIN_CONFIDENCE': .75, 'SOURCE_CLARIFICATION': 'source_clarification',
             'SOURCES': {'documentation', 'system'},
             'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentation', 'ERP_DATA': 'system'}),
@@ -88,7 +88,7 @@ class SourceContractTests(unittest.TestCase):
     def setUp(self):
         from typing import Literal
         self.invoke = Mock(return_value={'source': 'system', 'confidence': .9})
-        self.ns = load('core/routing/source_selection.py', {'SourceSelection', 'select_source'}, {
+        self.ns = load('core/source_selection.py', {'SourceSelection', 'select_source'}, {
             'BaseModel': BaseModel, 'ConfigDict': ConfigDict, 'Field': Field, 'Literal': Literal,
             'get_chat_llm': lambda **kwargs: NS(with_structured_output=lambda *a, **k: object()),
             'invoke_llm': self.invoke, 'ROUTING_REASONING_EFFORT': None,

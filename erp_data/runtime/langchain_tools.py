@@ -11,7 +11,7 @@ from langchain_core.tools import tool
 from pydantic import BeforeValidator, Field
 
 from config import settings
-from core.evidence.evidence_collector import record_evidence
+from core.evidence import record_evidence
 from erp_data.runtime.errors import OrmRuntimeError, SchemaNotReadError
 from erp_data.runtime.read_tools import (
     orm_fields_get as _fields_get,

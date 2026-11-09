@@ -5,7 +5,7 @@ import contextlib
 import requests
 
 import config.settings as settings
-from core.llm import llm_client
+from core import llm
 from evaluation.preflight import BackendUnavailable
 
 SERVER_TIMEOUT_SECONDS = 900
@@ -51,7 +51,7 @@ def prepare_server(model):
 
 @contextlib.contextmanager
 def model_override(model):
-    modules = (settings, llm_client)
+    modules = (settings, llm)
     previous = [module.LLM_MODEL for module in modules]
     for module in modules:
         module.LLM_MODEL = model

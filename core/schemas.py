@@ -6,7 +6,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.evidence.evidence import Evidence
+from core.evidence import Evidence
 
 logger = logging.getLogger(__name__)
 

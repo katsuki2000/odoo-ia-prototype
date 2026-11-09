@@ -3,8 +3,7 @@
 import logging
 
 from config.settings import ANSWER_VERIFIER_MODE
-from core.evidence.disclosure import filter_disclosed_evidence
-from core.evidence.evidence_collector import peek_turn_evidence
+from core.evidence import filter_disclosed_evidence, peek_turn_evidence
 from core.graph.graph_nodes import answered_by_documents
 from core.state import RAGState
 from core.verification.base_methods import default_base_model_methods

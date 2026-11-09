@@ -1,13 +1,13 @@
 """Bounded source selection; uncertainty never silently selects a corpus."""
 
-from typing import Literal
 import logging
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
 from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, ConfigDict, Field
 
 from config.settings import ROUTING_REASONING_EFFORT
-from core.llm.llm_client import get_chat_llm, invoke_llm
+from core.llm import get_chat_llm, invoke_llm
 
 logger = logging.getLogger(__name__)
 

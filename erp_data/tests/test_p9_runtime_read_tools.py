@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core.evidence.evidence import EvidenceSourceType
+from core.evidence import EvidenceSourceType
 from erp_data.odoo_connector import OdooConnectorError
 from erp_data.odoo_context import odoo_uid_ctx
 from erp_data.runtime import read_tools

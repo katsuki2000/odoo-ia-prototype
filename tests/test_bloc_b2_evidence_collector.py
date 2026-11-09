@@ -2,7 +2,7 @@
 tests/test_bloc_b2_evidence_collector.py
 
 Bloc B2 (todo/contexte.txt section 622) -- unit tests for the turn-scoped
-Evidence accumulator in core/evidence_collector.py, in isolation, before
+Evidence accumulator in core/evidence.py, in isolation, before
 any real tool wrapper is wired to it. Pure unit tests, no Odoo/LLM
 dependency.
 """
@@ -11,13 +11,15 @@ import logging
 
 import pytest
 
-from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.evidence.evidence_collector import (
+from core.evidence import (
+    Evidence,
+    EvidenceSourceType,
     _turn_evidence_ctx,
-    start_evidence_collection,
-    record_evidence,
-    peek_turn_evidence,
     collect_and_clear_evidence,
+    make_evidence,
+    peek_turn_evidence,
+    record_evidence,
+    start_evidence_collection,
 )
 
 

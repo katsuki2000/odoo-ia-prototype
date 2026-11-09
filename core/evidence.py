@@ -1,14 +1,21 @@
 """Evidence: the fact an ORM tool produced while it worked, with its provenance.
 
 Distinct from SourceReference (core/schemas.py), which is the UI-facing citation of a RAG chunk.
+The turn-scoped accumulator is the side channel through which ORM tool wrappers hand their Evidence over:
+LangChain tools can only return a str. query_graph starts it once per turn and drains it into
+AssistantResponse.evidence_dossier.
 """
 
+import contextvars
 import hashlib
 import json
+import logging
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
 
 
 class EvidenceSourceType(str, Enum):
@@ -72,3 +79,39 @@ def make_evidence(
         source=source,
         scope=scope,
     )
+
+
+_turn_evidence_ctx: contextvars.ContextVar[list[Any] | None] = contextvars.ContextVar("turn_evidence", default=None)
+
+
+def start_evidence_collection() -> None:
+    _turn_evidence_ctx.set([])
+
+
+def record_evidence(evidence: Any) -> None:
+    """Add one Evidence or a list of them; dropped with a warning outside a started turn."""
+    bucket = _turn_evidence_ctx.get()
+    if bucket is None:
+        logger.warning("record_evidence() called before start_evidence_collection(): evidence dropped.")
+        return
+    if isinstance(evidence, list):
+        bucket.extend(evidence)
+    elif evidence is not None:
+        bucket.append(evidence)
+
+
+def peek_turn_evidence() -> list[Any]:
+    """This turn's evidence, without draining it."""
+    return list(_turn_evidence_ctx.get() or [])
+
+
+def collect_and_clear_evidence() -> list[Any]:
+    """Drain this turn's evidence; the accumulator goes back to None so a late record_evidence() is reported."""
+    bucket = _turn_evidence_ctx.get()
+    _turn_evidence_ctx.set(None)
+    return bucket or []
+
+
+def filter_disclosed_evidence(evidence):
+    """Drop the items flagged sensitive: they never reach the answer or the dossier."""
+    return [item for item in evidence if not item.scope.get('sensitive', False)]

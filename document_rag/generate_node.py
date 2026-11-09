@@ -6,7 +6,7 @@ import time
 from core.schemas import AssistantResponse, LLMResponse, QueryRoute
 import config.settings as settings
 from core.state import RAGState
-from core.llm.llm_client import get_chat_llm, invoke_llm
+from core.llm import get_chat_llm, invoke_llm
 from document_rag.generate_helpers import (
     build_source_aliases as _build_source_aliases,
     format_context as _format_context,
