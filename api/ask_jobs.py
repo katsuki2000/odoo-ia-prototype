@@ -45,6 +45,14 @@ class AskJob:
     def elapsed_ms(self) -> int:
         return int(((self.finished_at or time.monotonic()) - self.started_at) * 1000)
 
+    def mark_complete(self, result: AskResponseV1) -> None:
+        self.result = result
+        self.finished_at = time.monotonic()
+
+    def mark_failed(self, status_code: int, detail: str) -> None:
+        self.error_status, self.error_detail = status_code, detail
+        self.finished_at = time.monotonic()
+
 
 class AskJobStore:
     def __init__(self, workers: int, max_pending: int, ttl_seconds: float):
@@ -81,10 +89,10 @@ class AskJobStore:
             logger.exception('Ask job failed.')
             error = public_http_exception(exc)
         with self._lock:
-            job.result = result
-            if error is not None:
-                job.error_status, job.error_detail = error.status_code, str(error.detail)
-            job.finished_at = time.monotonic()
+            if error is None:
+                job.mark_complete(result)
+            else:
+                job.mark_failed(error.status_code, str(error.detail))
 
     def _drop_expired(self) -> None:
         limit = time.monotonic() - self._ttl_seconds

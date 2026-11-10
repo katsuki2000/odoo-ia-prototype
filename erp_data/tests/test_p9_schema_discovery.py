@@ -152,3 +152,33 @@ def test_a_detailed_fields_get_gets_no_hint(_evidence):
     observation = langchain_tools.fields_get.invoke({"model": "account.move", "field_names": ["move_type"]})
     assert langchain_tools.FULL_LIST_HINT not in observation
     assert langchain_tools.UNKNOWN_FIELDS_HINT not in observation
+
+
+ASSET_LOAN = {"model": "custom.asset.loan", "display_name": "Mise a disposition de materiel"}
+ACCENTED_LABEL = {"model": "hr.leave.type", "display_name": "Type de congé"}
+
+
+@pytest.mark.parametrize("query", ["mise à disposition", "MATÉRIEL", "materiel", "mise a disposition"])
+def test_list_models_ignores_accents_and_case_of_the_keyword(_request_scope, _evidence, query):
+    _request_scope.available_models.return_value = [ASSET_LOAN, {"model": "sale.order", "display_name": "Sales Order"}]
+    observation = langchain_tools.list_models.invoke({"query": query})
+    assert "custom.asset.loan" in observation
+    assert "sale.order" not in observation
+    assert langchain_tools.NO_MODEL_HINT not in observation
+
+
+@pytest.mark.parametrize("query", ["conge", "congé", "CONGÉ"])
+def test_list_models_finds_an_accented_label_from_any_spelling(_request_scope, _evidence, query):
+    _request_scope.available_models.return_value = [ACCENTED_LABEL]
+    assert "hr.leave.type" in langchain_tools.list_models.invoke({"query": query})
+
+
+def test_list_models_returns_the_label_as_odoo_writes_it(_request_scope, _evidence):
+    _request_scope.available_models.return_value = [ACCENTED_LABEL]
+    assert "Type de congé" in langchain_tools.list_models.invoke({"query": "conge"})
+
+
+def test_list_models_folding_creates_no_false_match(_request_scope, _evidence):
+    _request_scope.available_models.return_value = [ACCENTED_LABEL]
+    observation = langchain_tools.list_models.invoke({"query": "matériel"})
+    assert observation.endswith(langchain_tools.NO_MODEL_HINT)

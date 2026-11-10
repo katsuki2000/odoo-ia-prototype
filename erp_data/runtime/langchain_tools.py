@@ -32,7 +32,9 @@ UNKNOWN_FIELDS_HINT = (
 )
 NO_MODEL_HINT = (
     "\nNo model matches this keyword. Technical model names are in English and labels follow the "
-    "interface language of the instance: retry with the English equivalent of the business term."
+    "interface language of the instance: try the English equivalent and a shorter root word of the term. "
+    "The concept may also be a field of the model the question names: read that model's fields. "
+    "If none of these finds it, the concept is not available to the requester: say so."
 )
 FULL_LIST_HINT = (
     "\nMatch every qualifier of the question (type, status, party, period) to a field of this list "

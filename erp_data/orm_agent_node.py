@@ -45,6 +45,10 @@ from erp_data.runtime.read_tools import SCHEMA_METHODS
 logger = logging.getLogger(__name__)
 
 NO_DATA_ANSWER = "Je n'ai pas de données disponibles pour répondre à cette question."
+LLM_UNAVAILABLE_ANSWER = (
+    "Le modèle de langage est momentanément inaccessible : je ne peux pas répondre pour le moment. "
+    "Réessayez dans un instant ; si le problème persiste, contactez l'administrateur."
+)
 NO_READ_ANSWER = (
     "Je n'ai pas pu lire les données nécessaires pour répondre : les accès ont été refusés ou ont échoué. "
     "Précisez le sujet, le statut ou la période, ou reformulez la question."
@@ -66,6 +70,7 @@ class ReactResult(NamedTuple):
     observations: List[Any]
     llm_calls: int
     hops: int
+    llm_unavailable: bool = False
 
 
 def _run_react(
@@ -94,7 +99,7 @@ def _run_react(
             ai_msg = invoke_llm(tool_llm, messages)
         except Exception as error:
             logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, error)
-            return ReactResult(None, observations, llm_calls, hops)
+            return ReactResult(None, observations, llm_calls, hops, llm_unavailable=True)
         messages.append(ai_msg)
 
         if not getattr(ai_msg, "tool_calls", None):
@@ -139,7 +144,10 @@ def _run_react(
 def _build_response(question: str, result: ReactResult) -> tuple[AssistantResponse, int]:
     """Response and extra LLM calls. Sources and confidence rest on this turn's successful data reads: refused
     calls and schema reads (model list, field list) are not data. Without a data read and after a failed tool call,
-    the model's answer is replaced by an explanation of the failure; without a failure it is kept."""
+    the model's answer is replaced by an explanation of the failure; without a failure it is kept. When the model
+    itself could not be reached, a fixed message says so: it is neither an absence of data nor a refusal."""
+    if result.llm_unavailable:
+        return AssistantResponse(answer=LLM_UNAVAILABLE_ANSWER, sources=[], confidence=ORM_CONFIDENCE_WITHOUT_DATA), 0
     reads = [item for item in peek_turn_evidence() if item.scope.get("method") not in SCHEMA_METHODS]
     if not reads and any(not successful_tool_observation(item) for item in result.observations):
         explanation, extra_calls = explain_refusals(question, [str(item) for item in result.observations])

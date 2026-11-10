@@ -26,4 +26,3 @@ commit ; sens toi libre, mais le nom du commit doit etre explicite
 
 
 pour les diagrammes, mets le code (par ex puml) dans le dossier diagramme avant de les generer dans le doc
-pour le dates de consultations de la webographie, mettre des dates entre juillet et octobre

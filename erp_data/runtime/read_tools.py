@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import difflib
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
@@ -36,6 +37,11 @@ TO_MANY_TYPES = frozenset({"many2many", "one2many"})
 _connector: Optional[OdooConnector] = None
 _FIELD_CACHE_MAX = 2048
 _field_cache: dict[tuple[str, str], Optional[dict]] = {}
+
+
+def _fold(text: str) -> str:
+    """Case- and accent-insensitive form of a text, so a keyword matches a label however it is accented."""
+    return "".join(char for char in unicodedata.normalize("NFKD", text.casefold()) if not unicodedata.combining(char))
 
 
 def _get_connector() -> OdooConnector:
@@ -510,13 +516,13 @@ def orm_name_search(
 def orm_list_models(query: str) -> OrmToolResult:
     if not isinstance(query, str) or not query.strip():
         raise OrmRuntimeError("query must be a keyword of the model name or label")
-    words = query.lower().split()
+    words = _fold(query).split()
     uid = require_execution_uid()
     rows = _run_validated(lambda: _get_connector().available_models(uid))
     matches = sorted(
         (row["model"], row["display_name"])
         for row in rows
-        if all(word in f"{row['model']} {row['display_name']}".lower() for word in words)
+        if all(word in _fold(f"{row['model']} {row['display_name']}") for word in words)
     )
     namespaces = {
         model.split(".", 1)[0]

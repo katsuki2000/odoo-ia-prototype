@@ -819,6 +819,50 @@ def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
     assert result["timing"]["llm_call_count"] == 4
 
 
+def test_a_concept_without_model_is_answered_as_unavailable_without_source(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+    from erp_data.prompts import NO_READ_REMINDER
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    absent = "Cette fonction n'est pas disponible pour vous sur cette instance."
+    replies = iter([
+        AIMessage(content="", tool_calls=[{"name": "list_models", "args": {"query": "x"}, "id": "tc1"}]),
+        AIMessage(content="", tool_calls=[{"name": "list_models", "args": {"query": "y"}, "id": "tc2"}]),
+        AIMessage(content=absent),
+        AIMessage(content=absent),
+    ])
+    seen = []
+
+    def fake_invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+
+    def fake_execute(tool_call, _tools, _plan=None):
+        _record_read(method="get_available_models")
+        return tool_call["name"], {}, "models matching -> 0 models", False
+
+    plan = QueryPlan(subject="mise a disposition", result_kind="count", answer_language="French")
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    result = node.orm_agent_loop({"question": "Ai-je des demandes de mise a disposition ?"})
+    response = result["response"]
+    assert response.answer == absent
+    assert response.sources == []
+    assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
+    assert seen.count(NO_READ_REMINDER) == 1
+    assert result["timing"]["hop_count"] == 2
+
+
 def test_the_reminder_to_read_is_sent_only_once(monkeypatch):
     from langchain_core.messages import AIMessage
 
@@ -897,3 +941,60 @@ def test_prompt_reads_whole_lists_and_the_observation_limit_holds_them():
     assert "lis toutes les lignes" in ORM_AGENT_SYSTEM_PROMPT
     assert "nombre raisonnable" not in ORM_AGENT_SYSTEM_PROMPT
     assert settings.ORM_OBSERVATION_MAX_CHARS >= 16000
+
+
+def _run_loop_with_unreachable_llm(monkeypatch, first_replies=()):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.orm_agent_node as node
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter(first_replies)
+
+    def fake_invoke(*_args):
+        try:
+            return next(replies)
+        except StopIteration:
+            raise ConnectionError("Ollama unreachable") from None
+
+    def fake_execute(_tc, _tools, _plan=None):
+        _record_read()
+        return "search_read", {}, "observation", True
+
+    monkeypatch.setattr(node, "plan_orm_question", lambda *_args: (None, 0))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+    return node.orm_agent_loop({"question": "Combien de commandes de vente ?"}), AIMessage
+
+
+def test_an_unreachable_model_gets_its_own_message_not_the_no_data_one(monkeypatch):
+    from erp_data.orm_agent_node import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER
+
+    out, _ = _run_loop_with_unreachable_llm(monkeypatch)
+    response = out["response"]
+    assert response.answer == LLM_UNAVAILABLE_ANSWER
+    assert response.answer != NO_DATA_ANSWER
+    assert "inaccessible" in response.answer
+    assert response.sources == []
+    assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
+    assert out["timing"]["hop_count"] == 0
+
+
+def test_a_model_lost_after_a_successful_read_cites_no_source_and_says_so(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    from erp_data.orm_agent_node import LLM_UNAVAILABLE_ANSWER
+
+    first = [AIMessage(content="", tool_calls=[{"name": "search_read", "args": {}, "id": "tc1"}])]
+    out, _ = _run_loop_with_unreachable_llm(monkeypatch, first_replies=first)
+    response = out["response"]
+    assert response.answer == LLM_UNAVAILABLE_ANSWER
+    assert response.sources == []
+    assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
+    assert out["timing"]["hop_count"] == 1

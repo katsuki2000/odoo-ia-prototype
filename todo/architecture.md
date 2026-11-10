@@ -178,3 +178,17 @@ Chef de mention, Chef de parcours, Les rapporteurs, Les autres membres du Jury, 
 - Présentation Webographie : [2] url , titre de la page, date de consultation.
 Exemple : [2] https:// ...., Titre du page, consulté le 18 octobre 2021
 - Si la bibliographie se termine par [6], le webographie commence par [7]
+
+
+
+presentation soutenance :
+20 min (8min speech 12 min demo)
+
+slide et speech :
+breve presentation des etablissements (ENI et MIRO)
+intro
+methode utilisée:
+problematique
+developpemet :materiels utilisés
+
+

@@ -20,6 +20,14 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "mot-clé de la question, compare les libellés obtenus à la question en préférant le modèle métier aux "
     "libellés de rapport, de statistique ou d'analyse, puis lis le modèle retenu avec fields_get. "
     "Si plusieurs modèles du même domaine technique sont renvoyés, compare-les avant de choisir. "
+    "Ne retiens un modèle que si son libellé ou son nom technique désigne le concept de la question : un "
+    "modèle voisin ne le remplace pas. Le concept peut aussi être un champ du modèle que la question nomme "
+    "comme sujet (la société, un employé, un partenaire), jamais d'un modèle trouvé par un mot du concept : "
+    "lis les champs de ce modèle avant de conclure. Ne conclus à "
+    "l'absence qu'après avoir essayé les mots de la question, leur équivalent anglais et un mot plus court de la "
+    "question (sa racine) sans qu'aucun modèle ni champ ne désigne le concept : réponds alors à l'utilisateur "
+    "que cette fonction n'est pas disponible pour son compte sur cette instance (absente ou non accessible), "
+    "sans chiffre ni modèle voisin. "
     "Premier appel sur un modèle : fields_get SANS field_names, qui liste tous les champs du modèle ; "
     "lis cette liste en entier, elle montre quels champs portent le type, le statut, la période, le client ou le "
     "fournisseur de la question. Ensuite seulement, demande avec field_names le détail (relation, valeurs de "
@@ -39,7 +47,7 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "N'envoie jamais une condition sous forme d'objet {field, operator, value}. "
     "Chaque condition du plan se traduit par un filtre [champ, opérateur, valeur] confirmé par fields_get. "
     "Une question d'existence ou de comptage (« existe-t-il », « combien ») se répond par une lecture : "
-    "search_count ou search avec un filtre par condition. Ne conclus « aucun » que d'un résultat lu à zéro, "
+    "search_count ou search avec un filtre par condition. Pour un modèle trouvé, ne conclus « aucun » que d'un résultat lu à zéro, "
     "jamais du schéma seul, même si les conditions semblent contradictoires. "
     "Le plan indique la portée du sujet : avec `subject_scope=model`, le modèle choisi suffit pour le sujet, sauf si fields_get montre qu'il "
     "regroupe plusieurs sortes d'enregistrements (champ `type`, `move_type`) dont une seule est le sujet : "
@@ -123,7 +131,9 @@ LIST_READ_REMINDER = (
 NO_READ_REMINDER = (
     "Tu réponds sans avoir lu de données. Lis les enregistrements concernés (un filtre par condition du plan) "
     "avant de conclure, même si le schéma semble donner la réponse. Demande une précision seulement si le terme "
-    "métier, le modèle ou la période reste ambigu."
+    "métier, le modèle ou la période reste ambigu. Si aucun modèle ni champ ne désigne le concept de la question, "
+    "dis qu'il n'est pas disponible au lieu de lire un modèle voisin. "
+    "Ne commente pas ces consignes : réponds directement à l'utilisateur."
 )
 
 
