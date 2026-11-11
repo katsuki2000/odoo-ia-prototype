@@ -5,10 +5,15 @@ import { Component, useState, useRef, onPatched, onMounted } from "@odoo/owl";
 import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ConnectionAbortedError } from "@web/core/network/rpc_service";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import {
     cancelledContent,
     communicationErrorLabel,
     connectionErrorLabel,
+    deleteSessionBody,
+    deleteSessionErrorLabel,
+    deleteSessionLabel,
+    deleteSessionTitle,
     exchangeCountLabel,
     loadHistoryErrorLabel,
     loadSessionErrorLabel,
@@ -28,6 +33,8 @@ const POLL_INTERVAL_MS = 2000;
 function isRequestCancelled(error) {
     return error instanceof ConnectionAbortedError;
 }
+
+const SAFE_LINK_RE = /^(https?:\/\/|mailto:)/i;
 
 /**
  * Shared Markdown Formatter for MIRO AI responses.
@@ -61,15 +68,19 @@ export function formatMarkdown(text) {
     html = html.replace(/`([^`\n]+)`/g, `<code class="miro-inline-code">$1</code>`);
 
     // Headings
-    html = html.replace(/^###\s+(.*)$/gm, `<h6 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h6>`);
-    html = html.replace(/^##\s+(.*)$/gm, `<h5 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h5>`);
+    html = html.replace(/^###\s+(.*)$/gm, `<h6 class="miro-heading mt-2 mb-1 fw-bold">$1</h6>`);
+    html = html.replace(/^##\s+(.*)$/gm, `<h5 class="miro-heading mt-2 mb-1 fw-bold">$1</h5>`);
 
     // Bold and Italic
     html = html.replace(/\*\*([^*\n]+)\*\*/g, `<strong>$1</strong>`);
     html = html.replace(/\*([^*\n]+)\*/g, `<em>$1</em>`);
 
     // Markdown Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="miro-link font-weight-bold">$1</a>`);
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+        return SAFE_LINK_RE.test(url.trim())
+            ? `<a href="${url.trim()}" target="_blank" rel="noopener noreferrer" class="miro-link fw-bold">${label}</a>`
+            : label;
+    });
 
     // Unordered lists
     html = html.replace(/(?:^|\n)([-*]\s+.+(?:\n[-*]\s+.+)*)/g, (match, listBlock) => {
@@ -77,7 +88,7 @@ export function formatMarkdown(text) {
             const itemText = line.replace(/^[-*]\s+/, '');
             return `<li>${itemText}</li>`;
         }).join('');
-        return `<ul class="miro-list pl-3 mb-2">${items}</ul>`;
+        return `<ul class="miro-list ps-3 mb-2">${items}</ul>`;
     });
 
     // Line breaks outside <pre> and <ul>
@@ -105,11 +116,14 @@ function createMessage(id, sender, content, extra = {}) {
     }, extra);
 }
 
+function newSessionId() {
+    return "systray_session_" + Date.now();
+}
+
 /**
  * Rebuilds an ordered message list from a backend conversation history
  * (list of question/answer turns) so a past session can be resumed like
- * a fresh chat. Shared between the fullscreen assistant and the systray
- * drawer, which both persist/replay history the same way.
+ * a fresh chat.
  */
 function buildMessagesFromHistory(history) {
     const messages = [];
@@ -142,7 +156,7 @@ function formatSessionDate(isoString) {
  * a CSS custom property on the document root, so MIRO AI's send button
  * and user-message bubbles can match it via var(--miro-brand-color, ...)
  * instead of a color hardcoded here that would drift from the real theme.
- * Read once at mount time (cf. onMounted in both chat components) --
+ * Read once at mount time (cf. onMounted) --
  * does not track live theme/company changes mid-session.
  */
 function applyBrandColorFromHeader() {
@@ -168,27 +182,30 @@ export class MiroAiSystray extends Component {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
         this.action = useService("action");
+        this.dialog = useService("dialog");
         this.pendingRequest = null;
 
         this.state = useState({
             isOpen: false,
             loading: false,
             inputQuestion: "",
-            sessionId: "systray_session_" + Date.now(),
+            sessionId: newSessionId(),
             messages: [createMessage(1, "bot", systrayInitialContent())],
             nextMsgId: 2,
-            sourceMode: null,
+            source: "system",
             showHistory: false,
             loadingSessions: false,
             sessions: [],
         });
 
         this.drawerMessages = useRef("drawerMessages");
+        this.drawerInput = useRef("drawerInput");
 
         onPatched(() => {
             if (this.drawerMessages.el) {
                 this.drawerMessages.el.scrollTop = this.drawerMessages.el.scrollHeight;
             }
+            this.fitInput();
         });
 
         onMounted(() => applyBrandColorFromHeader());
@@ -225,11 +242,48 @@ export class MiroAiSystray extends Component {
         });
     }
 
-    startNewConversation() {
+    /** Grows the question box with its content; the CSS max-height makes it scroll beyond. */
+    fitInput() {
+        const input = this.drawerInput.el;
+        if (input) {
+            input.style.height = "auto";
+            input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+        }
+    }
+
+    resetConversation() {
         this.state.messages = [createMessage(1, "bot", systrayInitialContent())];
         this.state.nextMsgId = 2;
-        this.state.sessionId = "systray_session_" + Date.now();
+        this.state.sessionId = newSessionId();
+    }
+
+    startNewConversation() {
+        this.resetConversation();
         this.state.showHistory = false;
+    }
+
+    confirmDeleteSession(sessionId) {
+        this.dialog.add(ConfirmationDialog, {
+            title: deleteSessionTitle(),
+            body: deleteSessionBody(),
+            confirmLabel: deleteSessionLabel(),
+            confirm: () => this.deleteSession(sessionId),
+            cancel: () => {},
+        });
+    }
+
+    async deleteSession(sessionId) {
+        try {
+            await this.rpc("/miro_ai/archive_session", { session_id: sessionId });
+        } catch (error) {
+            console.error("MIRO AI Systray: deleting the session failed:", error);
+            this.notification.add(deleteSessionErrorLabel(), { type: "danger" });
+            return;
+        }
+        this.state.sessions = this.state.sessions.filter((session) => session.session_id !== sessionId);
+        if (sessionId === this.state.sessionId) {
+            this.resetConversation();
+        }
     }
 
     toggleHistory() {
@@ -327,8 +381,8 @@ export class MiroAiSystray extends Component {
         }
     }
 
-    toggleSourceMode(mode) {
-        this.state.sourceMode = this.state.sourceMode === mode ? null : mode;
+    selectSource(name) {
+        this.state.source = name;
     }
 
     async sendMessage() {
@@ -344,11 +398,8 @@ export class MiroAiSystray extends Component {
         const rpcPayload = {
             question: question,
             session_id: this.state.sessionId,
+            source_mode: this.state.source,
         };
-        // Explicit source chosen by the user ("documentation" | "system"); null = automatic routing.
-        if (this.state.sourceMode) {
-            rpcPayload.source_mode = this.state.sourceMode;
-        }
 
         try {
             const response = await this.askAndWait(rpcPayload);

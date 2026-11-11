@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """HTTP calls to the single MIRO AI backend URL configured in Odoo."""
 import logging
 
@@ -61,6 +60,8 @@ def _send(verb, api_url, path, headers, payload, timeout):
     except requests.exceptions.ConnectionError as error:
         _logger.warning("MIRO AI: %s unreachable: %s", api_url, error)
         raise BackendUnreachable("Backend unreachable") from error
+    except requests.exceptions.RequestException as error:
+        raise BackendError(f"Invalid backend request to {api_url}: {error}") from error
 
 
 def post_to_backend(api_url, path, headers, payload, timeout):

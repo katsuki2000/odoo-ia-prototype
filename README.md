@@ -207,24 +207,103 @@ pytest tests/ -m "not integration"
 
 ```text
 odoo-ia-prototype/
-├── api/                        # FastAPI endpoints, authentication and long-running ask jobs
-├── config/                     # Deployment settings and constants
+├── api/                            # FastAPI backend
+│   ├── main.py                     #   App, CORS, startup hooks
+│   ├── auth.py                     #   JWT authentication
+│   ├── routes/                     #   FastAPI routers
+│   │   ├── ask.py                  #     Question endpoint (async jobs)
+│   │   ├── ingestion.py            #     Document ingestion status
+│   │   └── system.py               #     Health check, system status
+│   ├── ask_jobs.py                 #   Background job management
+│   ├── schemas.py                  #   Pydantic request/response models
+│   ├── language.py                 #   Language detection
+│   └── public_errors.py            #   Error response formatting
+├── config/                         # Deployment settings and constants
+│   ├── settings.py                 #   Central configuration
+│   ├── google_drive.py             #   Drive corpus settings
+│   └── odoo_credentials.py         #   Odoo connection helpers
 ├── core/
-│   ├── graph/                  # Main LangGraph pipeline, routing and final verification
-│   └── evidence/                # Observations collected from tools
-├── document_rag/               # Internal-document ingestion, retrieval and generation
-├── evaluation/                 # Model comparison benches: server control, run store, inference fingerprint
-├── erp_data/runtime/           # Typed, read-only Odoo ORM tools
-├── odoo_addons/miro_ai/        # Odoo 17 chat interface and authenticated backend client
-├── scripts/                    # Setup and evaluation utilities
-├── tests/                      # Unit, integration and PoC evaluation tests
-├── captures/                   # Evaluation traces and replay results
-├── todo/
-│   ├── architecture.md         # Agreed PoC scope and target architecture
-│   ├── rules.md                # Development rules
-│   └── contexte.txt            # Work log
-├── .env.example                # Template for deployment-specific values
-└── requirements.txt            # Python dependencies
+│   ├── graph/                      #   Main LangGraph pipeline, routing, verification
+│   │   ├── graph.py                #     Graph definition and entry point
+│   │   ├── graph_nodes.py          #     Node implementations
+│   │   └── verify_node.py          #     Answer verification node
+│   ├── verification/               #   Claim extraction, checking, sentence analysis
+│   │   ├── extractors.py           #     Number, XML ID, method call extractors
+│   │   ├── checkers.py             #     Claim verifiers
+│   │   ├── verifier.py             #     Verification orchestrator
+│   │   ├── base_methods.py         #     Known ORM method registry
+│   │   ├── context.py              #     Verification context
+│   │   └── sentence_bounds.py      #     Sentence boundary detection
+│   ├── session/                    #   Session persistence, reasoning traces
+│   ├── evidence.py                 #   Observation evidence collection
+│   ├── llm.py                      #   LLM client factory
+│   ├── schemas.py                  #   Core data schemas
+│   └── state.py                    #   Graph state definition
+├── document_rag/                   # Documentary RAG pipeline
+│   ├── ingestion/                  #   Document loading and chunking
+│   │   ├── pdf_loader.py           #     PDF loading with OCR fallback
+│   │   ├── document_loader.py      #     Multi-format loader dispatcher
+│   │   ├── docx_reader.py          #     DOCX to markdown
+│   │   ├── wiki_loader.py          #     Wiki/markdown loading
+│   │   ├── file_formats.py         #     Format detection
+│   │   ├── scan_root.py            #     Source path computation
+│   │   ├── google_drive.py         #     Drive API client
+│   │   ├── google_drive_sync.py    #     Full Drive sync logic
+│   │   ├── google_drive_cli.py     #     CLI for Drive sync
+│   │   ├── scheduler.py            #     Periodic sync scheduling
+│   │   ├── periodic.py             #     Periodic run wrapper
+│   │   └── logging_utils.py        #     Ingestion logging
+│   ├── vectorstore/                #   Vector store management
+│   │   ├── chroma_manager.py       #     ChromaDB collection management
+│   │   ├── chroma_helpers.py       #     Chroma utility functions
+│   │   └── embedding_functions.py  #     Ollama embedding wrapper
+│   ├── retrieval/                  #   Search and ranking
+│   │   ├── search.py               #     Main search orchestration
+│   │   ├── search_hybrid.py        #     Hybrid vector + BM25 search
+│   │   ├── search_contiguous.py    #     Contiguous chunk expansion
+│   │   ├── search_ranking.py       #     Result ranking (RRF)
+│   │   ├── bm25_index.py           #     BM25 lexical index
+│   │   └── drive_guard.py          #     Drive availability guard
+│   └── generation/                 #   LLM answer generation
+│       ├── generate_node.py        #     LangGraph documentary node
+│       ├── generate_helpers.py     #     Source aliasing, confidence, verification
+│       └── prompts.py              #     RAG system prompts
+├── erp_data/                       # Odoo ERP data querying
+│   ├── connector/                  #   Odoo connection layer
+│   │   ├── odoo_connector.py       #     XML-RPC Odoo connection
+│   │   └── odoo_context.py         #     User identity and company context
+│   ├── agent/                      #   ERP agent
+│   │   ├── orm_agent_node.py       #     LangGraph ORM agent node
+│   │   ├── orm_agent_helpers.py    #     Agent utilities (plan, synthesis)
+│   │   └── prompts.py              #     ERP system prompts
+│   ├── runtime/                    #   Typed read-only ORM tools
+│   │   ├── read_tools.py           #     ORM read operations
+│   │   ├── langchain_tools.py      #     LangChain tool wrappers
+│   │   ├── discovery.py            #     Model/field schema discovery
+│   │   ├── identity.py             #     User identity enforcement
+│   │   ├── validation.py           #     Input validation
+│   │   ├── errors.py               #     Runtime error types
+│   │   └── types.py                #     Type definitions
+│   └── tests/                      #   Module-specific tests
+├── evaluation/                     # Model comparison and benchmarking
+├── odoo_addons/miro_ai/            # Odoo 17 module
+│   ├── __manifest__.py             #   Module manifest (v17.0.1.0.2)
+│   ├── controllers/                #   HTTP controllers (ask flow, backend client)
+│   ├── models/                     #   Odoo models (log, settings)
+│   ├── views/                      #   XML views and menus
+│   ├── security/                   #   Access rules (CSV + record rules)
+│   ├── static/src/                 #   Frontend (JS, CSS, XML templates)
+│   └── i18n/                       #   Translations (fr.po)
+├── scripts/                        # Evaluation and utility scripts
+├── tests/                          # Unit, integration and evaluation tests
+├── todo/                           # Project documentation
+│   ├── architecture.md             #   Target architecture
+│   ├── rules.md                    #   Development rules
+│   └── contexte.txt                #   Work log
+├── .github/workflows/ci.yml        # CI pipeline
+├── .env.example                    # Template for deployment-specific values
+├── requirements.txt                # Production dependencies
+└── requirements-dev.txt            # Dev, test and evaluation dependencies
 ```
 
 The system mode runs one agent loop over the typed, read-only ORM tools (`fields_get`, `search`, `read`, `search_read`, `search_count`, `read_group`, `name_search`); reads run under the requester's identity, so an instruction injected in a question cannot widen access, and out-of-scope questions get the fixed refusal from the prompt. The documentary path remains a separate RAG route.
@@ -266,3 +345,111 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | A document added to Google Drive is not found by the assistant | The next API synchronization (every 5 minutes) has not run yet, the Drive variables are not set, or the index was written by another process while the API was running | Wait for the next synchronization and check the API log; if `google_drive_cli` was run in another terminal, restart the API |
 | `TypeError: expected string or bytes-like object, got 'NoneType'` while answering | The index was written by another process while the API was running, so the API still returns deleted chunks | Restart the API; run `google_drive_cli` with the API stopped |
 | `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_ADMIN_PASSWORD` in `.env` |
+
+---
+
+## Google Drive Corpus -- Operational Details
+
+One approved shared Drive corpus per target RAG collection. No mapping between Google accounts and Odoo users is required: a technical identity reads the folders, and the selected documents must be approved for every reader of that RAG collection.
+
+### Authentication
+
+Enable Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account with reader access only to the approved folders. Share those folders with the service account. On AWS, use supported workload identity federation or a credential file provisioned outside the repository (or in the git-ignored `secrets/` folder at the repository root). Never commit credential JSON, index it as a document, or paste keys into chat.
+
+```dotenv
+GOOGLE_DRIVE_FOLDER_IDS=your_folder_id
+GOOGLE_APPLICATION_CREDENTIALS=path_to_external_credentials.json
+GOOGLE_DRIVE_APPROVED_FOR_RAG=true
+```
+
+Folder IDs can be comma-separated. Keep one Drive corpus per collection; use separate storage/collections for distinct audiences or tenants. The request timeout, the size and file-count limits and the sync interval are constants of `config/google_drive.py`.
+
+### Synchronization Behavior
+
+Each cycle uses a full paginated folder inventory, not Drive Changes or a persistent cursor. File revisions avoid unnecessary downloads. Inventory limits or incomplete listings abort before removal. Timeouts, generic 403/quota errors and other ambiguous failures do not imply deletion.
+
+After a complete inventory, Drive chunks for files absent from the selected corpus, unsupported files or files explicitly marked non-downloadable are deactivated before physical deletion. Ingestion of current readable files reuses the original loaders and adds replacement chunks before deleting old ones.
+
+The main retrieval pipeline checks current chunk IDs and the `drive_active` flag before and after contiguous expansion. Stale BM25 entries for removed/deactivated Drive chunks are excluded. The shared BM25 index compares its chunk ids with ChromaDB on each retrieval and rebuilds itself when they differ.
+
+### CLI Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Complete or skipped |
+| 1 | Per-file errors or blocked corpus |
+| 2 | Configuration, authentication, inventory or storage failure |
+
+Watch mode emits a result every cycle, retries failures at the configured interval, and stops on interruption.
+
+### Supported Formats
+
+PDF, TXT, Markdown and DOCX reuse existing loaders. Google Docs export as DOCX. Other Google-native types and shortcuts are skipped. Subfolders and shared-drive listing flags are supported. Downloads are bounded and temporary. Redirects are refused to avoid forwarding bearer tokens. Sources retain stable Drive file URLs.
+
+### Tests
+
+```bash
+python -m unittest discover -s tests -p 'test_google_drive*.py' -v
+```
+
+29 offline tests passed. Integration tests with live Drive credentials, production parsers and embeddings still need to be run in the project environment.
+
+---
+
+## Google Drive Corpus — Operational Details
+
+This section covers operational details of the Google Drive synchronization. For initial setup and everyday usage, see [Step 9](#step-9--synchronize-the-documents-into-the-vector-store-chromadb).
+
+### Authentication
+
+Enable the Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account with **reader access only** to the approved folders. Share those folders with the service account. On AWS, use supported workload identity federation or a credential file provisioned outside the repository (or in the git-ignored `secrets/` folder at the repository root). Authorized-user ADC is also supported; there is no interactive OAuth setup.
+
+Never commit credential JSON, index it as a document, or paste keys into chat.
+
+### Synchronization behavior
+
+Each cycle uses a **full paginated folder inventory**, not Drive Changes or a persistent cursor. File revisions avoid unnecessary downloads. Inventory limits or incomplete listings abort before removal. Timeouts, generic 403/quota errors and other ambiguous failures do not imply deletion.
+
+After a complete inventory, Drive chunks for files absent from the selected corpus, unsupported files, or files explicitly marked non-downloadable are deactivated before physical deletion. Ingestion of current readable files reuses the original loaders and adds replacement chunks before deleting old ones.
+
+If a configured root folder returns 404, the entire Drive corpus of that collection is deactivated and purged. Generic 403 errors pause synchronization without purging. A download error occurring after inventory does not revoke an existing indexed copy.
+
+The retrieval pipeline checks current chunk IDs and the `drive_active` flag for vector/lexical candidates. Stale BM25 entries for removed/deactivated Drive chunks are excluded. The shared lexical (BM25) index compares its chunk IDs with ChromaDB on each retrieval and rebuilds itself when they differ, so another process can update the corpus without restarting the API.
+
+This is periodic shared-corpus reconciliation, not instantaneous revocation or an end-user permission check. Already generated answers and requests in flight are not erased by chunk removal. Do not use a private/dynamically restricted corpus with this shared-reader model.
+
+### Continuous worker
+
+```bash
+python -m document_rag.ingestion.google_drive_cli --watch
+```
+
+Run this worker under your deployment supervisor if it must survive logout/restart. A lock in the target Chroma directory excludes another instance. Distributed hosts need a shared locking/storage strategy or one designated writer.
+
+### Supported formats
+
+PDF, TXT, Markdown and DOCX reuse existing loaders. Google Docs export as DOCX. Other Google-native types and shortcuts are skipped. Subfolders and shared-drive listing flags are supported. Downloads are bounded and temporary. Redirects are refused to avoid forwarding bearer tokens. Sources retain stable Drive file URLs.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Complete or skipped (no folders configured) |
+| 1 | Per-file errors or blocked corpus |
+| 2 | Configuration, authentication, inventory, or storage failure |
+
+Watch mode emits a result every cycle, retries failures at the configured interval, and stops on interruption; supervise its reports, not only its process exit code.
+
+### Safety notes
+
+- One approved shared Drive corpus per target RAG collection; no mapping between Google accounts and Odoo users is required.
+- Keep one Drive corpus per collection; use separate storage/collections for distinct audiences or tenants. Changing the folder set authorizes reconciliation against the new set, including removal of old out-of-scope chunks.
+- Request timeout, size limits, file-count limits and sync interval are constants of `config/google_drive.py`.
+
+### Tests
+
+```bash
+python -m unittest discover -s tests -p 'test_google_drive*.py' -v
+```
+
+29 offline tests cover synchronization, availability and parsing with fixtures. The full retrieval pipeline, real Chroma metadata updates, inter-process locking, live Drive credentials/downloads, production parsers and embeddings still need integration tests in the project environment.

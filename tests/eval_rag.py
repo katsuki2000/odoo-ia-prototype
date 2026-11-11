@@ -30,7 +30,7 @@ def run_evaluation():
     
     print(f"Starting RAG evaluation on {total} questions...\n")
     
-    from erp_data.odoo_connector import OdooConnector
+    from erp_data.connector.odoo_connector import OdooConnector
     _conn = OdooConnector(db=ODOO_DB)
     _charlie_password = "password123"
     charlie_uid = _conn.common.authenticate(_conn.db, "charlie@alpha.com", _charlie_password, {})

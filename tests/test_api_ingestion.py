@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from api.routes_ingestion import ingestion_status
+from api.routes.ingestion import ingestion_status
 from config.settings import DOCS_COLLECTION_NAME
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -11,7 +11,7 @@ def test_api_v1_ingestion_status_reports_stats():
     manager = MagicMock()
     manager.get_stats.return_value = {"total_chunks": 1}
 
-    with patch("api.routes_ingestion.ChromaManager", return_value=manager):
+    with patch("api.routes.ingestion.ChromaManager", return_value=manager):
         payload = ingestion_status().model_dump()
 
     assert payload["total_chunks"] == 1

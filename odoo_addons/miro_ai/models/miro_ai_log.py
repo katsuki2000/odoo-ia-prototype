@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Audit log and history of the MIRO AI requests: question, answer, sources, response time, requester."""
 import json
 import logging
@@ -42,14 +41,12 @@ class MiroAiLog(models.Model):
     )
     user_id = fields.Many2one(
         'res.users',
-        string='User',
         default=lambda self: self.env.user,
         required=True,
         readonly=True
     )
     company_id = fields.Many2one(
         'res.company',
-        string='Company',
         default=lambda self: self.env.company,
         required=True,
         readonly=True
@@ -85,6 +82,11 @@ class MiroAiLog(models.Model):
         ('success', 'Success'),
         ('error', 'Error')
     ], string='Status', default='success', readonly=True, index=True)
+    active = fields.Boolean(
+        default=True,
+        readonly=True,
+        help='Cleared when the user deletes the conversation: hidden from the history, kept in the audit log.'
+    )
 
     @api.depends('sources_text')
     def _compute_sources_count(self):
@@ -162,6 +164,15 @@ class MiroAiLog(models.Model):
                 'message_count': group.get('session_id_count', group.get('__count', 0)),
             })
         return sessions
+
+    @api.model
+    def archive_session(self, session_id):
+        """Hide one of the requester's own conversations from the history. Archived, not erased: the audit trail keeps it. Elevated write: users only read the log."""
+        if not session_id:
+            return 0
+        logs = self.search([('session_id', '=', session_id), ('user_id', '=', self.env.uid)])
+        logs.sudo().write({'active': False})
+        return len(logs)
 
     @api.model
     def get_session_history(self, session_id):

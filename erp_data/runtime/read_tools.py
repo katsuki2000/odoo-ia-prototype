@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from core.evidence import EvidenceSourceType, make_evidence
-from erp_data.odoo_connector import FIELD_ATTRIBUTES, OdooConnector, OdooConnectorError
+from erp_data.connector.odoo_connector import FIELD_ATTRIBUTES, OdooConnector, OdooConnectorError
 from erp_data.runtime.discovery import is_undescribed, mark_described, require_described
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.identity import require_execution_uid, resolve_company_scope

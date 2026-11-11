@@ -1,4 +1,4 @@
-from document_rag.generate_helpers import compute_rag_confidence
+from document_rag.generation.generate_helpers import compute_rag_confidence
 
 
 def test_confidence_is_the_top_chunk_score_clamped_to_one():

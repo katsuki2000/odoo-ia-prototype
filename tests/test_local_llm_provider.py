@@ -29,24 +29,24 @@ def test_get_chat_llm_without_server_raises_instead_of_falling_back_to_openai():
 
 
 def test_document_rag_generate_uses_configured_llm():
-    from document_rag.generate_node import _build_llm
+    from document_rag.generation.generate_node import _build_llm
     with patch("core.llm.LLM_BASE_URL", "http://localhost:11434/v1"), \
          patch("core.llm.LLM_MODEL", "llama3.1"):
         assert isinstance(_build_llm(temperature=0.0), ChatOpenAI)
 
 
 def test_erp_data_orm_helpers_uses_configured_llm():
-    from erp_data.orm_agent_helpers import _build_llm
+    from erp_data.agent.orm_agent_helpers import _build_llm
     with patch("core.llm.LLM_BASE_URL", "http://localhost:11434/v1"), \
          patch("core.llm.LLM_MODEL", "llama3.1"):
         assert isinstance(_build_llm(temperature=0.0), ChatOpenAI)
 
 
 def test_health_check_v1_never_exposes_the_llm_endpoint():
-    from api.routes_system import health_check_v1
+    from api.routes.system import health_check_v1
     with patch("config.settings.LLM_BASE_URL", "http://localhost:11434/v1"), \
-         patch("api.routes_system.ChromaManager") as mock_chroma, \
-         patch("api.routes_system.OdooConnector") as mock_odoo:
+         patch("api.routes.system.ChromaManager") as mock_chroma, \
+         patch("api.routes.system.OdooConnector") as mock_odoo:
         mock_chroma.return_value.client.heartbeat.return_value = 1
         mock_odoo.return_value.authenticate.return_value = 2
 

@@ -36,7 +36,7 @@ def _query_with_retry(question, uid, api_key):
     """Call query_graph with retry and exponential backoff on rate limit errors."""
     for attempt in range(1, RETRY_MAX + 1):
         try:
-            return query_graph(question, uid=uid, api_key=api_key)
+            return query_graph(question, "documentation", uid=uid, api_key=api_key)
         except Exception as e:
             if "429" in str(e) or "rate_limit" in str(e):
                 wait = RETRY_BASE_DELAY * attempt
@@ -45,7 +45,7 @@ def _query_with_retry(question, uid, api_key):
             else:
                 raise
     # Final attempt without catch
-    return query_graph(question, uid=uid, api_key=api_key)
+    return query_graph(question, "documentation", uid=uid, api_key=api_key)
 
 
 def run_doc_nonregression():
@@ -60,7 +60,7 @@ def run_doc_nonregression():
     print(f"S13 Documentary Non-Regression Test")
     print(f"Running {total} documentary questions...\n")
 
-    from erp_data.odoo_connector import OdooConnector
+    from erp_data.connector.odoo_connector import OdooConnector
     _conn = OdooConnector(db=ODOO_DB)
     _password = "password123"
     uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _password, {})

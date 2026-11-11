@@ -17,7 +17,7 @@ from core.llm import invoke_llm
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 from core.state import RAGState
-from erp_data.orm_agent_helpers import (
+from erp_data.agent.orm_agent_helpers import (
     DOMAIN_QUERY_TOOLS,
     QueryPlan,
     _build_llm,
@@ -33,7 +33,7 @@ from erp_data.orm_agent_helpers import (
     resolve_orm_tools,
     successful_tool_observation,
 )
-from erp_data.prompts import (
+from erp_data.agent.prompts import (
     EMPTY_REPLY_REMINDER,
     LIST_READ_REMINDER,
     MEASURE_READ_REMINDER,

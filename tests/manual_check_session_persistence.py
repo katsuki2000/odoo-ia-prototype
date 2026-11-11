@@ -68,6 +68,7 @@ for i, question in enumerate(turns, 1):
         "question": question,
         "session_id": SESSION_ID,
         "company_id": 1,
+        "source_mode": "system",
     }
     t0 = time.time()
     resp = requests.post(f"{BASE_URL}/api/v1/ask", json=payload, headers=headers)

@@ -1,7 +1,7 @@
 """Workflow gates, documentary retrieval and final response metadata."""
 
 from config.settings import RAG_TOP_K
-from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
+from document_rag.retrieval.search import get_retriever, retrieve as search_retrieve
 from core.schemas import QueryRoute
 from core.state import RAGState
 
@@ -9,7 +9,7 @@ _TITLE_BRACKETS = str.maketrans('[]', '()')
 
 
 def answered_by_documents(state: RAGState) -> bool:
-    return state.get('route') == QueryRoute.DOCUMENTARY.value or state.get('source_mode') == 'documentation'
+    return state.get('source_mode') == QueryRoute.DOCUMENTARY.value
 
 
 def retrieve(state: RAGState) -> dict:
@@ -29,7 +29,7 @@ def format_output(state: RAGState) -> dict:
     response = state.get('response')
     chunks = state.get('retrieved_chunks', [])
     if response:
-        response.route = state.get('route')
+        response.route = state.get('source_mode')
         if line := sources_line(response.sources):
             response.answer += '\n\n' + line
     if response and chunks and answered_by_documents(state):

@@ -2,7 +2,7 @@
 
 import pytest
 
-from document_rag.generate_helpers import strip_source_aliases
+from document_rag.generation.generate_helpers import strip_source_aliases
 
 
 @pytest.mark.parametrize("raw, expected", [

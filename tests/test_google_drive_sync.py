@@ -8,9 +8,9 @@ import unittest
 from urllib.error import HTTPError
 
 from document_rag.ingestion.google_drive_sync import synchronize_google_drive
-from document_rag.ingestion.periodic import run_periodically
-from document_rag.vectorstore.drive_guard import filter_current_drive_chunks
-from document_rag.vectorstore.search_hybrid import vector_search
+from document_rag.ingestion.periodic import failure_report, run_periodically
+from document_rag.retrieval.drive_guard import filter_current_drive_chunks
+from document_rag.retrieval.search_hybrid import vector_search
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -169,6 +169,14 @@ class SharedDriveSyncTests(unittest.TestCase):
         reports = []
         run_periodically(action, 300, reports.append, Stop())
         self.assertEqual([report['status'] for report in reports], ['failed', 'complete'])
+
+    def test_failure_report_keeps_the_error_message_truncated(self):
+        report = failure_report(OSError('x' * 500))
+        self.assertEqual(report['error_type'], 'OSError')
+        self.assertEqual(len(report['error']), 200)
+
+    def test_failure_report_omits_an_empty_message(self):
+        self.assertEqual(failure_report(TimeoutError()), {'status': 'failed', 'error_type': 'TimeoutError'})
 
     def test_vector_search_drops_a_chunk_deleted_by_another_process(self):
         class StaleIndex:

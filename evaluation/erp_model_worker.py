@@ -27,7 +27,7 @@ def describe_tool_call(name, arguments, observation, covers_plan=None, row_count
     rows it returned, and for a successful domain read whether its domain holds a filter per plan requirement
     (absent for other calls, where the measure does not apply)."""
     from config import settings
-    from erp_data.orm_agent_helpers import DOMAIN_QUERY_TOOLS
+    from erp_data.agent.orm_agent_helpers import DOMAIN_QUERY_TOOLS
 
     call = {"name": name, "status": classify_tool_observation(observation), "args": arguments}
     if row_count is not None:
@@ -42,9 +42,9 @@ def describe_tool_call(name, arguments, observation, covers_plan=None, row_count
 def run_question(question, uid, api_key, db, model, reasoning_effort, result_queue, company_id=None, company_ids=None):
     """Execute one question and return only benchmark-safe metadata to the parent."""
     from config import settings
-    from erp_data.odoo_context import request_identity
-    import erp_data.orm_agent_helpers as helpers
-    import erp_data.orm_agent_node as agent
+    from erp_data.connector.odoo_context import request_identity
+    import erp_data.agent.orm_agent_helpers as helpers
+    import erp_data.agent.orm_agent_node as agent
     from evaluation.ollama_server import model_override
     from core.evidence import peek_turn_evidence, start_evidence_collection
 

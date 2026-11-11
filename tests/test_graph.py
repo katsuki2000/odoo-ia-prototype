@@ -5,8 +5,8 @@ import pytest
 
 from core.schemas import AssistantResponse, SourceReference
 from core.graph.graph_nodes import format_output, retrieve
-from document_rag.generate_node import generate, _parse_raw_json_answer
-from document_rag.generate_helpers import verify_used_sources
+from document_rag.generation.generate_node import generate, _parse_raw_json_answer
+from document_rag.generation.generate_helpers import verify_used_sources
 
 
 def test_generate_without_context_returns_no_source_answer():
@@ -38,7 +38,7 @@ def test_parse_raw_json_answer_rejects_unstructured_text():
     assert _parse_raw_json_answer('Réponse libre.') is None
 
 
-@patch('document_rag.generate_node._build_llm')
+@patch('document_rag.generation.generate_node._build_llm')
 def test_raw_invoke_response_is_parsed_after_structured_call_fails(mock_build_llm):
     llm = MagicMock()
     mock_build_llm.return_value = llm
@@ -67,7 +67,7 @@ def test_format_output_without_ocr_warning():
 
 def test_format_output_flags_a_low_quality_scan_without_changing_the_answer():
     state = {
-        'route': 'documentation',
+        'source_mode': 'documentation',
         'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=[]),
         'retrieved_chunks': [{'document': 'scan', 'metadata': {'source': 'scan.pdf', 'type': 'pdf', 'ocr_quality': 'low'}}],
     }

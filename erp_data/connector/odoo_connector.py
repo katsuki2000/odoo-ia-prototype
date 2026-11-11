@@ -10,7 +10,7 @@ import xmlrpc.client
 
 from config import settings
 from config.odoo_credentials import service_login, service_password
-from erp_data.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_db_ctx
+from erp_data.connector.odoo_context import odoo_api_key_ctx, odoo_company_id_ctx, odoo_company_ids_ctx, odoo_db_ctx
 
 logger = logging.getLogger(__name__)
 

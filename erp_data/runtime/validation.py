@@ -2,7 +2,7 @@ import re
 from typing import Any, Callable, Optional
 
 from config import settings
-from erp_data.odoo_connector import MODEL_NAME_RE
+from erp_data.connector.odoo_connector import MODEL_NAME_RE
 from erp_data.runtime.errors import OrmRuntimeError
 
 DOMAIN_LOGICAL_OPS = frozenset({"&", "|", "!"})

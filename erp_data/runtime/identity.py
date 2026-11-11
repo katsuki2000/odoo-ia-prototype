@@ -1,6 +1,6 @@
 from typing import Optional
 
-from erp_data.odoo_context import (
+from erp_data.connector.odoo_context import (
     odoo_company_id_ctx,
     odoo_company_ids_ctx,
     odoo_uid_ctx,

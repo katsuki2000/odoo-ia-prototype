@@ -79,6 +79,16 @@ msgid ""
 msgstr "Posez une question depuis l'assistant MIRO AI pour voir apparaître ici l'historique et les métriques d'audit."
 
 #. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
+msgid "Archived"
+msgstr "Archivé"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__active
+msgid "Cleared when the user deletes the conversation: hidden from the history, kept in the audit log."
+msgstr "Désactivé quand l'utilisateur supprime la conversation : masquée de l'historique, conservée dans le journal d'audit."
+
+#. module: miro_ai
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
@@ -87,13 +97,8 @@ msgstr "Posez une question..."
 
 #. module: miro_ai
 #: model:res.groups,comment:miro_ai.group_miro_ai_admin
-msgid "Can configure the API and the skills, and view all logs."
-msgstr "Peut configurer l'API, les compétences et consulter tous les journaux."
-
-#. module: miro_ai
-#: model:res.groups,comment:miro_ai.group_miro_ai_user
-msgid "Can query the MIRO assistant and view their own histories."
-msgstr "Peut interroger l'assistant MIRO et consulter ses propres historiques."
+msgid "Can configure the API and view all logs."
+msgstr "Peut configurer l'API et consulter tous les journaux."
 
 #. module: miro_ai
 #. odoo-javascript
@@ -139,11 +144,6 @@ msgid "Configuration name..."
 msgstr "Nom de la configuration..."
 
 #. module: miro_ai
-#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
-msgid "Create a new configuration for the Miro AI server"
-msgstr "Créer une nouvelle configuration pour le serveur Miro AI"
-
-#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__create_uid
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__create_uid
 msgid "Created by"
@@ -165,6 +165,21 @@ msgstr "Identifiants & connexion API"
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
 msgid "Date"
 msgstr "Date"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Delete"
+msgstr "Supprimer"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Delete conversation"
+msgstr "Supprimer la conversation"
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__display_name
@@ -239,13 +254,6 @@ msgid "ID"
 msgstr "ID"
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
-#, python-format
-msgid "Investigation plan:"
-msgstr "Plan d'investigation :"
-
-#. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_log__write_uid
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__write_uid
 msgid "Last Updated by"
@@ -306,16 +314,10 @@ msgid "MIRO AI Request Log"
 msgstr "Journal des requêtes MIRO AI"
 
 #. module: miro_ai
-#: model:ir.actions.act_window,name:miro_ai.action_miro_ai_settings
+#: model:ir.actions.server,name:miro_ai.action_miro_ai_open_settings
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
-#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_tree
 msgid "MIRO AI Settings"
 msgstr "Paramètres MIRO AI"
-
-#. module: miro_ai
-#: model:res.groups,name:miro_ai.group_miro_ai_user
-msgid "MIRO AI User"
-msgstr "Utilisateur MIRO AI"
 
 #. module: miro_ai
 #. odoo-javascript
@@ -471,11 +473,6 @@ msgid "Session ID"
 msgstr "ID de session"
 
 #. module: miro_ai
-#: model_terms:ir.actions.act_window,help:miro_ai.action_miro_ai_settings
-msgid "Set the FastAPI server address and request timeout."
-msgstr "Configurez l'adresse du serveur FastAPI et le délai d'attente."
-
-#. module: miro_ai
 #: model:ir.ui.menu,name:miro_ai.menu_miro_ai_settings_action
 msgid "Settings"
 msgstr "Paramètres"
@@ -567,6 +564,13 @@ msgid "This answer is no longer available. Please ask the question again."
 msgstr "Cette réponse n'est plus disponible. Veuillez poser à nouveau la question."
 
 #. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "This conversation will be removed from your history."
+msgstr "Cette conversation sera retirée de votre historique."
+
+#. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__response_time_ms
 msgid "Time taken to query the FastAPI RAG backend, in milliseconds."
 msgstr "Durée d'interrogation du backend FastAPI RAG en millisecondes."
@@ -575,6 +579,13 @@ msgstr "Durée d'interrogation du backend FastAPI RAG en millisecondes."
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Today"
 msgstr "Aujourd'hui"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
+#, python-format
+msgid "Unable to delete this conversation."
+msgstr "Impossible de supprimer cette conversation."
 
 #. module: miro_ai
 #. odoo-javascript

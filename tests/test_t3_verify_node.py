@@ -15,7 +15,7 @@ from core.graph.graph_nodes import answered_by_documents
 from core.state import RAGState
 from core.schemas import AssistantResponse
 from core.schemas import VerifierMode
-from erp_data import orm_agent_node
+from erp_data.agent import orm_agent_node
 
 DOC_QUESTION = "Selon le wiki, quelle est la procedure ?"
 PLAIN_QUESTION = "Qui peut approuver une commande ?"
@@ -109,7 +109,7 @@ def test_documentary_branch_is_grounded_in_the_retrieved_chunks_only(run_node):
     state, _ = run_node(
         VerifierMode.REPORT, "Le seuil est de 5 000 euros, puis 9 999.",
         question=DOC_QUESTION,
-        route="documentation",
+        source_mode="documentation",
         retrieved_chunks=[{"document": "Le seuil est de 5000 euros."}],
         raw_tool_output="limite 9999",
     )
@@ -143,10 +143,9 @@ def test_verifier_failure_never_breaks_the_answer(run_node, monkeypatch, caplog)
 
 
 @pytest.mark.parametrize("state, expected", [
-    ({"question": DOC_QUESTION, "route": "documentation"}, True),
     ({"question": DOC_QUESTION, "source_mode": "documentation"}, True),
     ({"question": DOC_QUESTION}, False),
-    ({"question": PLAIN_QUESTION, "route": "code_intelligence"}, False),
+    ({"question": PLAIN_QUESTION, "source_mode": "system"}, False),
 ])
 def test_answered_by_documents(state, expected):
     assert answered_by_documents(state) is expected
@@ -213,5 +212,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"route", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"generate", "orm_agent_loop"}

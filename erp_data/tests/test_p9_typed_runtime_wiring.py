@@ -12,9 +12,9 @@ from core.evidence import (
     record_evidence,
     start_evidence_collection,
 )
-from erp_data.odoo_context import odoo_uid_ctx
-from erp_data.orm_agent_helpers import QueryPlan, plan_orm_question, resolve_orm_tools
-from erp_data.prompts import ORM_AGENT_SYSTEM_PROMPT, build_orm_agent_messages
+from erp_data.connector.odoo_context import odoo_uid_ctx
+from erp_data.agent.orm_agent_helpers import QueryPlan, plan_orm_question, resolve_orm_tools
+from erp_data.agent.prompts import ORM_AGENT_SYSTEM_PROMPT, build_orm_agent_messages
 from erp_data.runtime import read_tools
 
 
@@ -106,7 +106,7 @@ def _tool(name):
 
 
 def test_domain_covers_the_plan_with_one_filter_per_condition():
-    from erp_data.orm_agent_helpers import domain_covers_plan
+    from erp_data.agent.orm_agent_helpers import domain_covers_plan
 
     plan = _plan(["posted", "unpaid"])
 
@@ -118,7 +118,7 @@ def test_domain_covers_the_plan_with_one_filter_per_condition():
 
 
 def test_a_subset_subject_needs_one_more_filter():
-    from erp_data.orm_agent_helpers import domain_covers_plan
+    from erp_data.agent.orm_agent_helpers import domain_covers_plan
 
     plan = _plan(["posted"], subject_scope="subset")
     subject = ("move_type", "=", "out_invoice")
@@ -128,7 +128,7 @@ def test_a_subset_subject_needs_one_more_filter():
 
 
 def test_domain_coverage_is_not_measured_without_a_plan_or_for_schema_tools():
-    from erp_data.orm_agent_helpers import domain_covers_plan
+    from erp_data.agent.orm_agent_helpers import domain_covers_plan
 
     assert domain_covers_plan(None, "search_count", {}) is False
     assert domain_covers_plan(_plan(["posted"]), "fields_get", {}) is False
@@ -150,7 +150,7 @@ def test_domain_schema_flattens_nested_fragments():
 
 
 def test_execute_tool_call_runs_a_domain_that_misses_a_condition_and_reports_it():
-    from erp_data.orm_agent_helpers import execute_tool_call
+    from erp_data.agent.orm_agent_helpers import execute_tool_call
 
     tool = _tool("search_count")
     name, arguments, observation, covers_plan = execute_tool_call(
@@ -165,7 +165,7 @@ def test_execute_tool_call_runs_a_domain_that_misses_a_condition_and_reports_it(
 
 
 def test_execute_tool_call_runs_a_domain_that_covers_the_plan():
-    from erp_data.orm_agent_helpers import execute_tool_call
+    from erp_data.agent.orm_agent_helpers import execute_tool_call
 
     tool = _tool("search_count")
     raw_args = {"model": "account.move", "domain": [list(POSTED), list(UNPAID)]}
@@ -181,7 +181,7 @@ def test_execute_tool_call_runs_a_domain_that_covers_the_plan():
 
 
 def test_execute_tool_call_tells_the_model_why_its_arguments_were_rejected():
-    from erp_data.orm_agent_helpers import execute_tool_call
+    from erp_data.agent.orm_agent_helpers import execute_tool_call
 
     tool = _tool("list_models")
     _name, _arguments, observation, covers_plan = execute_tool_call(
@@ -200,7 +200,7 @@ def test_condition_filters_is_no_longer_part_of_the_tool_contract():
 
 
 def test_orm_prompt_documents_the_odoo_domain_shape():
-    from erp_data.orm_agent_helpers import format_query_plan
+    from erp_data.agent.orm_agent_helpers import format_query_plan
 
     assert "liste de triplets [champ, opérateur, valeur]" in ORM_AGENT_SYSTEM_PROMPT
     assert "N'envoie jamais une condition sous forme d'objet" in ORM_AGENT_SYSTEM_PROMPT
@@ -240,7 +240,7 @@ def test_query_planner_returns_structured_business_constraints(monkeypatch):
         result_kind="count",
         answer_language="français",
     )
-    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: expected)
+    monkeypatch.setattr("erp_data.agent.orm_agent_helpers.invoke_llm", lambda *_args: expected)
     plan, calls = plan_orm_question("Combien d'opportunités ouvertes ?", lambda **_kwargs: StructuredPlanner())
     assert plan == expected
     assert calls == 1
@@ -259,7 +259,7 @@ def test_query_planner_keeps_the_compound_subject_available_for_domain_mapping(m
         result_kind="count",
         answer_language="français",
     )
-    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
+    monkeypatch.setattr("erp_data.agent.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
     plan, calls = plan_orm_question(
         "Combien de factures clients sont publiées ?", lambda **_kwargs: StructuredPlanner()
     )
@@ -283,7 +283,7 @@ def test_query_planner_keeps_an_explicit_subject_condition(monkeypatch):
         result_kind="count",
         answer_language="English",
     )
-    monkeypatch.setattr("erp_data.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
+    monkeypatch.setattr("erp_data.agent.orm_agent_helpers.invoke_llm", lambda *_args: raw_plan)
     plan, _calls = plan_orm_question(
         "How many posted customer invoices?", lambda **_kwargs: StructuredPlanner()
     )
@@ -328,7 +328,7 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
     """Multi-hop: after a tool result, the LLM must get another turn (typed tools need it)."""
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
+    import erp_data.agent.orm_agent_node as node
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -374,7 +374,7 @@ def _run_loop_with_tool_outcome(
 ):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
+    import erp_data.agent.orm_agent_node as node
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -415,7 +415,7 @@ def test_an_answer_after_only_refused_reads_is_replaced_by_the_explanation_and_c
 
 
 def test_the_fixed_message_replaces_the_answer_when_the_explanation_fails(monkeypatch):
-    from erp_data.orm_agent_node import NO_READ_ANSWER
+    from erp_data.agent.orm_agent_node import NO_READ_ANSWER
 
     out = _run_loop_with_tool_outcome(
         monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False, explanation="", observation=REFUSED,
@@ -455,7 +455,7 @@ def test_an_answer_after_a_successful_read_is_kept(monkeypatch):
 def test_a_clarifying_question_without_any_tool_call_is_kept(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
+    import erp_data.agent.orm_agent_node as node
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -471,7 +471,7 @@ def test_a_clarifying_question_without_any_tool_call_is_kept(monkeypatch):
 
 
 def test_an_answer_is_kept_when_the_read_domain_misses_a_plan_condition(monkeypatch):
-    from erp_data.orm_agent_helpers import QueryPlan
+    from erp_data.agent.orm_agent_helpers import QueryPlan
 
     plan = QueryPlan(
         subject="customer invoices", conditions=["posted", "unpaid"],
@@ -488,9 +488,9 @@ def test_an_answer_is_kept_when_the_read_domain_misses_a_plan_condition(monkeypa
 def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    from erp_data.orm_agent_helpers import QueryPlan
-    from erp_data.orm_agent_node import NO_READ_ANSWER
+    import erp_data.agent.orm_agent_node as node
+    from erp_data.agent.orm_agent_helpers import QueryPlan
+    from erp_data.agent.orm_agent_node import NO_READ_ANSWER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -530,8 +530,8 @@ def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
 def test_contract_refusal_does_not_consume_backend_correction_attempt(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    from erp_data.orm_agent_helpers import QueryPlan
+    import erp_data.agent.orm_agent_node as node
+    from erp_data.agent.orm_agent_helpers import QueryPlan
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -605,7 +605,7 @@ def test_query_planner_prompt_makes_the_parent_of_a_for_each_question_the_subjec
 
     sent = []
     monkeypatch.setattr(
-        "erp_data.orm_agent_helpers.invoke_llm",
+        "erp_data.agent.orm_agent_helpers.invoke_llm",
         lambda _llm, messages: sent.extend(messages) or QueryPlan(
             subject="commandes", result_kind="list", answer_language="français"
         ),
@@ -615,7 +615,7 @@ def test_query_planner_prompt_makes_the_parent_of_a_for_each_question_the_subjec
 
 
 def test_refusal_prompt_forbids_data_and_technical_terms():
-    from erp_data.prompts import build_orm_refusal_prompt
+    from erp_data.agent.prompts import build_orm_refusal_prompt
 
     prompt = build_orm_refusal_prompt("Combien de biens ?", ["ORM read refused: model missing"])
     assert "Combien de biens ?" in prompt and "ORM read refused: model missing" in prompt
@@ -623,7 +623,7 @@ def test_refusal_prompt_forbids_data_and_technical_terms():
 
 
 def test_explain_refusals_returns_the_text_or_an_empty_string_on_llm_failure(monkeypatch):
-    import erp_data.orm_agent_helpers as helpers
+    import erp_data.agent.orm_agent_helpers as helpers
 
     monkeypatch.setattr(helpers, "_single_answer", lambda _prompt: "  Le modèle est introuvable.  ")
     assert helpers.explain_refusals("q", ["refused"]) == ("Le modèle est introuvable.", 1)
@@ -660,8 +660,8 @@ def test_fields_get_wrapper_shows_every_field_of_a_large_model():
 def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    from erp_data.prompts import EMPTY_REPLY_REMINDER
+    import erp_data.agent.orm_agent_node as node
+    from erp_data.agent.prompts import EMPTY_REPLY_REMINDER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -692,7 +692,7 @@ def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer
     ],
 )
 def test_counting_rows_does_not_answer_a_question_about_a_total(kind, tools, expected):
-    from erp_data.orm_agent_helpers import counted_instead_of_measured
+    from erp_data.agent.orm_agent_helpers import counted_instead_of_measured
 
     plan = QueryPlan(subject="dépenses", result_kind=kind, answer_language="English")
     assert counted_instead_of_measured(plan, tools) is expected
@@ -709,7 +709,7 @@ def test_counting_rows_does_not_answer_a_question_about_a_total(kind, tools, exp
     ],
 )
 def test_counting_rows_does_not_answer_a_question_about_a_list(kind, tools, expected):
-    from erp_data.orm_agent_helpers import counted_instead_of_listed
+    from erp_data.agent.orm_agent_helpers import counted_instead_of_listed
 
     plan = QueryPlan(subject="commandes", result_kind=kind, answer_language="English")
     assert counted_instead_of_listed(plan, tools) is expected
@@ -723,8 +723,8 @@ def test_counting_rows_does_not_answer_a_question_about_a_list(kind, tools, expe
 def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkeypatch, kind, read_tool, reminder_name):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    import erp_data.prompts as prompts
+    import erp_data.agent.orm_agent_node as node
+    import erp_data.agent.prompts as prompts
 
     reminder = getattr(prompts, reminder_name)
 
@@ -773,7 +773,7 @@ def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkey
     ],
 )
 def test_a_plan_expecting_data_needs_a_record_read(kind, tools, expected):
-    from erp_data.orm_agent_helpers import answered_without_reading
+    from erp_data.agent.orm_agent_helpers import answered_without_reading
 
     plan = QueryPlan(subject="factures", result_kind=kind, answer_language="English")
     assert answered_without_reading(plan, tools) is expected
@@ -783,8 +783,8 @@ def test_a_plan_expecting_data_needs_a_record_read(kind, tools, expected):
 def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    from erp_data.prompts import NO_READ_REMINDER
+    import erp_data.agent.orm_agent_node as node
+    from erp_data.agent.prompts import NO_READ_REMINDER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -822,8 +822,8 @@ def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
 def test_a_concept_without_model_is_answered_as_unavailable_without_source(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
-    from erp_data.prompts import NO_READ_REMINDER
+    import erp_data.agent.orm_agent_node as node
+    from erp_data.agent.prompts import NO_READ_REMINDER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -866,7 +866,7 @@ def test_a_concept_without_model_is_answered_as_unavailable_without_source(monke
 def test_the_reminder_to_read_is_sent_only_once(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
+    import erp_data.agent.orm_agent_node as node
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -885,7 +885,7 @@ def test_the_reminder_to_read_is_sent_only_once(monkeypatch):
 
 
 def test_plan_text_asks_for_the_question_language_with_untranslated_odoo_labels():
-    from erp_data.orm_agent_helpers import format_query_plan
+    from erp_data.agent.orm_agent_helpers import format_query_plan
 
     text = format_query_plan(QueryPlan(subject="expenses", result_kind="aggregate", answer_language="English"))
     assert "Langue de la réponse : English" in text
@@ -908,7 +908,7 @@ def test_domain_leaves_written_as_strings_are_parsed():
 
 
 def test_fields_get_exposes_the_currency_field_and_the_prompt_uses_it():
-    from erp_data.odoo_connector import FIELD_ATTRIBUTES
+    from erp_data.connector.odoo_connector import FIELD_ATTRIBUTES
 
     assert "currency_field" in FIELD_ATTRIBUTES
     assert "currency_field" in ORM_AGENT_SYSTEM_PROMPT
@@ -946,7 +946,7 @@ def test_prompt_reads_whole_lists_and_the_observation_limit_holds_them():
 def _run_loop_with_unreachable_llm(monkeypatch, first_replies=()):
     from langchain_core.messages import AIMessage
 
-    import erp_data.orm_agent_node as node
+    import erp_data.agent.orm_agent_node as node
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -974,7 +974,7 @@ def _run_loop_with_unreachable_llm(monkeypatch, first_replies=()):
 
 
 def test_an_unreachable_model_gets_its_own_message_not_the_no_data_one(monkeypatch):
-    from erp_data.orm_agent_node import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER
+    from erp_data.agent.orm_agent_node import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER
 
     out, _ = _run_loop_with_unreachable_llm(monkeypatch)
     response = out["response"]
@@ -989,7 +989,7 @@ def test_an_unreachable_model_gets_its_own_message_not_the_no_data_one(monkeypat
 def test_a_model_lost_after_a_successful_read_cites_no_source_and_says_so(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    from erp_data.orm_agent_node import LLM_UNAVAILABLE_ANSWER
+    from erp_data.agent.orm_agent_node import LLM_UNAVAILABLE_ANSWER
 
     first = [AIMessage(content="", tool_calls=[{"name": "search_read", "args": {}, "id": "tc1"}])]
     out, _ = _run_loop_with_unreachable_llm(monkeypatch, first_replies=first)

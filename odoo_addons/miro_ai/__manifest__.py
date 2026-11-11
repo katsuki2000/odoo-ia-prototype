@@ -1,17 +1,8 @@
-# -*- coding: utf-8 -*-
 {
     'name': 'MIRO AI Assistant',
     'version': '17.0.1.0.2',
     'category': 'Productivity/AI',
     'summary': 'Intelligent AI Assistant for Odoo (RAG + ORM)',
-    'description': """
-MIRO AI Assistant - RAG and LangChain integration for Odoo 17
-==============================================================
-
-Features:
-- API connection settings towards FastAPI / ChromaDB
-- Chat interface and request audit log
-    """,
     'author': 'RAILALA Mahalahatse',
     'website': 'https://github.com/katsuki2000/odoo-ia-prototype',
     'license': 'LGPL-3',
@@ -32,6 +23,4 @@ Features:
         ],
     },
     'application': True,
-    'installable': True,
-    'auto_install': False,
 }

@@ -4,13 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from erp_data.odoo_context import (
+from erp_data.connector.odoo_context import (
     odoo_api_key_ctx,
     odoo_company_id_ctx,
     odoo_company_ids_ctx,
     odoo_uid_ctx,
 )
-from erp_data.odoo_connector import OdooConnector
+from erp_data.connector.odoo_connector import OdooConnector
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.runtime.identity import resolve_company_scope
 from erp_data.runtime import read_tools

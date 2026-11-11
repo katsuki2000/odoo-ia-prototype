@@ -21,7 +21,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.schemas import source_display_title
-from document_rag.vectorstore.search import quick_retrieve
+from document_rag.retrieval.search import quick_retrieve
 
 # Jeu de test couvrant l'ensemble des formats et cas d'usage
 BENCHMARK_CASES = [
@@ -106,7 +106,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
     generate_fn = None
     if not retrieval_only:
         try:
-            from document_rag.generate_node import generate
+            from document_rag.generation.generate_node import generate
             generate_fn = generate
         except Exception as e:
             print(f"Impossible d'importer generate_node ({e}). Passage en mode retrieval seul.\n")

@@ -13,9 +13,8 @@ class RAGState(TypedDict, total=False):
     uid: int | None
     timing: dict
     retrieved_chunks: list[dict]
-    route: str | None
     response: AssistantResponse | None
     structured_failed: bool | None
     raw_tool_output: str | None
-    source_mode: str | None
+    source_mode: str
     language: str | None

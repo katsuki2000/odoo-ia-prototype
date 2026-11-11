@@ -25,7 +25,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, "document_rag"))
 
-from document_rag.generate_node import _build_source_aliases, _verify_used_sources
+from document_rag.generation.generate_node import _build_source_aliases, _verify_used_sources
 from core.schemas import SourceReference
 
 
@@ -114,7 +114,7 @@ class TestPartiallyInvalidUsedSources(unittest.TestCase):
             _make_chunk("b_0", source="wiki_b.txt"),
         ]
         alias_map = _build_source_aliases(chunks)
-        with self.assertLogs("document_rag.generate_helpers", level="WARNING") as cm:
+        with self.assertLogs("document_rag.generation.generate_helpers", level="WARNING") as cm:
             result = _verify_used_sources(["S1", "S99"], alias_map)
 
         self.assertEqual(len(result), 1)
@@ -129,7 +129,7 @@ class TestFullyInvalidUsedSources(unittest.TestCase):
     def test_all_invalid_aliases_return_empty_and_warn(self):
         chunks = [_make_chunk("a_0", source="wiki_a.txt")]
         alias_map = _build_source_aliases(chunks)
-        with self.assertLogs("document_rag.generate_helpers", level="WARNING") as cm:
+        with self.assertLogs("document_rag.generation.generate_helpers", level="WARNING") as cm:
             result = _verify_used_sources(["S99", "S100"], alias_map)
 
         self.assertEqual(result, [])
@@ -142,11 +142,11 @@ class TestFullyInvalidUsedSources(unittest.TestCase):
         chunks = [_make_chunk("a_0", source="wiki_a.txt")]
         alias_map = _build_source_aliases(chunks)
 
-        with self.assertLogs("document_rag.generate_helpers", level="WARNING"):
+        with self.assertLogs("document_rag.generation.generate_helpers", level="WARNING"):
             mixed = _verify_used_sources(["S1", "S99"], alias_map)
         self.assertEqual(len(mixed), 1)
 
-        with self.assertLogs("document_rag.generate_helpers", level="WARNING"):
+        with self.assertLogs("document_rag.generation.generate_helpers", level="WARNING"):
             only_invalid = _verify_used_sources(["S99"], alias_map)
         self.assertEqual(only_invalid, [])
 

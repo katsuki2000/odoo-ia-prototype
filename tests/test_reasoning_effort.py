@@ -4,7 +4,7 @@ from langchain_core.messages import HumanMessage
 
 import config.settings as settings
 from core.llm import get_chat_llm
-from document_rag import generate_node
+from document_rag.generation import generate_node
 
 
 def request_payload(**kwargs):
@@ -30,7 +30,7 @@ def test_the_documentary_answer_uses_the_rag_setting(monkeypatch):
 
 
 def test_the_erp_agent_uses_the_erp_setting(monkeypatch):
-    from erp_data import orm_agent_helpers
+    from erp_data.agent import orm_agent_helpers
 
     seen = {}
     monkeypatch.setattr(orm_agent_helpers, "get_chat_llm", lambda **kwargs: seen.update(kwargs))

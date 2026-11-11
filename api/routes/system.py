@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from api.auth import require_admin
 from config.settings import ODOO_DB
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from erp_data.odoo_connector import OdooConnector
+from erp_data.connector.odoo_connector import OdooConnector
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

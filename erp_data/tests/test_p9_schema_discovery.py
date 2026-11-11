@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from erp_data.odoo_context import odoo_described_models_ctx, odoo_uid_ctx, request_identity
+from erp_data.connector.odoo_context import odoo_described_models_ctx, odoo_uid_ctx, request_identity
 from erp_data.runtime import langchain_tools, read_tools
 from erp_data.runtime.errors import OrmRuntimeError, SchemaNotReadError
 from erp_data.runtime.read_tools import (

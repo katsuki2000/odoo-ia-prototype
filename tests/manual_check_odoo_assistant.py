@@ -84,14 +84,7 @@ def main(login, password):
         print(f"Authentication failed: {data['error']}")
         return False
 
-    print("\n[2] /miro_ai/health...")
-    data = rpc(session, "/miro_ai/health", {})
-    if "error" in data:
-        print(f"Health check failed: {data['error']}")
-        return False
-    print(f" -> {data.get('result')}")
-
-    print("\n[3] /miro_ai/ask with a simple question...")
+    print("\n[2] /miro_ai/ask with a simple question...")
     data = ask_and_wait(session, SIMPLE_QUESTION, SIMPLE_SESSION_ID)
     if "error" in data:
         print(f"/miro_ai/ask failed: {data['error']}")
@@ -100,11 +93,11 @@ def main(login, password):
     print(f" -> Answer: {result.get('answer')}")
     print(f" -> Sources: {len(result.get('sources', []))}")
 
-    print("\n[4] Audit log of the simple question...")
+    print("\n[3] Audit log of the simple question...")
     if not print_audit_entry(session, SIMPLE_SESSION_ID):
         return False
 
-    print(f"\n[5] /miro_ai/ask with a technical question: {TECHNICAL_QUESTION}")
+    print(f"\n[4] /miro_ai/ask with a technical question: {TECHNICAL_QUESTION}")
     started = time.time()
     data = ask_and_wait(session, TECHNICAL_QUESTION, TECHNICAL_SESSION_ID)
     if "error" in data:
@@ -118,11 +111,11 @@ def main(login, password):
     for index, source in enumerate(sources[:SOURCES_SHOWN], 1):
         print(f"    - {index}: {source.get('filepath', 'unknown')} (score: {source.get('score', 'N/A')})")
 
-    print("\n[6] Audit log of the technical question...")
+    print("\n[5] Audit log of the technical question...")
     if not print_audit_entry(session, TECHNICAL_SESSION_ID):
         return False
 
-    print("\nAll checks passed (authentication, health, proxy, RAG sources, audit log).")
+    print("\nAll checks passed (authentication, proxy, RAG sources, audit log).")
     return True
 
 

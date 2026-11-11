@@ -1,13 +1,7 @@
- /home/user/odoo-ia-prototype/core/guardrails.py set encore à qqc , pq pas le mettre dans un fichier qui existe deja?
- meme chose pour /home/user/odoo-ia-prototype/todo/google_drive_usage.md
- est ce que /home/user/odoo-ia-prototype/odoo_addons respecte /home/user/odoo-ia-prototype/todo/pratiques_odoo.md , /home/user/odoo-ia-prototype/todo/rules.md et /home/user/odoo-ia-prototype/todo/architecture.md?
+
  dans le projet, tout est bien à sa place? ex ; tout ce qui devrait etre dans test est bien dans test?
  le ragas n'est pas encore fini
- dans /home/user/odoo-ia-prototype/core/llm.py , temperature = 0? c une bonne pratique pour un chatbot?
- c moi ou il y a plein de valeurs eparpillés? d'autres sont à la fois dans .env, settings, et déclarés direct, est ce que toutes ces valeurs meritent vraiment d'etre dans settings?
- j'aimerais supprimer cette option sans choisir de source?(ça semble compliquer pour rien)
- /home/user/odoo-ia-prototype/core/verification/extractors.py serrt à quoi?
- TOUT ce qui est dans requirements est utilisé? peut etre qu'on devrait supprimer certains?
+ 
  je suis sûr qu'il y a encore du code mort ou des doublons (par ex des imports ou des tests)
  c encore necessaire de mettre GOOGLE_DRIVE_APPROVED_FOR_RAG=true dans .env?
  rearrange /home/user/odoo-ia-prototype/config/settings.py, mets des commentaires (certains fichiers en ont besoin et ils sont nombreux)
@@ -18,10 +12,7 @@
 regarder s"il y a pas de modele aussi performant ou plus que gemma mais moins lourd et plus rapide
 tout a l"air de marcher, j'aimerais mtn retirer ce qui n'est pas utilisé, genre optimiser le code pour ne pas avoir de dettes techniques
 ajouter l'option pour supprimer une discu avec l'IA
-l'interface est responsive?
-la boite pour ecrire là, c normal que ça ne prend pas la taille du texte qui y est?
-/home/user/odoo-ia-prototype/document_rag/generate_helpers.py ne devriat pas etre supprimé? c peut etre ce qui a causé les alias dans les reponses
-/home/user/odoo-ia-prototype/document_rag/ingestion/pdf_loader.py et /home/user/odoo-ia-prototype/document_rag/ingestion/pdf_ocr.py ne peuvent pas etre fusionnés?
+
  à faire après le doc : slide et speech, deploiement de mon coté, à partir de mes avantages github copilot(ke deploiement dans le vrai env attendra)
 
  

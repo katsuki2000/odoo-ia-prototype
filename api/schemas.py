@@ -14,11 +14,10 @@ class AskRequestV1(BaseModel):
         default=None,
         description='Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.',
     )
-    source_mode: Literal['documentation', 'system'] | None = Field(
-        default=None,
+    source_mode: Literal['documentation', 'system'] = Field(
         description=(
-            "Source chosen by the user: 'documentation' forces the documentary route, "
-            "'system' excludes it; absent means automatic routing."
+            "Source chosen by the user: 'documentation' searches the internal documents, "
+            "'system' investigates this Odoo instance."
         ),
     )
 

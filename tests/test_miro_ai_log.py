@@ -132,3 +132,41 @@ def test_sessions_skip_incomplete_group_results(log_module):
     )
 
     assert log_module.MiroAiLog.get_sessions(model) == []
+
+
+class _Logs:
+    def __init__(self, count):
+        self.count = count
+        self.written = []
+
+    def __len__(self):
+        return self.count
+
+    def sudo(self):
+        return self
+
+    def write(self, values):
+        self.written.append(values)
+
+
+def test_archive_session_archives_the_requester_turns_with_an_elevated_write(log_module):
+    logs = _Logs(2)
+    domains = []
+    model = types.SimpleNamespace(
+        env=types.SimpleNamespace(uid=7),
+        search=lambda domain: domains.append(domain) or logs,
+    )
+
+    assert log_module.MiroAiLog.archive_session(model, "session") == 2
+
+    assert domains == [[("session_id", "=", "session"), ("user_id", "=", 7)]]
+    assert logs.written == [{"active": False}]
+
+
+def test_archive_session_without_session_id_touches_nothing(log_module):
+    model = types.SimpleNamespace(
+        env=types.SimpleNamespace(uid=7),
+        search=lambda domain: pytest.fail("search must not run without a session id"),
+    )
+
+    assert log_module.MiroAiLog.archive_session(model, None) == 0

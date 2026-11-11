@@ -12,12 +12,12 @@ from config.settings import (
     RAG_VECTOR_WEIGHT,
     VECTOR_SIMILARITY_FLOOR,
 )
-from document_rag.vectorstore.bm25_index import _STOP_WORDS, _tokenize, BM25Index, bm25_search
+from document_rag.retrieval.bm25_index import _STOP_WORDS, _tokenize, BM25Index, bm25_search
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from document_rag.vectorstore.search_hybrid import hybrid_search, vector_search
-from document_rag.vectorstore.search_ranking import reciprocal_rank_fusion
-from document_rag.vectorstore.search_contiguous import expand_contiguous_chunks, expand_dominant_documents
-from document_rag.vectorstore.drive_guard import filter_current_drive_chunks
+from document_rag.retrieval.search_hybrid import hybrid_search, vector_search
+from document_rag.retrieval.search_ranking import reciprocal_rank_fusion
+from document_rag.retrieval.search_contiguous import expand_contiguous_chunks, expand_dominant_documents
+from document_rag.retrieval.drive_guard import filter_current_drive_chunks
 
 logger = logging.getLogger(__name__)
 

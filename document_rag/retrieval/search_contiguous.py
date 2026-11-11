@@ -1,5 +1,5 @@
 """
-document_rag/vectorstore/search_contiguous.py
+document_rag/retrieval/search_contiguous.py
 
 Expand retrieved document chunks with contiguous fragments when they contain lists or tables.
 """

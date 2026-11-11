@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Build the "Check in Odoo" link of an ERP answer from the evidence dossier only.
 
 Pure function, no Odoo import: the link is derived from what the agent actually read

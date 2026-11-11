@@ -1,0 +1,20 @@
+# Development, testing and evaluation dependencies.
+# Install with: pip install -r requirements-dev.txt
+
+# Linting
+astroid==4.0.4
+isort==9.0.2
+mccabe==0.7.0
+pylint==4.0.10
+pylint-odoo==10.0.12
+pylint-plugin-utils==0.9.0
+pyflakes==4.0.3
+tomlkit==0.15.2
+
+# Testing
+pytest==9.1.1
+pytest-cov==4.1.0
+pytest-xdist
+
+# Evaluation
+ragas==0.4.3

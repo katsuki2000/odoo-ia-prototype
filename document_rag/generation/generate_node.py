@@ -7,7 +7,7 @@ from core.schemas import AssistantResponse, LLMResponse, QueryRoute
 import config.settings as settings
 from core.state import RAGState
 from core.llm import get_chat_llm, invoke_llm
-from document_rag.generate_helpers import (
+from document_rag.generation.generate_helpers import (
     build_source_aliases as _build_source_aliases,
     format_context as _format_context,
     verify_used_sources as _verify_used_sources,
@@ -52,7 +52,7 @@ def generate(state: RAGState) -> dict:
         )
         return {"response": response, "timing": timing}
 
-    from document_rag.prompts import build_rag_messages as build_messages
+    from document_rag.generation.prompts import build_rag_messages as build_messages
 
     alias_map = _build_source_aliases(chunks)
     context_text = _format_context(alias_map)

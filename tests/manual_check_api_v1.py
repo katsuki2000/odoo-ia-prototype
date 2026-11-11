@@ -22,16 +22,16 @@ token = jwt.encode(
 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 questions = [
-    "How to create a new user?",
-    "How many sales did Société Dupont make?",
-    "What is the status of command CMD-001?",
-    "How many support tickets are open?",
-    "What products are out of stock?",
-    "Show me the sales for 2024.",
-    "Can you find the client 'Rakoto'?",
-    "What is the procedure for validation?",
-    "Who is responsible for the stock?",
-    "Total amount of invoices?"
+    ("documentation", "How to create a new user?"),
+    ("system", "How many sales did Société Dupont make?"),
+    ("system", "What is the status of command CMD-001?"),
+    ("system", "How many support tickets are open?"),
+    ("system", "What products are out of stock?"),
+    ("system", "Show me the sales for 2024."),
+    ("system", "Can you find the client 'Rakoto'?"),
+    ("documentation", "What is the procedure for validation?"),
+    ("system", "Who is responsible for the stock?"),
+    ("system", "Total amount of invoices?"),
 ]
 
 # Server should already be running
@@ -51,11 +51,12 @@ else:
 print("Starting API test...")
 successes = 0
 
-for q in questions:
+for source_mode, q in questions:
     payload = {
         "question": q,
         "session_id": "test_session",
         "company_id": 1,
+        "source_mode": source_mode,
     }
     try:
         t0 = time.time()

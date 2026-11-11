@@ -11,28 +11,25 @@ from langgraph.graph import StateGraph, START, END
 from config.settings import QUESTION_PREVIEW_CHARS
 from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
-from core.routing import route, route_decision
-from document_rag.generate_node import generate
-from erp_data.orm_agent_node import orm_agent_loop
+from document_rag.generation.generate_node import generate
+from erp_data.agent.orm_agent_node import orm_agent_loop
 from core.graph.graph_nodes import retrieve, format_output
 from core.graph.verify_node import verify_answer
 from core.evidence import collect_and_clear_evidence, filter_disclosed_evidence, start_evidence_collection
-from erp_data.odoo_context import request_identity
+from erp_data.connector.odoo_context import request_identity
 
 logger = logging.getLogger(__name__)
+SOURCE_MODES = frozenset(route.value for route in QueryRoute)
 
 
 def build_graph() -> StateGraph:
     workflow = StateGraph(RAGState)
     workflow.add_node('retrieve', retrieve)
-    workflow.add_node('route', route)
     workflow.add_node('generate', generate)
     workflow.add_node('orm_agent_loop', orm_agent_loop)
     workflow.add_node('verify_answer', verify_answer)
     workflow.add_node('format_output', format_output)
-    workflow.add_edge(START, 'route')
-    workflow.add_conditional_edges('route', route_decision, {
-        'source_clarification': 'format_output',
+    workflow.add_conditional_edges(START, lambda state: state['source_mode'], {
         QueryRoute.DOCUMENTARY.value: 'retrieve',
         QueryRoute.ERP_DATA.value: 'orm_agent_loop',
     })
@@ -51,19 +48,21 @@ def _compiled_graph():
 
 def query_graph(
     question: str,
+    source_mode: str,
     chat_history: list[BaseMessage] | None = None,
     uid: int | None = None,
     api_key: str | None = None,
-    source_mode: str | None = None,
     language: str | None = None,
     company_id: int | None = None,
     company_ids: list[int] | None = None,
     db: str | None = None,
 ) -> AssistantResponse:
+    if source_mode not in SOURCE_MODES:
+        raise ValueError(f'source_mode must be one of {sorted(SOURCE_MODES)}, got {source_mode!r}.')
     start_time = time.time()
     initial_state = {
         'question': question, 'chat_history': chat_history or [], 'uid': uid,
-        'timing': {}, 'retrieved_chunks': [], 'route': None, 'response': None,
+        'timing': {}, 'retrieved_chunks': [], 'response': None,
         'source_mode': source_mode, 'language': language,
     }
     with request_identity(uid, api_key, company_id, company_ids, db):

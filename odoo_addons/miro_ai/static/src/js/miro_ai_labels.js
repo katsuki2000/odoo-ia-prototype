@@ -16,6 +16,14 @@ export const loadHistoryErrorLabel = () => _t("Unable to load the conversation h
 
 export const loadSessionErrorLabel = () => _t("Unable to load this conversation.");
 
+export const deleteSessionLabel = () => _t("Delete");
+
+export const deleteSessionTitle = () => _t("Delete conversation");
+
+export const deleteSessionBody = () => _t("This conversation will be removed from your history.");
+
+export const deleteSessionErrorLabel = () => _t("Unable to delete this conversation.");
+
 export const communicationErrorLabel = () => _t("Error communicating with the MIRO AI assistant.");
 
 export const connectionErrorLabel = () => _t("MIRO AI connection error.");

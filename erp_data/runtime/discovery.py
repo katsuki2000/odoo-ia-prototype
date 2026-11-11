@@ -1,6 +1,6 @@
 """Schema discovery guard: the fields of a model must be read in full before it is queried."""
 
-from erp_data.odoo_context import odoo_described_models_ctx
+from erp_data.connector.odoo_context import odoo_described_models_ctx
 from erp_data.runtime.errors import SchemaNotReadError
 
 

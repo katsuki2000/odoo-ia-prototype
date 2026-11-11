@@ -30,7 +30,7 @@ from evaluation.bench_common import (
 from evaluation.erp_expectations import NotApplicable, compute_expected
 from evaluation.erp_model_worker import run_question as run_question_worker
 from evaluation.preflight import BackendUnavailable, probe_llm
-from erp_data.odoo_connector import OdooConnector, OdooConnectorError
+from erp_data.connector.odoo_connector import OdooConnector, OdooConnectorError
 
 QUESTIONS_PATH = project_root / "tests" / "erp_eval_questions.json"
 RESULTS_PATH = project_root / "captures" / "erp_model_eval.jsonl"

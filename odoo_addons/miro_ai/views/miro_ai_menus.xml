@@ -4,7 +4,6 @@
     <menuitem id="menu_miro_ai_root"
               name="MIRO Assistant"
               sequence="50"
-              web_icon="miro_ai,static/description/icon.png"
               groups="base.group_user"/>
 
     <!-- AI request log sub-menu -->
@@ -27,6 +26,6 @@
     <menuitem id="menu_miro_ai_settings_action"
               name="Settings"
               parent="menu_miro_ai_config"
-              action="action_miro_ai_settings"
+              action="action_miro_ai_open_settings"
               sequence="10"/>
 </odoo>

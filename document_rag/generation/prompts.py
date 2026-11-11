@@ -8,7 +8,7 @@ from typing import List, Optional
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
 from config.settings import CHAT_HISTORY_MAX_MESSAGES
-from core.guardrails import OUT_OF_SCOPE_ANSWER
+from config.settings import OUT_OF_SCOPE_ANSWER
 
 
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """

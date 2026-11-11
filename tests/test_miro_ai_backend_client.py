@@ -139,3 +139,12 @@ def test_valid_job_response_is_returned(backend_client):
     response.json.return_value = job
 
     assert backend_client.job_response_object(response) == job
+
+
+def test_invalid_url_is_reported_as_a_backend_error(backend_client, monkeypatch):
+    monkeypatch.setattr(
+        backend_client.requests, "post", MagicMock(side_effect=requests.exceptions.MissingSchema("no scheme"))
+    )
+
+    with pytest.raises(backend_client.BackendError, match="Invalid backend request"):
+        _post(backend_client)

@@ -60,7 +60,7 @@ def test_health_stays_public(client):
 
 
 def test_system_request_without_requester_api_key_is_rejected_before_graph(client):
-    with patch("api.routes_ask.query_graph") as query_graph:
+    with patch("api.routes.ask.query_graph") as query_graph:
         response = client.post(
             "/api/v1/ask",
             headers=_headers(),
@@ -76,7 +76,7 @@ def test_system_request_without_requester_api_key_is_rejected_before_graph(clien
 
 
 def test_ingestion_status_reachable_with_an_admin_token(client):
-    with patch("api.routes_ingestion.ChromaManager") as manager:
+    with patch("api.routes.ingestion.ChromaManager") as manager:
         manager.return_value.get_stats.return_value = {"total_chunks": 0}
         response = client.get("/api/v1/ingestion/status", headers=_headers(is_admin=True))
     assert response.status_code == 200

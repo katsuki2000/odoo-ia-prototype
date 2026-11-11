@@ -48,7 +48,7 @@ from evaluation.bench_common import (
 )
 from evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
-from document_rag.generate_node import generate
+from document_rag.generation.generate_node import generate
 
 QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'

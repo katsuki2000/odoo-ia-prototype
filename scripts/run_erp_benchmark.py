@@ -92,7 +92,7 @@ def _safe_tool_calls(calls: list[dict]) -> list[dict]:
 
 
 def run_model(oracle_records, questions_by_id, session, password, model, reasoning_effort, passes, output, run_id, timeout_seconds, context_length):
-    from erp_data.orm_agent_helpers import DOMAIN_QUERY_TOOLS
+    from erp_data.agent.orm_agent_helpers import DOMAIN_QUERY_TOOLS
     from scripts.run_erp_model_eval import _run_isolated_question
 
     applicable = [record for record in oracle_records if record.get("oracle_status") == "ok"]

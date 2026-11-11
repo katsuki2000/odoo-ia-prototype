@@ -8,7 +8,7 @@
         <div class="o_nav_entry miro-systray-container d-flex align-items-center">
             <!-- Systray Navbar Button -->
             <a class="miro-systray-btn d-flex align-items-center px-2 py-1 text-decoration-none" role="button" t-on-click="toggleDrawer" title="MIRO AI Assistant">
-                <span class="badge bg-primary text-white font-weight-bold px-2 py-1 miro-systray-label" style="font-size: 0.75rem; border-radius: 4px;">MIRO AI</span>
+                <span class="badge bg-primary text-white fw-bold px-2 py-1 miro-systray-label" style="font-size: 0.75rem; border-radius: 4px;">MIRO AI</span>
             </a>
 
             <!-- Floating Side Drawer Panel -->
@@ -18,10 +18,10 @@
                         <strong class="miro-drawer-title text-dark">MIRO AI Assistant</strong>
                     </div>
                     <div class="d-flex align-items-center">
-                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="startNewConversation" title="New conversation">
+                        <button class="btn btn-sm btn-link text-muted p-0 me-2" t-on-click="startNewConversation" title="New conversation">
                             <i class="fa fa-plus"/>
                         </button>
-                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="toggleHistory" title="History">
+                        <button class="btn btn-sm btn-link text-muted p-0 me-2" t-on-click="toggleHistory" title="History">
                             <i class="fa fa-history"/>
                         </button>
                         <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Close">
@@ -33,20 +33,27 @@
                 <!-- Compact History List -->
                 <div t-if="state.showHistory" class="miro-drawer-history p-2">
                     <div t-if="state.loadingSessions" class="text-muted text-center p-3 small">
-                        <i class="fa fa-spinner fa-spin mr-1"/> Loading...
+                        <i class="fa fa-spinner fa-spin me-1"/> Loading...
                     </div>
                     <div t-elif="state.sessions.length === 0" class="text-muted text-center p-3 small">
                         No conversation recorded.
                     </div>
                     <t t-else="">
                         <div t-foreach="state.sessions" t-as="session" t-key="session.session_id"
-                             class="miro-history-item" t-on-click="() => this.loadSession(session.session_id)">
-                            <div class="miro-history-item-preview small" t-esc="session.preview"/>
-                            <div class="miro-history-item-meta text-muted small">
-                                <span t-esc="formatSessionDate(session.last_activity)"/>
-                                <span class="mx-1">·</span>
-                                <span t-esc="getExchangeCountLabel(session.message_count)"/>
+                             class="miro-history-item d-flex align-items-center" t-on-click="() => this.loadSession(session.session_id)">
+                            <div class="flex-grow-1 overflow-hidden">
+                                <div class="miro-history-item-preview small" t-esc="session.preview"/>
+                                <div class="miro-history-item-meta text-muted small">
+                                    <span t-esc="formatSessionDate(session.last_activity)"/>
+                                    <span class="mx-1">·</span>
+                                    <span t-esc="getExchangeCountLabel(session.message_count)"/>
+                                </div>
                             </div>
+                            <button type="button" class="btn btn-sm btn-link text-muted miro-history-delete" title="Delete conversation"
+                                    t-att-disabled="state.loading"
+                                    t-on-click.stop="() => this.confirmDeleteSession(session.session_id)">
+                                <i class="fa fa-trash"/>
+                            </button>
                         </div>
                     </t>
                 </div>
@@ -65,27 +72,27 @@
                     </t>
 
                     <div t-if="state.loading" class="miro-ai-message bot-message loading-indicator small">
-                        <i class="fa fa-spinner fa-spin mr-1"/> <span>Analysis in progress...</span>
+                        <i class="fa fa-spinner fa-spin me-1"/> <span>Analysis in progress...</span>
                     </div>
                 </div>
 
                 <!-- Drawer Input Area -->
                 <div t-if="!state.showHistory" class="miro-drawer-input p-2 border-top bg-white">
                     <div class="miro-source-toggle mb-1">
-                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'documentation' ? 'active' : ''}"
-                                t-on-click="() => this.toggleSourceMode('documentation')"
-                                title="Answer only from the internal documentation">
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.source === 'documentation' ? 'active' : ''}"
+                                t-on-click="() => this.selectSource('documentation')"
+                                title="Search the internal documentation">
                             <i class="fa fa-book"/> From the documentation
                         </button>
-                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'system' ? 'active' : ''}"
-                                t-on-click="() => this.toggleSourceMode('system')"
-                                title="Answer from the system's data and code">
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.source === 'system' ? 'active' : ''}"
+                                t-on-click="() => this.selectSource('system')"
+                                title="Investigate the system's data and code">
                             <i class="fa fa-cogs"/> From the system
                         </button>
                     </div>
-                    <div class="d-flex align-items-center">
-                        <input type="text" class="form-control form-control-sm miro-drawer-input-field me-2" placeholder="Ask a question..."
-                               t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
+                    <div class="d-flex align-items-end">
+                        <textarea rows="1" class="form-control form-control-sm miro-drawer-input-field me-2" placeholder="Ask a question..."
+                                  t-ref="drawerInput" t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
                         <button t-if="!state.loading" class="btn btn-primary miro-drawer-send-btn" type="button" t-on-click="sendMessage">
                             <i class="fa fa-paper-plane"/>
                         </button>

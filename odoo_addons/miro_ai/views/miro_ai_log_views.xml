@@ -69,6 +69,8 @@
                 <filter string="Success" name="filter_success" domain="[('state', '=', 'success')]"/>
                 <filter string="Errors" name="filter_error" domain="[('state', '=', 'error')]"/>
                 <separator/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <separator/>
                 <filter string="Today" name="filter_today" domain="[('create_date', '&gt;=', datetime.datetime.now().strftime('%Y-%m-%d 00:00:00'))]"/>
                 <group expand="0" string="Group by">
                     <filter string="User" name="group_by_user" context="{'group_by': 'user_id'}"/>

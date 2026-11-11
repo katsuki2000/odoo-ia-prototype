@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Odoo controller for the MIRO AI assistant: starts questions on the backend and relays their answers."""
 import logging
 import time
@@ -27,11 +26,11 @@ def _settings_and_secret():
 
 
 def _unreachable_message(api_url):
-    return _("Cannot reach the server (%s). Check that the FastAPI backend is running.", api_url)
+    return _("Cannot reach the server (%s). Check that the backend is running.", api_url)
 
 
 def _server_error_message(status_code):
-    return _("RAG server error (code %s). Please check that the FastAPI service is running.", status_code)
+    return _("Miro AI server error (code %s). Please check that the service is running.", status_code)
 
 
 def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='success', metadata=None):
@@ -46,7 +45,7 @@ def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='s
             metadata=metadata,
         )
     except Exception as log_err:
-        _logger.warning("MIRO AI: audit log write failed: %s", log_err)
+        _logger.warning("Miro AI: audit log write failed: %s", log_err)
 
 
 def _verify_link_payload(evidence_dossier):
@@ -77,21 +76,13 @@ def _answer_payload(data, session_id):
 
 class MiroAiController(http.Controller):
 
-    @http.route('/miro_ai/health', type='json', auth='user', methods=['POST'])
-    def health_check(self):
-        """Quick health check of the module on the Odoo side."""
-        return {
-            'status': 'ok',
-            'module': 'miro_ai',
-            'user_id': request.env.user.id,
-            'company_id': request.env.company.id
-        }
-
     @http.route('/miro_ai/ask', type='json', auth='user', methods=['POST'])
     def ask(self, question=None, session_id=None, source_mode=None, **kwargs):
         """Start the question on the backend and return its job id; /miro_ai/ask_result returns the answer."""
         if not question or not question.strip():
             return {'answer': _("Please ask a question."), 'sources': []}
+        if source_mode not in ("documentation", "system"):
+            return {'answer': _("Please choose a source."), 'sources': []}
         question = question.strip()
         try:
             settings, secret_key = _settings_and_secret()
@@ -109,13 +100,11 @@ class MiroAiController(http.Controller):
             "question": question,
             "session_id": effective_session,
             "company_id": company_id,
+            "source_mode": source_mode,
         }
         interface_language = request.env.context.get('lang') or user.lang
         if interface_language:
             payload["language"] = interface_language
-        # Explicit source chosen in the UI; anything else means automatic routing.
-        if source_mode in ("documentation", "system"):
-            payload["source_mode"] = source_mode
 
         api_url = settings.api_url.rstrip('/')
         start_time = time.time()
@@ -222,3 +211,8 @@ class MiroAiController(http.Controller):
         if not session_id:
             return []
         return request.env['miro.ai.log'].get_session_history(session_id)
+
+    @http.route('/miro_ai/archive_session', type='json', auth='user', methods=['POST'])
+    def archive_session(self, session_id=None, **kwargs):
+        """Delete one conversation from the history of the current user; the audit log keeps it."""
+        return request.env['miro.ai.log'].archive_session(session_id)

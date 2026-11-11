@@ -18,7 +18,7 @@ def settings_module(monkeypatch):
     odoo = types.ModuleType("odoo")
     odoo.models = types.SimpleNamespace(Model=object)
     odoo.fields = MagicMock()
-    odoo.api = MagicMock()
+    odoo.api = types.SimpleNamespace(model=lambda function: function, model_create_multi=lambda function: function)
     odoo._ = lambda message, *args: message
     exceptions = types.ModuleType("odoo.exceptions")
     exceptions.UserError = _UserError
@@ -46,10 +46,15 @@ def test_missing_or_short_secret_is_refused(settings_module, token):
         settings_module.MiroAiSettings.get_signing_secret(_record(token))
 
 
-def test_legacy_default_secret_is_refused_even_if_long_enough(settings_module):
-    legacy = settings_module.LEGACY_DEFAULT_SECRET
-    with pytest.raises(_UserError):
-        settings_module.MiroAiSettings.get_signing_secret(_record(legacy))
+def test_open_settings_action_targets_the_single_configuration(settings_module):
+    record = types.SimpleNamespace(
+        _name="miro.ai.settings",
+        get_active_settings=lambda: types.SimpleNamespace(id=7),
+    )
+    action = settings_module.MiroAiSettings.action_open_settings(record)
+    assert action["res_model"] == "miro.ai.settings"
+    assert action["res_id"] == 7
+    assert action["view_mode"] == "form"
 
 
 def test_no_hardcoded_default_secret_remains_in_signing_paths():

@@ -249,7 +249,7 @@ def main() -> int:
         print(f"\n[run] {q['id']} -- {q['question'][:90]}...")
         error = None
         try:
-            query_graph(question=q["question"], chat_history=[], language=q.get("language"))
+            query_graph(question=q["question"], source_mode="system", chat_history=[], language=q.get("language"))
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"[:300]
             print(f"[error] agent raised: {error}")

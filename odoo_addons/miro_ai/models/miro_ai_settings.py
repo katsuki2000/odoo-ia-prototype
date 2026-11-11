@@ -1,18 +1,15 @@
-# -*- coding: utf-8 -*-
-"""Configuration model of the MIRO AI assistant: backend URL, signing secret, skill toggles."""
+"""Configuration model of the MIRO AI assistant: backend URL, request timeout, signing secret."""
 import secrets
 from odoo import _, models, fields, api
 from odoo.exceptions import UserError
 
 MIN_SIGNING_SECRET_BYTES = 32
-LEGACY_DEFAULT_SECRET = 'default_insecure_secret_for_dev'
 DEFAULT_API_URL = 'http://127.0.0.1:8000'
 
 
 class MiroAiSettings(models.Model):
     _name = 'miro.ai.settings'
     _description = 'MIRO AI - Settings and Configuration'
-    _rec_name = 'name'
 
     name = fields.Char(
         string='Configuration name',
@@ -52,7 +49,7 @@ class MiroAiSettings(models.Model):
     def get_signing_secret(self):
         self.ensure_one()
         secret = self.api_token or ''
-        if secret == LEGACY_DEFAULT_SECRET or len(secret.encode('utf-8')) < MIN_SIGNING_SECRET_BYTES:
+        if len(secret.encode('utf-8')) < MIN_SIGNING_SECRET_BYTES:
             raise UserError(_(
                 "The MIRO AI signing secret is not configured: set a random secret of at least "
                 "%s bytes in the MIRO AI settings, identical to the RAG server's JWT_SECRET.",
@@ -70,3 +67,14 @@ class MiroAiSettings(models.Model):
     def get_active_settings(self):
         """Return the instance configuration, creating the default one when none exists."""
         return self.search([], limit=1) or self.create({})
+
+    @api.model
+    def action_open_settings(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("MIRO AI Settings"),
+            'res_model': self._name,
+            'res_id': self.get_active_settings().id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+        }

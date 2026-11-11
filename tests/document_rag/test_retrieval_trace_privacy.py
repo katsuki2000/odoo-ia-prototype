@@ -2,7 +2,7 @@ import json
 import logging
 
 from config.settings import QUESTION_PREVIEW_CHARS
-from document_rag.vectorstore import search
+from document_rag.retrieval import search
 
 
 def test_retrieval_trace_logs_only_a_question_preview(monkeypatch, caplog):
@@ -21,7 +21,7 @@ def test_retrieval_trace_logs_only_a_question_preview(monkeypatch, caplog):
         ],
     )
 
-    with caplog.at_level(logging.INFO, logger="document_rag.vectorstore.search"):
+    with caplog.at_level(logging.INFO, logger="document_rag.retrieval.search"):
         search.retrieve(query, chroma_manager=object(), bm25_index=object(), top_k=1)
 
     trace = next(

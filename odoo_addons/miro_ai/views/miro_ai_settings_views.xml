@@ -24,30 +24,11 @@
         </field>
     </record>
 
-    <!-- Tree / List view for miro.ai.settings -->
-    <record id="view_miro_ai_settings_tree" model="ir.ui.view">
-        <field name="name">miro.ai.settings.tree</field>
-        <field name="model">miro.ai.settings</field>
-        <field name="arch" type="xml">
-            <tree string="MIRO AI Settings">
-                <field name="name"/>
-                <field name="api_url"/>
-            </tree>
-        </field>
-    </record>
-
-    <!-- Window action opening the settings -->
-    <record id="action_miro_ai_settings" model="ir.actions.act_window">
+    <!-- Opens the single configuration directly -->
+    <record id="action_miro_ai_open_settings" model="ir.actions.server">
         <field name="name">MIRO AI Settings</field>
-        <field name="res_model">miro.ai.settings</field>
-        <field name="view_mode">tree,form</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Create a new configuration for the Miro AI server
-            </p>
-            <p>
-                Set the FastAPI server address and request timeout.
-            </p>
-        </field>
+        <field name="model_id" ref="model_miro_ai_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_settings()</field>
     </record>
 </odoo>

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Requester API key, JWT and backend headers of the MIRO AI ask flow."""
 import base64
 import hashlib

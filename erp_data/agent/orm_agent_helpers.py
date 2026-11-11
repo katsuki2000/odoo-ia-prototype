@@ -186,7 +186,7 @@ def _single_answer(prompt: str) -> str:
 def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[str, int]:
     """Synthesize final answer when the ReAct iteration budget is exhausted."""
     logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
-    from erp_data.prompts import build_orm_synthesis_prompt
+    from erp_data.agent.prompts import build_orm_synthesis_prompt
 
     try:
         return _single_answer(build_orm_synthesis_prompt(question, tool_observations)), 1
@@ -197,7 +197,7 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
 
 def explain_refusals(question: str, tool_observations: List[str]) -> Tuple[str, int]:
     """Explain in plain words why no read succeeded; empty text when the explanation call fails."""
-    from erp_data.prompts import build_orm_refusal_prompt
+    from erp_data.agent.prompts import build_orm_refusal_prompt
 
     try:
         return _single_answer(build_orm_refusal_prompt(question, tool_observations)).strip(), 1

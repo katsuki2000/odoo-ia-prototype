@@ -19,7 +19,7 @@ def get_chat_llm(
     model: str | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-    temperature: float = 0.0,
+    temperature: float = 0.2,
     max_tokens: int | None = None,
     max_retries: int = LLM_MAX_RETRIES,
     reasoning_effort: str | None = None,

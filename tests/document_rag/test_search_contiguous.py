@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from document_rag.vectorstore.search_contiguous import expand_dominant_documents
+from document_rag.retrieval.search_contiguous import expand_dominant_documents
 
 
 def _chunk(source, index, score=None, total=4):

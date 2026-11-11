@@ -6,7 +6,7 @@ from typing import List, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from config.settings import CHAT_HISTORY_MAX_MESSAGES
-from core.guardrails import OUT_OF_SCOPE_ANSWER
+from config.settings import OUT_OF_SCOPE_ANSWER
 
 
 ORM_AGENT_SYSTEM_PROMPT = (

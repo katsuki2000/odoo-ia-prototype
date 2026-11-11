@@ -1,1 +1,1 @@
-"""document_rag: documentary RAG (ingestion, vectorstore, hybrid search)."""
+"""document_rag: documentary RAG (ingestion, storage, retrieval, generation)."""

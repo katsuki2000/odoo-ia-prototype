@@ -1,8 +1,8 @@
 """Prompts carry the out-of-scope refusal, its translation rule and the absent-concept rule."""
 
-from core.guardrails import OUT_OF_SCOPE_ANSWER
-from document_rag.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
-from erp_data.prompts import NO_READ_REMINDER, ORM_AGENT_SYSTEM_PROMPT
+from config.settings import OUT_OF_SCOPE_ANSWER
+from document_rag.generation.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
+from erp_data.agent.prompts import NO_READ_REMINDER, ORM_AGENT_SYSTEM_PROMPT
 from erp_data.runtime.langchain_tools import NO_MODEL_HINT
 
 TRANSLATION_RULE = "traduite dans la langue de la question"

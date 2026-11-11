@@ -5,7 +5,7 @@ import pytest
 from config.settings import QUESTION_PREVIEW_CHARS
 from core.graph import graph as graph_module
 from core.schemas import AssistantResponse
-from erp_data.odoo_context import (
+from erp_data.connector.odoo_context import (
     odoo_api_key_ctx,
     odoo_company_id_ctx,
     odoo_company_ids_ctx,
@@ -47,14 +47,14 @@ def test_graph_is_compiled_once(monkeypatch):
     builds = []
     monkeypatch.setattr(graph_module, 'build_graph', lambda: builds.append(1) or _FakeGraph())
     graph_module._compiled_graph.cache_clear()
-    graph_module.query_graph('q1')
-    graph_module.query_graph('q2')
+    graph_module.query_graph('q1', 'system')
+    graph_module.query_graph('q2', 'system')
     graph_module._compiled_graph.cache_clear()
     assert len(builds) == 1
 
 
 def test_identity_is_bound_during_the_call_and_reset_after(fake_graph):
-    response = graph_module.query_graph('q', uid=7, api_key='key', company_id=2, db='shop')
+    response = graph_module.query_graph('q', 'system', uid=7, api_key='key', company_id=2, db='shop')
     assert response.answer == 'ok'
     assert fake_graph.identities == [(7, 'key', 2, [2], 'shop')]
     assert _identity() == (None, None, None, None, None)
@@ -63,7 +63,7 @@ def test_identity_is_bound_during_the_call_and_reset_after(fake_graph):
 def test_pipeline_failure_reaches_the_caller_and_identity_is_reset(fake_graph):
     fake_graph.failure = ConnectionError('inference server down')
     with pytest.raises(ConnectionError):
-        graph_module.query_graph('q', uid=7, api_key='key', company_id=2, db='shop')
+        graph_module.query_graph('q', 'system', uid=7, api_key='key', company_id=2, db='shop')
     assert _identity() == (None, None, None, None, None)
 
 
@@ -78,6 +78,6 @@ def test_nested_request_does_not_inherit_the_outer_identity():
 def test_the_question_is_logged_truncated(fake_graph, caplog):
     question = 'q' * (QUESTION_PREVIEW_CHARS + 50)
     with caplog.at_level(logging.INFO, logger=graph_module.logger.name):
-        graph_module.query_graph(question)
+        graph_module.query_graph(question, 'system')
     assert question not in caplog.text
     assert question[:QUESTION_PREVIEW_CHARS] in caplog.text

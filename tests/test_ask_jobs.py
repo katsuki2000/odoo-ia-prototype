@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from api import routes_ask
+from api.routes import ask as routes_ask
 from api.ask_jobs import AskJobStore, DuplicateJobError, JobCapacityError
 from api.auth import get_current_user
 from api.schemas import AskResponseV1
@@ -110,7 +110,7 @@ def client(monkeypatch):
 
 
 def _payload(job_id=JOB_ID):
-    return {"job_id": job_id, "question": "how?", "session_id": "s1", "company_id": 1}
+    return {"job_id": job_id, "question": "how?", "session_id": "s1", "company_id": 1, "source_mode": "system"}
 
 
 def _poll_until_finished(client, job_id=JOB_ID):

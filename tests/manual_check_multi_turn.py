@@ -32,7 +32,7 @@ def run_multi_turn_test():
         chat_history = []
         for q in scenario:
             print(f"\nUser: {q}")
-            response = query_graph(q, chat_history=chat_history)
+            response = query_graph(q, "system", chat_history=chat_history)
             print(f"Agent: {response.answer}")
             
             chat_history.append(HumanMessage(content=q))
