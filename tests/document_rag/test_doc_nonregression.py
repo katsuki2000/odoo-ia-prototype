@@ -49,7 +49,7 @@ def _query_with_retry(question, uid, api_key):
 
 
 def run_doc_nonregression():
-    with open("tests/benchmark_questions.json", "r", encoding="utf-8") as f:
+    with open(os.path.join(project_root, "evaluation", "data", "benchmark_questions.json"), "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Filter to documentary questions only (DOC-01 to DOC-10)

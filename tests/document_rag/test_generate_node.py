@@ -173,7 +173,7 @@ class TestSameFileMultipleChunks(unittest.TestCase):
     Cette classe verrouillait a l'origine (section 329) le contrat inverse
     ("identite du chunk conservee, pas seulement le nom du fichier") --
     contrat depuis explicitement remplace par la dedup (cf. section 391/392
-    et TestVerifyUsedSourcesDedup dans tests/test_graph.py, qui couvre deja
+    et TestVerifyUsedSourcesDedup dans tests/core/test_graph.py, qui couvre deja
     ce mecanisme sur un autre fixture). Le test ci-dessous reprend le cas
     concret original (asset_loan.py cite deux fois via des alias differents,
     S3/S7 dans un contexte a 10 chunks) mais verrouille desormais le

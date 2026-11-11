@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Optional
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-QUESTION_BANK = project_root / "tests" / "native_n1_question_bank.json"
+QUESTION_BANK = project_root / "evaluation" / "data" / "native_n1_question_bank.json"
 DEFAULT_IDS = ["PUR-Q5", "STK-Q5"]
 LIMITING_RATIO = 0.90
 SUSPECT_TRUNCATION_RATIO = 0.98

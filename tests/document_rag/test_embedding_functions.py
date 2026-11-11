@@ -148,3 +148,23 @@ def test_ollama_timeout_comes_from_settings(monkeypatch):
     monkeypatch.setattr(settings, "EMBEDDING_TIMEOUT", 120.0)
     assert _ollama_fn().timeout == 120.0
     assert _ollama_fn(timeout=5).timeout == 5.0
+
+
+def test_ollama_is_not_a_legacy_chroma_embedding_function():
+    assert not _ollama_fn().is_legacy()
+
+
+def test_ollama_name_is_callable_on_the_class():
+    assert OllamaEmbeddingFunction.name() == "local-server"
+
+
+def test_ollama_config_round_trip_rebuilds_the_same_endpoint():
+    fn = _ollama_fn(api_key="secret", timeout=7)
+    rebuilt = OllamaEmbeddingFunction.build_from_config(fn.get_config())
+    assert (rebuilt.endpoint, rebuilt.model, rebuilt.timeout) == (fn.endpoint, fn.model, fn.timeout)
+
+
+def test_ollama_config_does_not_expose_the_api_key():
+    config = _ollama_fn(api_key="secret").get_config()
+    assert "secret" not in config.values()
+    assert "api_key" not in config

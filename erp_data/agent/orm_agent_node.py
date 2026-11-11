@@ -40,7 +40,7 @@ from erp_data.agent.prompts import (
     NO_READ_REMINDER,
     build_orm_agent_messages,
 )
-from erp_data.runtime.read_tools import SCHEMA_METHODS
+from erp_data.tools.read_tools import SCHEMA_METHODS
 
 logger = logging.getLogger(__name__)
 

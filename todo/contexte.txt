@@ -5060,3 +5060,67 @@ Date : 11/11/2026, branche `memoire-final`, HEAD `b4c0b8b5`. Dernier numero lu a
 **A lancer par pmm** : `pytest erp_data/tests tests -n auto -m "not integration"`.
 **Confirmation d'execution (sortie collee par pmm, section 1941)** : `pytest erp_data/tests tests -n auto -m "not integration"` -> **710 passed, 28 skipped, 26 warnings in 17.92s**. Les 28 skips (verifies par `-rs`, 9.61s) viennent tous de `tests/document_rag/` (`test_chroma_manager.py`, `test_search.py`, `test_ingestion.py`) avec le motif « embedding server unavailable (ConnectionError) » : le serveur d'embedding n'etait pas joignable pendant ce run, alors qu'il l'etait au run de la section 1940 (738 passed, 0 skipped). Ce n'est pas une regression des sections 1940 et 1941 (aucun test d'`api/` ni d'`erp_data/` n'est saute), mais ces 28 tests ne sont pas reverifies par ce run. A relancer `pytest tests/document_rag -m "not integration"` serveur d'embedding demarre. En attente de l'approbation « commit ».
 **Confirmation complete (sortie collee par pmm, apres redemarrage du serveur d'embedding, sections 1940 et 1941)** : `pytest erp_data/tests tests -n auto -m "not integration"` -> **738 passed, 69 warnings in 69.51s**, 0 skipped. Les 28 tests `document_rag` sautes au run precedent passent. Les warnings sont les `DeprecationWarning` chromadb sur `OllamaEmbeddingFunction.get_config()` (classe de `document_rag/vectorstore/embedding_functions.py`, a traiter dans un mandat separe). En attente de l'approbation « commit ».
+
+## Section 1942 : diagnostic du DeprecationWarning chromadb `OllamaEmbeddingFunction does not implement get_config()` (journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1941. Apres le commit, pmm a modifie `api/schemas.py` (lignes vides) et `todo/rules.md` (retrait d'une regle sur `config/settings.py`) : non touches. **Aucun fichier de code modifie dans cette section** (diagnostic seul ; copie de `chroma_db` et scripts jetables dans `.scratch/`, supprimes).
+**Cause racine** : `document_rag/vectorstore/embedding_functions.py::OllamaEmbeddingFunction` (notre classe) herite d'`EmbeddingFunction` de chromadb 1.5.9 (epingle dans `requirements.txt`) sans `get_config()` ni `build_from_config()` : `is_legacy()` renvoie vrai, d'ou l'avertissement « sera obligatoire dans une version future ». De plus, `name()` est une methode d'instance (`local-server-<modele>`) alors que chromadb l'appelle sur la classe (`register_embedding_function(type(ef))` -> `cls.name()`), ce qui produit un second avertissement « legacy embedding function config » a la creation d'une collection. `name()` n'est lu nulle part dans notre code (le commentaire « semantic index identity » est obsolete) ; aucun test ne l'utilise.
+**Mesures (executions reelles, sur une copie de la vraie collection `odoo_docs`, 1677 chunks, puis sur une collection neuve)** : (1) la vraie collection est persistee en mode `legacy` (config d'embedding absente) ; (2) avec une classe corrigee (`name()` statique, `get_config()`, `build_from_config()`, `default_space()`/`supported_spaces()` comme l'Ollama integre de chromadb) : ouverture de la vraie collection OK, requete OK, plus d'avertissement `get_config`, mais l'avertissement « legacy embedding function config » reste tant que la collection existante n'est pas reindexee (c'est sa config persistee, pas la classe) ; (3) collection neuve creee avec la classe corrigee : zero avertissement ; (4) rouverte avec un autre nom de modele : aucun conflit (comme aujourd'hui) ; (5) la cle API n'est pas persistee si `get_config()` ne la renvoie pas. Non teste : appels reels au serveur d'embedding.
+**Correctif propose (en attente d'approbation)** : dans `embedding_functions.py` : conserver `self.base_url` (l'`endpoint` ne se reconstruit pas depuis lui-meme), `name()` statique `'local-server'`, `default_space()` = `'cosine'`, `supported_spaces()`, `get_config()` = `base_url`, `model`, `timeout` (sans cle API), `build_from_config()` ; retirer le commentaire obsolete ; tests dans `tests/document_rag/test_embedding_functions.py` (non legacy, aller-retour de config, pas de cle API dans la config, `name()` de classe). Reindexation de la collection existante : non requise.
+
+## Section 1943 : correctif `OllamaEmbeddingFunction` pour chromadb (suite de 1942, journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1942. `api/schemas.py` et `todo/rules.md` (modifies par pmm apres le commit) : non touches.
+**Mandat (pmm)** : appliquer le correctif propose en 1942.
+**Fait** : `document_rag/vectorstore/embedding_functions.py` : `self.base_url` conserve ; `name()` statique (`'local-server'`) ; `default_space()` (`'cosine'`), `supported_spaces()` ; `get_config()` (`base_url`, `model`, `timeout`, sans cle API) ; `build_from_config()` ; commentaire obsolete retire. `tests/document_rag/test_embedding_functions.py` : 4 tests ajoutes (non legacy, `name()` de classe, aller-retour de config, pas de cle API dans la config).
+**Verification (executions reelles)** : `pytest tests/document_rag/test_embedding_functions.py` avec `-W error::DeprecationWarning` : 14 passed ; `pytest erp_data/tests tests -n auto -m "not integration"` : 742 passed, plus aucun warning chromadb sur `get_config()`. **Non verifie** : appels reels au serveur d'embedding depuis la classe corrigee, reouverture de la vraie collection `odoo_docs` (mesuree en 1942 sur une copie). L'avertissement « legacy embedding function config » de la collection existante reste tant qu'elle n'est pas reindexee (non requis). Une instance reconstruite par chromadb depuis la config aurait la cle API par defaut `'ollama'` ; notre code passe toujours l'instance.
+Aucun commit. Message propose : `fix(vectorstore): implement chromadb config interface on OllamaEmbeddingFunction (1943)`.
+
+## Section 1944 : `erp_data/tests/` deplace dans `tests/erp_data/` (journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1943.
+**Mandat (pmm)** : meme organisation que le RAG (`tests/document_rag/`). Aucune raison technique de garder `erp_data/tests/` a part : pas de collision de noms, `conftest.py` (fixture `admin_requester_identity`) deplace avec les tests.
+**Fait** : `git mv erp_data/tests tests/erp_data` ; `pytest.ini` : `erp_data/tests` retire de `testpaths` ; `README.md` : ligne obsolete `pytest erp_data/tests/test_odoo_tools.py` (fichier inexistant) remplacee par `pytest tests/erp_data -v`, ligne `tests/` retiree de l'arbre `erp_data/`.
+**Verification (executions reelles)** : `grep` de `erp_data/tests` et `erp_data.tests` : vide ; `pytest tests -n auto -m "not integration"` : 742 passed. Aucun commit.
+**A lancer par pmm** : `pytest -n auto -m "not integration"` (la commande `pytest erp_data/tests tests` n'est plus valide).
+
+## Section 1945 : audit du placement des fichiers (journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1944. Sauvegardes : `.scratch/avant_1945/` (`tests_before/` = copie de `tests/`, `benchresult.txt`, `paste_etape2.txt`, `move_tests.py`). `api/schemas.py` et `todo/rules.md` (pmm) : non touches.
+**Mandat (pmm)** : "tout est bien a sa place ?" puis "vas y" sur le plan propose.
+**Fait** :
+(1) Suivi git : `document_rag/vectorstore/chroma_db_1024/` (base binaire, aucune reference) et `.scratch/miro_ai_eval_authoring/draft_erp_questions.jsonl` retires de l'index (`git rm --cached`, restent sur disque) ; `.gitignore` : `chroma_db/` -> `chroma_db*/` ; `scripts/benchresult.txt` (collage de terminal d'un run `qwen3:14b`) et `scripts/paste_etape2.txt` supprimes (restent dans l'historique git et dans la sauvegarde).
+(2) Non-tests sortis de `tests/` : `eval_rag.py`, `eval_retrieval.py`, `manual_check_*.py` (4) -> `scripts/` (lancement `python -m scripts.manual_check_*`) ; 4 banques JSON -> `evaluation/data/` ; chemins mis a jour dans `scripts/run_erp_model_eval.py`, `run_rag_model_eval.py`, `measure_context_budget.py`, `eval_*.py`, `tests/document_rag/test_doc_nonregression.py` (chemin relatif au dossier courant remplace par un chemin base sur `project_root`), `test_erp_expectations.py`, `test_rag_model_eval.py`.
+(3) Tests a plat ranges par module : `tests/evaluation/` (9 + `frozen_case_samples.py`), `tests/core/` (10), `tests/api/` (8), `tests/miro_ai/` (6), `tests/config/` (1), `tests/document_rag/` (+3 tests et `pdf_samples.py`). Restent a la racine, volontairement transverses : `test_out_of_scope_prompts.py` (RAG et ERP), `test_evidence_first_cleanup.py` (limites entre modules). `parents[1]` -> `parents[2]` (x15) et `.parent.parent` -> `.parent.parent.parent` (x6) dans les fichiers deplaces ; mentions `tests/test_*.py` mises a jour ; arbre du `README.md` mis a jour.
+**Verification (executions reelles)** : `py_compile` des scripts deplaces OK ; 4 JSON valides ; `grep` des anciens chemins : vide ; `pytest -n auto -m "not integration"` : 742 passed ; `pytest --collect-only` : 752 collectes, 0 erreur. **Non verifie** : execution reelle des scripts deplaces (`eval_rag.py`, `eval_retrieval.py`, `manual_check_*.py`, besoin du serveur / d'Odoo), tests `integration`.
+**A signaler** : `tests/evaluation/frozen_case_samples.py` n'est importe nulle part (code mort probable), non supprime ; `todo/` contient aussi `slide.pptx`, `MASTER_ENI_maha.docx`, `AIDEredac` (documents, non touches). Aucun commit.
+**A lancer par pmm** : `pytest -n auto -m "not integration"`.
+
+## Section 1946 : .github/workflows/ci.yml -- ajout de requirements-dev.txt (journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1945.
+**Contexte** : la separation des dependances (section 1938) a deplace pytest et les outils de test dans `requirements-dev.txt`. Le workflow CI n'installait que `requirements.txt`, ce qui aurait provoque un echec de CI (`pytest: command not found`).
+**Fait** : `.github/workflows/ci.yml` : ajout de l'etape `pip install -r requirements-dev.txt` juste apres `requirements.txt`.
+**Verification** : syntaxe YAML valide. Aucun commit.
+
+## Section 1947 : erp_data/ -- extraction du sous-dossier tools/ depuis runtime/ (journal, 11/11/2026)
+
+Date : 11/11/2026, branche `memoire-final`, HEAD `f12989f4`. Dernier numero lu avant ecriture : 1946.
+**Mandat (pmm)** : separer les outils de la couche de securite dans `erp_data/` en creant un dossier dedie `tools/` en plus de `runtime/`.
+**Fait** :
+(1) `git mv` `erp_data/runtime/read_tools.py` -> `erp_data/tools/read_tools.py` et `erp_data/runtime/langchain_tools.py` -> `erp_data/tools/langchain_tools.py`.
+(2) `erp_data/tools/__init__.py` cree, exportant les outils ORM et wrappers LangChain.
+(3) `erp_data/runtime/__init__.py` mis a jour : ne conserve que la couche d'isolation / sandbox (discovery, errors, identity, types, validation).
+(4) References mises a jour :
+    - `erp_data/tools/langchain_tools.py` : import depuis `erp_data.tools.read_tools`.
+    - `erp_data/agent/orm_agent_helpers.py` : import `TYPED_ORM_LANGCHAIN_TOOLS` depuis `erp_data.tools.langchain_tools`.
+    - `erp_data/agent/orm_agent_node.py` : import `SCHEMA_METHODS` depuis `erp_data.tools.read_tools`.
+    - `tests/test_out_of_scope_prompts.py` : import `NO_MODEL_HINT` depuis `erp_data.tools.langchain_tools`.
+    - `tests/erp_data/test_p9_schema_discovery.py`, `test_p9_company_scope.py`, `test_p9_runtime_read_tools.py`, `test_p9_typed_runtime_wiring.py` : imports mis a jour vers `erp_data.tools`.
+(5) `README.md` : arbre du depot mis a jour avec `connector/`, `runtime/`, `tools/`, `agent/`.
+**Verification (executions reelles)** :
+- `python3 -m py_compile` sur tous les modules de `erp_data` : OK.
+- `grep` de `from erp_data.runtime.*tools` : 0 occurrence.
+- `pytest tests/erp_data tests/test_out_of_scope_prompts.py` : 183 passed en 12.96s.
+- `pytest -m "not integration"` : 742 passed en 62.59s.
+Aucun commit.

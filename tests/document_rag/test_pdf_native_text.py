@@ -1,5 +1,5 @@
 from document_rag.ingestion.pdf_loader import PDFLoader, extract_native_text, strip_page_markers
-from tests.pdf_samples import write_text_pdf
+from tests.document_rag.pdf_samples import write_text_pdf
 
 
 def test_extract_native_text_returns_marked_pages(tmp_path):

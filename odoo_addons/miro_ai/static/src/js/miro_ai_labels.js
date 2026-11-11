@@ -8,7 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 // tokenizer gives up at the regular-expression literals of the Markdown formatter in
 // miro_ai.js, so any _t() call placed after that point would silently miss the .pot file.
 
-export const systrayInitialContent = () => _t("Hello! Ask me your question, or ask about the active document.");
+export const systrayInitialContent = () => _t("Hello! Ask me your question");
 
 export const cancelledContent = () => _t("Question cancelled.");
 

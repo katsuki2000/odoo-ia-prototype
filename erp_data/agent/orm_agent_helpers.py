@@ -97,7 +97,7 @@ def _build_llm(**kwargs):
 
 def resolve_orm_tools() -> List[Any]:
     """Expose only model-agnostic, read-only ORM primitives."""
-    from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
+    from erp_data.tools.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
 
     return list(TYPED_ORM_LANGCHAIN_TOOLS)
 

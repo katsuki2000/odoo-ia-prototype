@@ -1,9 +1,9 @@
 """Embedding functions and provider resolver for ChromaDB vectorstore."""
 
 import time
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 import requests
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings, Space
 
 from config import settings
 
@@ -11,6 +11,7 @@ from config import settings
 class OllamaEmbeddingFunction(EmbeddingFunction):
     """HTTP embedding client for the configured Ollama server (OpenAI-compatible API)."""
     def __init__(self, base_url: str, model: str, api_key: str = 'ollama', timeout: Optional[float] = None, max_retries: int = 3, batch_size: int = 16):
+        self.base_url = base_url
         clean_url = base_url.rstrip('/')
         self.endpoint = f'{clean_url}/embeddings' if '/v1' in clean_url else f'{clean_url}/v1/embeddings'
         self.model = model
@@ -19,9 +20,22 @@ class OllamaEmbeddingFunction(EmbeddingFunction):
         self.max_retries = max(1, int(max_retries))
         self.batch_size = max(1, int(batch_size))
 
-    def name(self) -> str:
-        # Persisted in Chroma collections and in the semantic index identity: renaming forces a reindex.
-        return f'local-server-{self.model}'
+    @staticmethod
+    def name() -> str:
+        return 'local-server'
+
+    def default_space(self) -> Space:
+        return 'cosine'
+
+    def supported_spaces(self) -> List[Space]:
+        return ['cosine', 'l2', 'ip']
+
+    def get_config(self) -> Dict[str, Any]:
+        return {'base_url': self.base_url, 'model': self.model, 'timeout': self.timeout}
+
+    @staticmethod
+    def build_from_config(config: Dict[str, Any]) -> 'OllamaEmbeddingFunction':
+        return OllamaEmbeddingFunction(base_url=config['base_url'], model=config['model'], timeout=config['timeout'])
 
     def _embed_batch(self, texts: List[str]) -> List[List[float]]:
         payload = {'model': self.model, 'input': texts}

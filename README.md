@@ -191,8 +191,8 @@ cd ~/odoo-ia-prototype
 source .venv/bin/activate
 
 # Run targeted test suites
-pytest tests/test_local_llm_provider.py -v
-pytest erp_data/tests/test_odoo_tools.py -v
+pytest tests/core/test_local_llm_provider.py -v
+pytest tests/erp_data -v
 
 # Run non-integration unit tests safely
 pytest tests/ -m "not integration"
@@ -272,20 +272,21 @@ odoo-ia-prototype/
 │   ├── connector/                  #   Odoo connection layer
 │   │   ├── odoo_connector.py       #     XML-RPC Odoo connection
 │   │   └── odoo_context.py         #     User identity and company context
-│   ├── agent/                      #   ERP agent
-│   │   ├── orm_agent_node.py       #     LangGraph ORM agent node
-│   │   ├── orm_agent_helpers.py    #     Agent utilities (plan, synthesis)
-│   │   └── prompts.py              #     ERP system prompts
-│   ├── runtime/                    #   Typed read-only ORM tools
-│   │   ├── read_tools.py           #     ORM read operations
-│   │   ├── langchain_tools.py      #     LangChain tool wrappers
+│   ├── runtime/                    #   Security boundary & execution sandbox
 │   │   ├── discovery.py            #     Model/field schema discovery
 │   │   ├── identity.py             #     User identity enforcement
 │   │   ├── validation.py           #     Input validation
 │   │   ├── errors.py               #     Runtime error types
 │   │   └── types.py                #     Type definitions
-│   └── tests/                      #   Module-specific tests
+│   ├── tools/                      #   Typed read-only ORM tools
+│   │   ├── read_tools.py           #     ORM read operations
+│   │   └── langchain_tools.py      #     LangChain tool wrappers
+│   └── agent/                      #   ERP agent
+│       ├── orm_agent_node.py       #     LangGraph ORM agent node
+│       ├── orm_agent_helpers.py    #     Agent utilities (plan, synthesis)
+│       └── prompts.py              #     ERP system prompts
 ├── evaluation/                     # Model comparison and benchmarking
+│   └── data/                       #   Question banks (JSON)
 ├── odoo_addons/miro_ai/            # Odoo 17 module
 │   ├── __manifest__.py             #   Module manifest (v17.0.1.0.2)
 │   ├── controllers/                #   HTTP controllers (ask flow, backend client)
@@ -296,6 +297,14 @@ odoo-ia-prototype/
 │   └── i18n/                       #   Translations (fr.po)
 ├── scripts/                        # Evaluation and utility scripts
 ├── tests/                          # Unit, integration and evaluation tests
+│   ├── api/                        #   FastAPI routes, auth, jobs
+│   ├── core/                       #   Graph, verification, LLM, sessions
+│   ├── config/                     #   Settings
+│   ├── document_rag/               #   Documentary RAG
+│   ├── erp_data/                   #   ERP agent, connector, runtime
+│   ├── evaluation/                 #   Benchmark and evaluation tooling
+│   ├── miro_ai/                    #   Odoo addon
+│   └── architecture/               #   Import layer rules
 ├── todo/                           # Project documentation
 │   ├── architecture.md             #   Target architecture
 │   ├── rules.md                    #   Development rules
@@ -328,7 +337,7 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 | `ODOO_ADMIN_LOGIN` | No | `admin` | XML-RPC service username |
 | `JWT_SECRET` | Yes | none | Signing secret shared with the Odoo addon (at least 32 bytes) |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
-| `ODOO_BENCH_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `tests/manual_check_odoo_assistant.py` sign in as |
+| `ODOO_BENCH_PASSWORD` | Benchmarks and manual checks only | none | Password of the Odoo user the model benchmark and `scripts/manual_check_odoo_assistant.py` sign in as |
 | `GOOGLE_DRIVE_FOLDER_IDS` | For the Drive corpus | none | Comma-separated IDs of the approved Drive folders; empty: the Drive synchronization does nothing |
 | `GOOGLE_DRIVE_APPROVED_FOR_RAG` | For the Drive corpus | `false` | Must be `true`: confirms that every RAG reader may see the selected folders |
 | `GOOGLE_APPLICATION_CREDENTIALS` | For the Drive corpus | none | Path to the read-only Google credentials file used by the Drive synchronization |

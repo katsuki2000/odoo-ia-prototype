@@ -2,7 +2,7 @@
 """
 scripts/run_rag_model_eval.py
 
-Compare LLMs on the answer generation of the documentary RAG, on tests/rag_eval_questions.json.
+Compare LLMs on the answer generation of the documentary RAG, on evaluation/data/rag_eval_questions.json.
 Every model answers from the same retrieved passages, cached in captures/rag_eval_contexts.json.
 One process per model; each result is appended to captures/rag_model_eval.jsonl, so an interrupted
 run resumes where it stopped. The measures need no judge model; the answers are kept for reading.
@@ -50,7 +50,7 @@ from evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
 from document_rag.generation.generate_node import generate
 
-QUESTIONS_PATH = project_root / 'tests' / 'rag_eval_questions.json'
+QUESTIONS_PATH = project_root / 'evaluation' / 'data' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
 GENERATION_ERROR_PREFIX = 'Sorry, an error'

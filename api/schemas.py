@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 class AskRequestV1(BaseModel):
     """Request body for /api/v1/ask."""
     question: str = Field(..., min_length=1)
@@ -54,7 +53,6 @@ class AskJobStatusV1(BaseModel):
     result: AskResponseV1 | None = None
     error_status: int | None = None
     error_detail: str | None = None
-
 
 class IngestionStatusResponseV1(BaseModel):
     """Response body for /api/v1/ingestion/status."""

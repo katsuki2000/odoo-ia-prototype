@@ -32,7 +32,7 @@ from evaluation.erp_model_worker import run_question as run_question_worker
 from evaluation.preflight import BackendUnavailable, probe_llm
 from erp_data.connector.odoo_connector import OdooConnector, OdooConnectorError
 
-QUESTIONS_PATH = project_root / "tests" / "erp_eval_questions.json"
+QUESTIONS_PATH = project_root / "evaluation" / "data" / "erp_eval_questions.json"
 RESULTS_PATH = project_root / "captures" / "erp_model_eval.jsonl"
 QUESTION_TIMEOUT_SECONDS = settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS
 ODOO_ERRORS = (BackendUnavailable, OSError, xmlrpc.client.Error, OdooConnectorError)
