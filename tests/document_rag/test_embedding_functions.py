@@ -155,7 +155,7 @@ def test_ollama_is_not_a_legacy_chroma_embedding_function():
 
 
 def test_ollama_name_is_callable_on_the_class():
-    assert OllamaEmbeddingFunction.name() == "local-server"
+    assert OllamaEmbeddingFunction.name() == "inference-server"
 
 
 def test_ollama_config_round_trip_rebuilds_the_same_endpoint():

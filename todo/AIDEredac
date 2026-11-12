@@ -29,20 +29,20 @@ tout a l"air de marcher, j'aimerais mtn retirer ce qui n'est pas utilisé, genre
  pourquoi ne pas y preciser que zotero a été utilisé?
  regarder les livres des autres
  
- intro à refaire : diviser en 4 paragraphes :
+ fait :intro à refaire : diviser en 4 paragraphes :
  1- contexte general lié au thème
  2-problematique
  3-solution(thème): pour ce faire, on va utiliser une methode de conception , langage de programmation, SGBD  sans parler de l'outils
  4-plan
 
-page 19 : 331 moyens humains retirer la premiere ligne du tableau (avec encadreur pedagogique)
+fait : page 19 : section 3.3.1 moyens humains retirer la premiere ligne du tableau (avec encadreur pedagogique)
 
-page 20 : 3.3.2
+fait : page 20 : 3.3.2
 tableau7 : à refaire  en 3 colonnes : designation__ caracteristiques __ role
 
-page 21 tableau retirer la colonne numero et remplacer "Désignation" par "Moyen logiciel"
+fait : page 21 tableau retirer la colonne numero et remplacer "Désignation" par "Moyen logiciel"
 
-page 23 : Tableau 9. Chronogramme prévisionnel de réalisation du projet faire un diagramme de gantt plutot que le tableau
+fait : page 23 : Tableau 9. Chronogramme prévisionnel de réalisation du projet faire un diagramme de gantt plutot que le tableau
 
 page 28 ; 431 proposition des solutions
 solution 1 :achat logiciel 
@@ -54,19 +54,25 @@ puis paragraphe choix et justification de la solution choisie
 4.2 critique de l'existant : faire un tableau : points forts - points faibles
 
 
-page 28-29 : pour le choix des outils (page 29-34)
+à revoir : page 28-29 : pour le choix des outils (page 29-34)
 1-faire tableau de comparaison méthodes/outils
 2-choisir l'outil et justifier
 3-presentation de l'outil choisi
 
-412 tableau 10 inventaire des infras matérielles : faire comme dans la page 20-21 separer les materiels des logiciels
+pas satisfait : 4.1.2 tableau 10 inventaire des infras matérielles : faire comme dans la page 20-21 separer les materiels des logiciels
 
- 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
+fait : 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
    Mettre un tableau users stories : en tant que - je veux - afin de 
+
+page 50 5.6 règles de gestion à refaire
+page 51 rg3 rg8 retirer
+
+page 56 : fig 5 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
+
 
 page 65 : fig 12(diag de concep glob) on construit ce diagramme à l'aide de la règle de gestion, chaque classe doit comporter 3 compartiments (nom classe, attribut, methode)
 
-page 89 : chap 8 : à mettre à la page suivante
+fait : page 89 : chap 8 : à mettre à la page suivante
 
 page 107-108 : conclusion  à refaire 
 1-contexte+problematique
@@ -74,8 +80,4 @@ page 107-108 : conclusion  à refaire
 3-conclusion et perspectives
 
 
-page 50 5.6 règles de gestion à refaire
-page 51 rg3 rg8 retirer
-
-page 56 : fig 5 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
 

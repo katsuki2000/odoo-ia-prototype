@@ -22,7 +22,7 @@ class OllamaEmbeddingFunction(EmbeddingFunction):
 
     @staticmethod
     def name() -> str:
-        return 'local-server'
+        return 'inference-server'
 
     def default_space(self) -> Space:
         return 'cosine'
