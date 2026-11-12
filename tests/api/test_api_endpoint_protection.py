@@ -18,7 +18,7 @@ from api.main import app
 SECRET = "s" * 40
 ADMIN_ROUTES = [("get", "/api/v1/ingestion/status")]
 AUTHENTICATED_ROUTES = [
-    ("post", "/api/v1/ask"),
+    ("post", "/api/v1/ask/jobs"),
     ("get", "/api/v1/ask/jobs/nonexistent-id"),
 ]
 
@@ -60,18 +60,27 @@ def test_health_stays_public(client):
 
 
 def test_system_request_without_requester_api_key_is_rejected_before_graph(client):
+    job_id = "c" * 32
     with patch("api.routes.ask.query_graph") as query_graph:
-        response = client.post(
-            "/api/v1/ask",
+        accepted = client.post(
+            "/api/v1/ask/jobs",
             headers=_headers(),
             json={
+                "job_id": job_id,
                 "question": "Combien de clients ?",
                 "session_id": "s",
                 "company_id": 1,
                 "source_mode": "system",
             },
         )
-    assert response.status_code == 403
+        assert accepted.status_code == 202
+        deadline = time.monotonic() + 5.0
+        while True:
+            body = client.get(f"/api/v1/ask/jobs/{job_id}", headers=_headers()).json()
+            if body["status"] != "pending" or time.monotonic() > deadline:
+                break
+            time.sleep(0.01)
+    assert (body["status"], body["error_status"]) == ("error", 403)
     query_graph.assert_not_called()
 
 

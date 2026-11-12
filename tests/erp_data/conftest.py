@@ -1,6 +1,5 @@
 import pytest
 
-from config import settings
 from config.settings import ODOO_DB
 from config.odoo_credentials import service_password
 from erp_data.connector.odoo_connector import OdooConnector

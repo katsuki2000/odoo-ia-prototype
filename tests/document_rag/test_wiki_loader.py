@@ -28,17 +28,6 @@ class TestWikiLoader(unittest.TestCase):
         self.assertEqual(self.loader.chunk_overlap, 20)
         self.assertIsNotNone(self.loader.splitter)
 
-    def test_compute_hash(self):
-        """Test hash computation for wiki chunks."""
-        text1 = "This is content for wiki page"
-        text2 = "This is different content"
-
-        hash1 = WikiLoader._compute_hash(text1)
-        hash2 = WikiLoader._compute_hash(text2)
-
-        self.assertEqual(len(hash1), 12)
-        self.assertNotEqual(hash1, hash2)
-
     def test_extract_section_plain_text(self):
         """Test section extraction from plain text."""
         text = "INTRODUCTION\nSome content here\nMORE CONTENT"

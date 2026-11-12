@@ -632,3 +632,30 @@ msgstr "Vous"
 #, python-format
 msgid "MIRO AI has a single configuration: edit the existing one."
 msgstr "MIRO AI n'a qu'une seule configuration : modifiez celle qui existe."
+
+#. module: miro_ai
+#: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__log_retention_days
+msgid "Log retention (days)"
+msgstr "Conservation du journal (jours)"
+
+#. module: miro_ai
+#: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__log_retention_days
+msgid "Requests older than this are deleted automatically every day, from the users' history and from the audit log alike."
+msgstr "Les requêtes plus anciennes sont supprimées automatiquement chaque jour, de l'historique des utilisateurs comme du journal d'audit."
+
+#. module: miro_ai
+#: model:ir.model.constraint,message:miro_ai.constraint_miro_ai_settings_log_retention_days_min
+msgid "The retention period must be at least 1 day."
+msgstr "La durée de conservation doit être d'au moins 1 jour."
+
+#. module: miro_ai
+#: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_settings_form
+msgid "Data retention"
+msgstr "Conservation des données"
+
+#. module: miro_ai
+#. odoo-javascript
+#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
+#, python-format
+msgid "Conversations are deleted automatically after the retention period set by your administrator."
+msgstr "Les conversations sont supprimées automatiquement après la durée de conservation définie par votre administrateur."

@@ -87,7 +87,7 @@ def _ollama_fn(**kwargs):
 
 
 def test_ollama_retries_on_connection_error_then_succeeds():
-    """Une coupure de connexion isolee est relancee, sans exception pour l'appelant."""
+    """An isolated connection drop is retried, with no exception for the caller."""
     import requests
     fn = _ollama_fn()
     with patch("document_rag.vectorstore.embedding_functions.time.sleep") as mock_sleep, \
@@ -103,7 +103,7 @@ def test_ollama_retries_on_connection_error_then_succeeds():
 
 
 def test_ollama_raises_after_max_retries():
-    """Apres max_retries echecs, l'erreur d'origine est relevee (jamais masquee)."""
+    """After max_retries failures, the original error is raised (never masked)."""
     import requests
     fn = _ollama_fn(max_retries=3)
     with patch("document_rag.vectorstore.embedding_functions.time.sleep"), \
@@ -115,7 +115,7 @@ def test_ollama_raises_after_max_retries():
 
 
 def test_ollama_does_not_retry_http_errors():
-    """Une erreur HTTP (ex. 404 modele absent) n'est pas relancee."""
+    """An HTTP error (e.g. 404 model not found) is not retried."""
     import requests
     fn = _ollama_fn()
     with patch("document_rag.vectorstore.embedding_functions.time.sleep") as mock_sleep, \
@@ -130,7 +130,7 @@ def test_ollama_does_not_retry_http_errors():
 
 
 def test_ollama_batches_and_preserves_order():
-    """40 textes avec batch_size=16 donnent 3 appels (16, 16, 8), ordre conserve."""
+    """40 texts with batch_size=16 give 3 calls (16, 16, 8), order preserved."""
     fn = _ollama_fn(batch_size=16)
     texts = [f"doc {i}" for i in range(40)]
 

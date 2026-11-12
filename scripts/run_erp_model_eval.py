@@ -29,8 +29,9 @@ from evaluation.bench_common import (
 )
 from evaluation.erp_expectations import NotApplicable, compute_expected
 from evaluation.erp_model_worker import run_question as run_question_worker
+from evaluation.odoo_auth import authenticate_odoo
 from evaluation.preflight import BackendUnavailable, probe_llm
-from erp_data.connector.odoo_connector import OdooConnector, OdooConnectorError
+from erp_data.connector.odoo_connector import OdooConnectorError
 
 QUESTIONS_PATH = project_root / "evaluation" / "data" / "erp_eval_questions.json"
 RESULTS_PATH = project_root / "captures" / "erp_model_eval.jsonl"
@@ -42,14 +43,6 @@ def load_questions(ids):
     with QUESTIONS_PATH.open(encoding="utf-8") as file:
         questions = json.load(file)["questions"]
     return [item for item in questions if not ids or item["id"] in ids]
-
-
-def authenticate_odoo(login, password):
-    connector = OdooConnector(db=settings.ODOO_DB, password=password)
-    uid = connector.common.authenticate(connector.db, login, password, {})
-    if not uid:
-        raise BackendUnavailable(f"Odoo authentication failed for {login}.")
-    return uid
 
 
 def odoo_executor(uid, password):

@@ -1,20 +1,16 @@
 """
-Tests for document_rag/generate_node.py -- _build_source_aliases() et
+Tests for document_rag/generation/generate_node.py: _build_source_aliases() and
 _verify_used_sources().
 
-Section 336 (todo/contexte.txt) : le LLM ne voit plus jamais l'id ChromaDB
-brut (chemin absolu + hash) mais un alias court propre au tour (S1, S2,
-...). Couvre :
-1. used_sources valide -> seules les sources correspondantes apparaissent
-2. used_sources partiellement invalide -> seules les valides apparaissent + warning
-3. used_sources entierement invalide -> sources=[] + fallback historique
-4. aucun used_sources -> fallback historique
-5. plusieurs chunks du meme fichier -> deduplique en une seule
-   SourceReference (source, title) -- section 391/392, remplace l'ancien
-   contrat "identite du chunk conservee" de la section 329
-6. les alias sont strictement locaux au tour -- aucun etat partage entre
-   deux appels de _build_source_aliases()
-7. cas limites explicites (S1 valide / S99 inexistant / combinaison des deux)
+The LLM never sees the raw ChromaDB id, only a short per-turn alias (S1, S2, ...).
+Covered:
+1. valid used_sources -> only the matching sources appear
+2. partially invalid used_sources -> only the valid ones appear, with a warning
+3. fully invalid used_sources -> sources=[] and a warning
+4. no used_sources -> []
+5. several chunks of the same file -> deduplicated to one SourceReference (source, title)
+6. aliases are local to the turn: no state shared between two calls
+7. edge cases (S1 valid / S99 unknown / both)
 """
 
 import os
@@ -29,7 +25,7 @@ from document_rag.generation.generate_node import _build_source_aliases, _verify
 from core.schemas import SourceReference
 
 
-def _make_chunk(chunk_id, source="wiki_approbation.txt", document="Contenu de test"):
+def _make_chunk(chunk_id, source="wiki_approbation.txt", document="Test content"):
     return {
         "id": chunk_id,
         "document": document,
@@ -38,7 +34,7 @@ def _make_chunk(chunk_id, source="wiki_approbation.txt", document="Contenu de te
 
 
 class TestBuildSourceAliases(unittest.TestCase):
-    """L'alias map est construite localement, jamais un etat partage."""
+    """The alias map is built locally, never shared state."""
 
     def test_aliases_are_s1_indexed_in_order(self):
         chunks = [
@@ -52,9 +48,7 @@ class TestBuildSourceAliases(unittest.TestCase):
         self.assertEqual(alias_map["S3"]["metadata"]["source"], "c.txt")
 
     def test_aliases_never_leak_across_calls(self):
-        """Deux appels successifs avec des chunks differents ne doivent
-        jamais laisser un alias d'un tour pointer vers le chunk d'un
-        autre tour -- pas de cache/etat module-level."""
+        """An alias from one turn never points to a chunk of another turn (no module-level cache)."""
         chunks_turn_1 = [_make_chunk("x_0", source="x.txt")]
         chunks_turn_2 = [_make_chunk("y_0", source="y.txt"), _make_chunk("z_0", source="z.txt")]
 
@@ -64,13 +58,12 @@ class TestBuildSourceAliases(unittest.TestCase):
         self.assertEqual(alias_map_1["S1"]["metadata"]["source"], "x.txt")
         self.assertEqual(alias_map_2["S1"]["metadata"]["source"], "y.txt")
         self.assertEqual(alias_map_2["S2"]["metadata"]["source"], "z.txt")
-        # L'ancien alias_map_1 reste inchange -- pas de mutation partagee.
+        # The first alias map is unchanged by the second call.
         self.assertEqual(alias_map_1["S1"]["metadata"]["source"], "x.txt")
 
     def test_raw_chunk_id_never_becomes_the_alias(self):
-        """L'alias ne doit jamais etre (ou contenir) l'id ChromaDB brut --
-        c'est precisement ce que ce chantier evite d'exposer au LLM."""
-        long_chunk_id = "/media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/Miro - SMA, MMT.md_4_8bb42c1ef205"
+        """The alias is never the raw ChromaDB id, which must not be exposed to the LLM."""
+        long_chunk_id = "docs/Miro - SMA, MMT.md_4_8bb42c1ef205"
         chunks = [_make_chunk(long_chunk_id, source="Miro - SMA, MMT.md")]
         alias_map = _build_source_aliases(chunks)
         self.assertEqual(list(alias_map.keys()), ["S1"])
@@ -78,7 +71,7 @@ class TestBuildSourceAliases(unittest.TestCase):
 
 
 class TestVerifyUsedSources(unittest.TestCase):
-    """1. used_sources valide -> seules les sources correspondantes apparaissent."""
+    """Valid used_sources: only the matching sources appear."""
 
     def test_valid_alias_returns_only_matching_chunk(self):
         chunks = [
@@ -99,14 +92,14 @@ class TestVerifyUsedSources(unittest.TestCase):
             _make_chunk("b_0", source="b.txt"),
         ]
         alias_map = _build_source_aliases(chunks)
-        # LLM cite dans l'ordre inverse -- la sortie doit suivre l'ordre de recuperation.
+        # The LLM cites in reverse order: the output follows retrieval order.
         result = _verify_used_sources(["S2", "S1"], alias_map)
 
         self.assertEqual([r.source for r in result], ["a.txt", "b.txt"])
 
 
 class TestPartiallyInvalidUsedSources(unittest.TestCase):
-    """2. used_sources partiellement invalide -> seules les valides apparaissent + warning."""
+    """Partially invalid used_sources: only the valid ones appear, with a warning."""
 
     def test_partial_invalid_alias_keeps_only_valid_and_warns(self):
         chunks = [
@@ -124,7 +117,7 @@ class TestPartiallyInvalidUsedSources(unittest.TestCase):
 
 
 class TestFullyInvalidUsedSources(unittest.TestCase):
-    """3. used_sources entierement invalide -> sources=[] + fallback historique."""
+    """Fully invalid used_sources: sources=[] and a warning."""
 
     def test_all_invalid_aliases_return_empty_and_warn(self):
         chunks = [_make_chunk("a_0", source="wiki_a.txt")]
@@ -136,9 +129,7 @@ class TestFullyInvalidUsedSources(unittest.TestCase):
         self.assertTrue(any("invalid_used_sources" in msg for msg in cm.output))
 
     def test_s99_nonexistent_reproduces_real_incident_shape(self):
-        """Cas limite explicite discute avec l'utilisateur : S1 valide,
-        S99 inexistant, ['S1','S99'] doit garder S1 -- pendant que
-        ['S99'] seul (aucun alias valide) doit retomber sur []."""
+        """['S1', 'S99'] keeps S1, while ['S99'] alone (no valid alias) gives []."""
         chunks = [_make_chunk("a_0", source="wiki_a.txt")]
         alias_map = _build_source_aliases(chunks)
 
@@ -152,7 +143,7 @@ class TestFullyInvalidUsedSources(unittest.TestCase):
 
 
 class TestNoUsedSources(unittest.TestCase):
-    """4. aucun used_sources -> fallback historique."""
+    """No used_sources: empty result, no warning."""
 
     def test_empty_list_returns_empty_no_warning(self):
         chunks = [_make_chunk("a_0")]
@@ -168,16 +159,7 @@ class TestNoUsedSources(unittest.TestCase):
 
 
 class TestSameFileMultipleChunks(unittest.TestCase):
-    """5. plusieurs chunks du meme fichier -> deduplique par (source, title)
-    en une seule SourceReference (section 391/392, todo/contexte.txt).
-    Cette classe verrouillait a l'origine (section 329) le contrat inverse
-    ("identite du chunk conservee, pas seulement le nom du fichier") --
-    contrat depuis explicitement remplace par la dedup (cf. section 391/392
-    et TestVerifyUsedSourcesDedup dans tests/core/test_graph.py, qui couvre deja
-    ce mecanisme sur un autre fixture). Le test ci-dessous reprend le cas
-    concret original (asset_loan.py cite deux fois via des alias differents,
-    S3/S7 dans un contexte a 10 chunks) mais verrouille desormais le
-    comportement actuel plutot que celui, perime, qu'il verrouillait."""
+    """Several chunks of the same file are deduplicated by (source, title) to one SourceReference."""
 
     def test_two_aliases_of_the_same_file_dedup_to_one_source_first_wins(self):
         chunks = (
@@ -193,8 +175,7 @@ class TestSameFileMultipleChunks(unittest.TestCase):
 
         result = _verify_used_sources(["S3", "S7"], alias_map)
 
-        # Meme (source, title) -> deduplique a 1 SourceReference ; premiere
-        # occurrence (ordre de recuperation, S3) l'emporte, S7 est ecarte.
+        # Same (source, title): one SourceReference, the first occurrence (S3) wins and S7 is dropped.
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].source, "asset_loan.py")
         self.assertEqual(result[0].snippet, "chunk 4")

@@ -36,7 +36,7 @@ TO_MANY_TYPES = frozenset({"many2many", "one2many"})
 
 _connector: Optional[OdooConnector] = None
 _FIELD_CACHE_MAX = 2048
-_field_cache: dict[tuple[str, str], Optional[dict]] = {}
+_field_cache: dict[tuple[int, str, str], Optional[dict]] = {}
 
 
 def _fold(text: str) -> str:
@@ -113,14 +113,15 @@ def _build_result(
 
 
 def _field_info(model: str, name: str) -> Optional[dict]:
-    """fields_get metadata of one field, cached per model and field.
+    """fields_get metadata of one field, cached per requesting user, model and field.
 
+    Odoo answers fields_get according to the caller's rights, so one user's answer is never served to another.
     None when unavailable; {} when Odoo answered and the field does not exist on the model."""
-    key = (model, name)
+    uid = require_execution_uid()
+    key = (uid, model, name)
     if key not in _field_cache:
         if len(_field_cache) >= _FIELD_CACHE_MAX:
             _field_cache.clear()
-        uid = require_execution_uid()
         try:
             fields = _get_connector().fields_get(uid, model, [name])
         except OdooConnectorError:

@@ -20,7 +20,7 @@ def test_parse_of_an_empty_value_allows_nothing():
 
 def test_preflight_from_a_foreign_origin_gets_no_cors_grant():
     response = TestClient(app).options(
-        "/api/v1/ask",
+        "/api/v1/ask/jobs",
         headers={
             "Origin": "https://evil.example",
             "Access-Control-Request-Method": "POST",

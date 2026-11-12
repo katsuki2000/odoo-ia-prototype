@@ -35,20 +35,6 @@ class TestPDFLoader(unittest.TestCase):
         self.assertEqual(self.loader.chunk_overlap, 20)
         self.assertIsNotNone(self.loader.splitter)
 
-    def test_compute_hash(self):
-        """Test content hash computation."""
-        text1 = "This is test content"
-        text2 = "This is different content"
-
-        hash1 = PDFLoader._compute_hash(text1)
-        hash2 = PDFLoader._compute_hash(text2)
-
-        self.assertEqual(len(hash1), 12)
-        self.assertNotEqual(hash1, hash2)
-        # Same content should produce same hash
-        hash1_again = PDFLoader._compute_hash(text1)
-        self.assertEqual(hash1, hash1_again)
-
     def test_assess_ocr_quality_high(self):
         """Test OCR quality assessment for high-quality text."""
         text = "This is a well-formed paragraph with proper spelling and good structure. " * 20
@@ -186,7 +172,6 @@ class TestPDFLoader(unittest.TestCase):
         """Test OCR triggering based on extraction threshold."""
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             pdf_path = f.name
-            pdf_size = os.path.getsize(pdf_path)
 
         try:
             loader = PDFLoader(ocr_threshold=0.5)  # Higher threshold
@@ -202,11 +187,7 @@ class TestPDFLoader(unittest.TestCase):
                 with patch.object(
                     loader, "_extract_text_via_ocr", return_value="OCR text"
                 ):
-                    result = loader.load_and_chunk(pdf_path)
-
-                    # Since extracted text is small relative to PDF size,
-                    # OCR should have been attempted
-                    # (but may not succeed due to mocking)
+                    loader.load_and_chunk(pdf_path)
 
         finally:
             if os.path.exists(pdf_path):

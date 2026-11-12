@@ -1,4 +1,4 @@
-"""Empreinte du serveur d'inference (journal 1469) : hermetique, aucun reseau."""
+"""Inference server fingerprint: hermetic, no network."""
 
 from types import SimpleNamespace
 

@@ -5,8 +5,8 @@ import { _t } from "@web/core/l10n/translation";
 // Translatable strings of the MIRO AI assistant.
 //
 // They live in their own module on purpose: Odoo extracts JavaScript terms with Babel, whose
-// tokenizer gives up at the regular-expression literals of the Markdown formatter in
-// miro_ai.js, so any _t() call placed after that point would silently miss the .pot file.
+// tokenizer gives up at the regular-expression literals of the Markdown formatter
+// (miro_ai_markdown.js), so a _t() call placed in that module would silently miss the .pot file.
 
 export const systrayInitialContent = () => _t("Hello! Ask me your question");
 

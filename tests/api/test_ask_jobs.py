@@ -163,8 +163,3 @@ def test_backend_failure_is_reported_as_a_public_error(client, monkeypatch):
     body = _poll_until_finished(client)
     assert (body["status"], body["error_status"], body["error_detail"]) == (
         "error", 503, "Service temporarily unavailable.")
-
-
-def test_synchronous_route_still_answers(client):
-    response = client.post("/api/v1/ask", json={k: v for k, v in _payload().items() if k != "job_id"})
-    assert (response.status_code, response.json()["answer"]) == (200, "hello")

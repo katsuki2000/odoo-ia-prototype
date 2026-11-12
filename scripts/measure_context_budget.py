@@ -2,13 +2,13 @@
 """
 scripts/measure_context_budget.py
 
-Measure the REAL context budget consumed by the agent on Bloc N1 questions
-(section 1067 of todo/contexte.txt). No production code is modified: the script
+Measure the REAL context budget consumed by the agent on Bloc N1 questions.
+No production code is modified: the script
 wraps ChatOpenAI._generate/_agenerate at class level and records, for every LLM
 call, the token usage reported by the server, the finish reason, the message
 sizes per role and the size of any "thinking" output.
 
-Interpretation criteria (fixed BEFORE measuring, see section 1067). The window
+Interpretation criteria (fixed BEFORE measuring). The window
 is considered limiting if, on at least one call:
   - prompt + completion >= 90 % of the window, or
   - finish_reason == "length", or

@@ -18,7 +18,7 @@ def backend_client(monkeypatch):
 
 
 def _post(backend_client):
-    return backend_client.post_to_backend(API_URL, "/api/v1/ask", {}, {"question": "q"}, 30)
+    return backend_client.post_to_backend(API_URL, "/api/v1/ask/jobs", {}, {"question": "q"}, 30)
 
 
 def test_returns_response_from_configured_url(backend_client, monkeypatch):

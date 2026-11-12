@@ -56,6 +56,9 @@
                             </button>
                         </div>
                     </t>
+                    <div class="text-muted text-center small px-3 py-2">
+                        Conversations are deleted automatically after the retention period set by your administrator.
+                    </div>
                 </div>
 
                 <!-- Drawer Messages Container -->

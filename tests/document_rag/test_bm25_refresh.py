@@ -1,5 +1,3 @@
-import pytest
-
 from document_rag.retrieval import search
 from document_rag.retrieval.bm25_index import BM25Index
 

@@ -234,11 +234,8 @@ class TestVectorSearch(unittest.TestCase):
         self.chroma.add_chunks(texts, metadatas)
 
     def test_basic_vector_search(self):
-        # Mock au niveau ChromaManager.query() : ce test verifie la logique de
-        # filtrage/scoring de vector_search() (Option A, todo/contexte.txt
-        # Section 719/720), pas la qualite semantique reelle d'un modele
-        # d'embedding (qui varie selon EMBEDDING_BACKEND et n'a pas a etre
-        # un pre-requis pour ce test unitaire).
+        # ChromaManager.query() is mocked: this checks the filtering/scoring logic of
+        # vector_search(), not the semantic quality of an embedding model.
         fake_raw = {
             "results": [
                 {

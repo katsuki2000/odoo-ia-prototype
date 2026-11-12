@@ -137,6 +137,8 @@ ASK_JOB_TTL_SECONDS = 1800
 SESSION_MAX_COUNT = 1000
 QUESTION_PREVIEW_CHARS = 80
 OBSERVATION_PREVIEW_CHARS = 300
+# Diagnostic file of the agent's reasoning hops (question preview, tool arguments, result excerpts): off unless asked.
+REASONING_TRACE_ENABLED = os.getenv('REASONING_TRACE_ENABLED', '').lower() == 'true'
 CHAT_HISTORY_MAX_MESSAGES = 10
 
 # ---------------------------------------------------------------------------

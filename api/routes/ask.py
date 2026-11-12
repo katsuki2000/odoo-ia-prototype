@@ -1,4 +1,4 @@
-"""Main query endpoints (/api/v1/ask) for the MIRO assistant."""
+"""Asynchronous query endpoints (/api/v1/ask/jobs) for the MIRO assistant."""
 
 import logging
 
@@ -71,16 +71,6 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
     except Exception as exc:
         logger.exception('MIRO question processing failed.')
         raise public_http_exception(exc) from None
-
-
-@router.post('/ask', response_model=AskResponseV1)
-def ask_question_v1(
-    request: AskRequestV1,
-    http_request: Request,
-    user: dict = Depends(get_current_user),
-):
-    """Answer one question synchronously."""
-    return _answer_question(request, http_request.headers.get('accept-language'), user)
 
 
 @router.post('/ask/jobs', response_model=AskJobAcceptedV1, status_code=202)

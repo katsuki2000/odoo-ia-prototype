@@ -173,6 +173,20 @@
     margin-bottom: 8px;
 }
 
+.miro-list .miro-list {
+    margin-bottom: 0;
+}
+
+.miro-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 8px;
+}
+
+.miro-table {
+    font-size: 0.85em;
+    margin-bottom: 0;
+}
+
 .miro-link {
     color: #0284c7;
     text-decoration: underline;

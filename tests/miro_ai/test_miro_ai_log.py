@@ -1,7 +1,7 @@
 import importlib.util
 import sys
 import types
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -18,6 +18,7 @@ def log_module(monkeypatch):
     odoo.api = types.SimpleNamespace(
         depends=lambda *args: lambda method: method,
         model=lambda method: method,
+        autovacuum=lambda method: method,
     )
     odoo_osv = types.ModuleType("odoo.osv")
     expression = types.ModuleType("odoo.osv.expression")
@@ -170,3 +171,57 @@ def test_archive_session_without_session_id_touches_nothing(log_module):
     )
 
     assert log_module.MiroAiLog.archive_session(model, None) == 0
+
+
+class _PurgeBatch:
+    def __init__(self, count):
+        self.count = count
+        self.unlinked = False
+
+    def __bool__(self):
+        return self.count > 0
+
+    def unlink(self):
+        self.unlinked = True
+
+
+def _purge_model(log_module, retention_days, batches):
+    now = datetime(2026, 11, 12, 10, 0, 0)
+    log_module.fields.Datetime.now.return_value = now
+    searches = []
+    context = []
+    remaining = list(batches)
+
+    def search(domain, limit=None):
+        searches.append((domain, limit))
+        return remaining.pop(0)
+
+    scoped = types.SimpleNamespace(search=search)
+    elevated = types.SimpleNamespace(with_context=lambda **kwargs: context.append(kwargs) or scoped)
+    settings = types.SimpleNamespace(log_retention_days=retention_days)
+    settings_model = types.SimpleNamespace(
+        sudo=lambda: types.SimpleNamespace(get_active_settings=lambda: settings)
+    )
+    model = types.SimpleNamespace(env={"miro.ai.settings": settings_model}, sudo=lambda: elevated)
+    return model, now, searches, context
+
+
+def test_gc_old_logs_deletes_everything_older_than_the_retention_in_batches(log_module):
+    first, second, empty = _PurgeBatch(1000), _PurgeBatch(3), _PurgeBatch(0)
+    model, now, searches, context = _purge_model(log_module, 30, [first, second, empty])
+
+    log_module.MiroAiLog._gc_old_logs(model)
+
+    cutoff = now - timedelta(days=30)
+    assert searches == [([("create_date", "<", cutoff)], 1000)] * 3
+    assert context == [{"active_test": False}]
+    assert (first.unlinked, second.unlinked, empty.unlinked) == (True, True, False)
+
+
+def test_gc_old_logs_with_nothing_old_deletes_nothing(log_module):
+    empty = _PurgeBatch(0)
+    model, _, searches, _ = _purge_model(log_module, 90, [empty])
+
+    log_module.MiroAiLog._gc_old_logs(model)
+
+    assert len(searches) == 1 and not empty.unlinked

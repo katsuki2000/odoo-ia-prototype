@@ -18,6 +18,7 @@
         'web.assets_backend': [
             'miro_ai/static/src/css/miro_ai.css',
             'miro_ai/static/src/js/miro_ai_labels.js',
+            'miro_ai/static/src/js/miro_ai_markdown.js',
             'miro_ai/static/src/js/miro_ai.js',
             'miro_ai/static/src/xml/miro_ai_assistant.xml',
         ],

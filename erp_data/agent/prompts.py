@@ -7,6 +7,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from config.settings import OUT_OF_SCOPE_ANSWER
+from core.markdown_format import MARKDOWN_FORMAT_RULES
 
 
 ORM_AGENT_SYSTEM_PROMPT = (
@@ -86,7 +87,7 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "la réponse ne contient ni nom d'outil, ni le mot ORM, ni domaine, ni nom de paramètre, ni observation brute, "
     "et désigne les modèles, les champs et les valeurs de sélection (statuts, types) par leur libellé exact "
     "tel que renvoyé par Odoo (langue de l'interface), sans le traduire. Indique les limites. "
-    "Format Markdown uniquement, sans HTML brut."
+    + MARKDOWN_FORMAT_RULES
 )
 
 

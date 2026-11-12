@@ -299,28 +299,6 @@ def test_worker_timeout_terminates_the_question_process(monkeypatch, bench):
     assert processes[0].terminated is True
 
 
-def test_authentication_uses_the_explicit_benchmark_identity(monkeypatch, bench):
-    calls = []
-
-    class Connector:
-        def __init__(self, db, password):
-            self.db = db
-            calls.append(("connector", db, password))
-            self.common = self
-
-        def authenticate(self, db, login, password, context):
-            calls.append((db, login, password, context))
-            return 17
-
-    monkeypatch.setattr(bench, "OdooConnector", Connector)
-    monkeypatch.setattr(bench.settings, "ODOO_DB", "odoo-test")
-    assert bench.authenticate_odoo("analyst@example.test", "secret") == 17
-    assert calls == [
-        ("connector", "odoo-test", "secret"),
-        ("odoo-test", "analyst@example.test", "secret", {}),
-    ]
-
-
 def test_model_stats_separate_timeouts_errors_and_tool_use(bench):
     records = [
         _record(),

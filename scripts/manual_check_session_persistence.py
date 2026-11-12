@@ -1,24 +1,17 @@
 """
-H1b-i  --
-verification manuelle #2 : deux appels successifs au meme session_id via
-/api/v1/ask, la deuxieme question depend du contexte du premier tour.
+Manual check: two successive jobs on /api/v1/ask/jobs with the same session_id,
+the second question depending on the first turn.
 
-Contrairement a manual_check_api_v1.py (10 questions independantes, meme
-session_id, pense pour mesurer latence/taux de succes -- ne prouve pas que
-le contexte est reellement vu), et a manual_check_multi_turn.py (gere son
-propre chat_history en local, appelle query_graph() directement -- bypasse
-entierement session_store.py et /api/v1/ask), ce script :
+Unlike manual_check_multi_turn.py (local chat_history, bypasses
+session_store.py and the API), this script:
 
-1. Envoie une premiere question autonome.
-2. Envoie une deuxieme question qui n'a de sens QUE si le serveur a bien
-   recharge l'historique du premier tour via get_session(session_id) --
-   "Et pour cette annee ?" ne peut etre repondue correctement sans savoir
-   de quoi parle "cette annee".
-3. N'affirme rien tout seul sur la reussite : imprime les deux reponses et
-   demande une lecture des logs serveur (niveau INFO/DEBUG) pour confirmer
-   que le deuxieme appel a query_graph() recoit bien chat_history=[HumanMessage(...),
-   AIMessage(...)] et non chat_history=[] -- c'est la seule preuve valable
-   pour cloturer H1b-i, pas une inspection du texte de la reponse.
+1. Sends a self-contained question.
+2. Sends a follow-up that only makes sense if the server reloaded the first
+   turn through get_session(session_id).
+3. Asserts nothing itself: it prints both answers. Confirm in the server logs
+   (INFO/DEBUG) that the second query_graph() call received a non-empty
+   chat_history. A plausible answer alone proves nothing: the LLM can guess a
+   generic context without any real history.
 
 Prerequisites: the API is already started and JWT_SECRET and ODOO_DB are set in .env.
 Run from the project root: python -m scripts.manual_check_session_persistence
@@ -26,6 +19,7 @@ Run from the project root: python -m scripts.manual_check_session_persistence
 
 import sys
 import time
+import uuid
 
 import jwt
 import requests
@@ -43,8 +37,9 @@ token = jwt.encode(
 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 BASE_URL = f"http://{API_HOST}:{API_PORT}"
-SESSION_ID = "h1b_i_context_check"
+SESSION_ID = "session_context_check"
 
+# The second question is meaningless without the first ("this year" refers to the sales).
 turns = [
     "Combien de ventes la Societe Dupont a-t-elle realisees ?",
     "Et pour cette annee ?",
@@ -70,21 +65,30 @@ for i, question in enumerate(turns, 1):
         "company_id": 1,
         "source_mode": "system",
     }
+    payload["job_id"] = uuid.uuid4().hex
     t0 = time.time()
-    resp = requests.post(f"{BASE_URL}/api/v1/ask", json=payload, headers=headers)
+    resp = requests.post(f"{BASE_URL}/api/v1/ask/jobs", json=payload, headers=headers)
+    body = None
+    if resp.status_code == 202:
+        while True:
+            resp = requests.get(f"{BASE_URL}/api/v1/ask/jobs/{payload['job_id']}", headers=headers)
+            body = resp.json() if resp.status_code == 200 else None
+            if body is None or body["status"] != "pending":
+                break
+            time.sleep(1)
     dt = time.time() - t0
 
-    print(f"--- Tour {i} ({dt:.2f}s) ---")
+    print(f"--- Turn {i} ({dt:.2f}s) ---")
     print(f"User : {question}")
-    if resp.status_code == 200:
-        print(f"Agent: {resp.json()['answer']}\n")
+    if body is not None and body["status"] == "done":
+        print(f"Agent: {body['result']['answer']}\n")
+    elif body is not None:
+        print(f"[ERROR] {body['error_status']} -> {body['error_detail']}\n")
     else:
         print(f"[ERROR] {resp.status_code} -> {resp.text}\n")
 
 print(
-    "Verification requise cote logs serveur : confirmer que le tour 2 a "
-    "recu un chat_history non vide (contenant le tour 1) dans l'appel a "
-    "query_graph(). Un texte de reponse plausible au tour 2 ne suffit pas "
-    "a lui seul -- le LLM peut deviner un contexte generique meme sans "
-    "historique reel."
+    "Check the server logs: turn 2 must have reached query_graph() with a "
+    "non-empty chat_history containing turn 1. A plausible turn-2 answer is "
+    "not enough: the LLM can guess a generic context without real history."
 )

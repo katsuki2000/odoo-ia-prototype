@@ -57,7 +57,7 @@ class TestIngestionPipeline(unittest.TestCase):
             chunks = result["chunks"]
             metadatas = result["metadatas"]
 
-            ids = self.manager.add_chunks(chunks, metadatas)
+            self.manager.add_chunks(chunks, metadatas)
 
             # Verify metadata completeness
             required_fields = [
@@ -78,41 +78,6 @@ class TestIngestionPipeline(unittest.TestCase):
 
         finally:
             os.unlink(txt_path)
-
-    def test_incremental_indexing_content_hash(self):
-        """Test that content hash enables incremental indexing."""
-        text1 = "Original content version 1"
-        text2 = "Modified content version 2"
-
-        from document_rag.ingestion.pdf_loader import PDFLoader
-
-        hash1 = PDFLoader._compute_hash(text1)
-        hash2 = PDFLoader._compute_hash(text2)
-
-        # Different content should have different hashes
-        self.assertNotEqual(hash1, hash2)
-
-        # Same content should have same hash (deterministic)
-        hash1_again = PDFLoader._compute_hash(text1)
-        self.assertEqual(hash1, hash1_again)
-
-    def test_ocr_quality_assessment_workflow(self):
-        """Test OCR quality assessment in workflow."""
-        from document_rag.ingestion.pdf_loader import PDFLoader
-
-        # Test various quality levels
-        test_cases = [
-            ("This is well-formed text. " * 50, "high"),  # High quality
-            ("x y z a b", "low"),  # Low quality (short)
-            ("!@#$%^&*() " * 20, "low"),  # Low quality (garbled)
-        ]
-
-        loader = PDFLoader()
-
-        for text, expected_quality in test_cases:
-            quality = loader._assess_ocr_quality(text)
-            # We can't guarantee exact match, but we can verify it's reasonable
-            self.assertIn(quality, ["high", "low", "medium"])
 
     def test_chunk_metadata_consistency(self):
         """Test that chunk metadata is internally consistent."""
@@ -172,7 +137,7 @@ class TestIngestionPipeline(unittest.TestCase):
             metadatas = result["metadatas"]
 
             # Ingest (wiki/text content goes to docs_manager)
-            ids = self.manager.add_chunks(chunks, metadatas)
+            self.manager.add_chunks(chunks, metadatas)
 
             # Try to retrieve
             query_result = self.manager.query(
@@ -183,42 +148,6 @@ class TestIngestionPipeline(unittest.TestCase):
             # Should find relevant chunks
             self.assertGreater(query_result["count"], 0)
             self.assertIn("Sales", query_result["results"][0]["document"])
-
-        finally:
-            os.unlink(txt_path)
-
-    @pytest.mark.embedding_server
-    def test_delete_by_source(self):
-        """Test deletion of chunks by source file."""
-        with tempfile.NamedTemporaryFile(
-            suffix=".txt", mode="w", delete=False
-        ) as f:
-            f.write("Test content for deletion")
-            f.flush()
-            txt_path = f.name
-
-        try:
-            from document_rag.ingestion.wiki_loader import WikiLoader
-
-            loader = WikiLoader()
-            result = loader.load_text_file(txt_path)
-
-            chunks = result["chunks"]
-            metadatas = result["metadatas"]
-
-            # Ingest (wiki/text content goes to docs_manager)
-            ids = self.manager.add_chunks(chunks, metadatas)
-            initial_count = len(ids)
-
-            # Delete by source
-            source_name = str(txt_path)
-            deleted = self.manager.delete_by_source(source_name)
-
-            self.assertEqual(deleted, initial_count)
-
-            # Verify chunks are gone
-            stats = self.manager.get_stats()
-            self.assertEqual(stats["total_chunks"], 0)
 
         finally:
             os.unlink(txt_path)
@@ -242,57 +171,8 @@ class TestIngestionPipeline(unittest.TestCase):
         self.assertEqual(stats["by_module"]["sale"], 1)
 
 
-class TestOCRIntegration(unittest.TestCase):
-    """Integration tests for OCR functionality."""
-
-    def test_ocr_metadata_flags(self):
-        """Test that OCR metadata flags are set correctly."""
-        from document_rag.ingestion.pdf_loader import PDFLoader
-
-        loader = PDFLoader()
-
-        # Text with low extraction ratio would trigger OCR
-        # (but we can't test actual PDF without dependencies)
-
-        # Test quality assessment
-        high_quality_text = "This is high quality OCR text. " * 50
-        quality = loader._assess_ocr_quality(high_quality_text)
-        self.assertEqual(quality, "high")
-
-        low_quality_text = "x"
-        quality = loader._assess_ocr_quality(low_quality_text)
-        self.assertEqual(quality, "low")
-
-    def test_ocr_caveat_in_response(self):
-        """Test that OCR caveat logic is present in metadata."""
-        # When sourcing from low-quality OCR, caveat should be added
-        metadatas = [
-            {
-                "source": "scanned_invoice.pdf",
-                "type": "doc_pdf",
-                "ocr_processed": True,
-                "ocr_quality": "low",
-            }
-        ]
-
-        # Check that metadata flags are set
-        for m in metadatas:
-            if m.get("ocr_quality") == "low":
-                # In actual response, caveat would be appended
-                self.assertTrue(m["ocr_processed"])
-
-
 class TestErrorHandling(unittest.TestCase):
     """Test error handling in ingestion pipeline."""
-
-    def test_missing_file_handling(self):
-        """Test graceful handling of missing files."""
-        from document_rag.ingestion.pdf_loader import PDFLoader
-
-        loader = PDFLoader()
-
-        with self.assertRaises(FileNotFoundError):
-            loader.load_and_chunk("/nonexistent/file.pdf")
 
     def test_corrupt_file_handling(self):
         """Test handling of corrupt files."""

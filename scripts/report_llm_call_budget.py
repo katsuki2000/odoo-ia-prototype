@@ -7,7 +7,6 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
 from config.settings import REACT_RECURSION_LIMIT
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
@@ -15,7 +14,7 @@ from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 BRANCH_ORDER = ["documentation", "system"]
 BRANCH_LABELS = {
-    "documentation": "RAG simple (documentation)",
+    "documentation": "Simple RAG (documentation)",
     "system": "Function Calling (system)",
 }
 
@@ -44,18 +43,17 @@ def build_budget_report(log_filepath: Path = None) -> str:
     summaries = logger.read_recent(limit=100000, record_type="SUMMARY")
 
     lines = [
-        "# Rapport - Budget LLM par branche\n",
-        f"**Source :** `{logger.log_filepath}`\n",
-        f"**Nombre total de questions tracees :** {len(summaries)}\n",
+        "# LLM call budget per branch\n",
+        f"**Source:** `{logger.log_filepath}`\n",
+        f"**Traced questions:** {len(summaries)}\n",
         "---\n",
     ]
 
     if not summaries:
         lines.append(
-            "Aucune trace enregistree pour le moment -- ce rapport se remplit au fil des "
-            "questions reellement posees (documentation / system "
-            "logguent chacune une SUMMARY dans `reasoning_trace.jsonl` a chaque appel). "
-            "Interroger le pipeline via `core.graph.graph.query_graph()` pour peupler ce rapport avec des chiffres reels.\n"
+            "No trace recorded yet. The report fills up as questions are asked (the documentation and "
+            "system branches each log one SUMMARY in `reasoning_trace.jsonl` per call). "
+            "Query the pipeline through `core.graph.graph.query_graph()` to populate it.\n"
         )
         return "\n".join(lines)
 
@@ -63,8 +61,8 @@ def build_budget_report(log_filepath: Path = None) -> str:
     for s in summaries:
         by_branch.setdefault(s.get("branch", "unknown"), []).append(s)
 
-    lines.append("## Comparaison par branche\n")
-    lines.append("| Branche | N questions | Appels LLM (moy/med/max) | Hops (moy/med/max) | Plafond de sauts atteint |")
+    lines.append("## Comparison by branch\n")
+    lines.append("| Branch | Questions | LLM calls (mean/median/max) | Hops (mean/median/max) | Hop cap reached |")
     lines.append("|---|---|---|---|---|")
 
     for branch in BRANCH_ORDER:
@@ -93,23 +91,23 @@ def build_budget_report(log_filepath: Path = None) -> str:
         llm_s = _stats(llm_counts)
         hop_s = _stats(hop_counts)
         lines.append(
-            f"| {branch} (branche non repertoriee) | {llm_s['n']} "
+            f"| {branch} (unlisted branch) | {llm_s['n']} "
             f"| {llm_s['mean']} / {llm_s['median']} / {llm_s['max']} "
             f"| {hop_s['mean']} / {hop_s['median']} / {hop_s['max']} "
             f"| {cap_hits}/{len(recs)} |"
         )
 
     lines.append(
-        f"\n*Plafond de sauts par question : `system` applique "
-        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentation` ne fait jamais de hop (0 par construction).*\n"
+        f"\n*Hop cap per question: `system` applies "
+        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentation` never hops (0 by design).*\n"
     )
 
-    lines.append("---\n## Lecture\n")
+    lines.append("---\n## Reading\n")
     lines.append(
-        "- `documentation` (RAG simple) sert de plancher de comparaison : 0 hop, 1-2 appels LLM "
-        "(1 en generation structuree, +1 seulement si le fallback texte-brut est declenche).\n"
-        f"- `system` (Function Calling) fait jusqu'a `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) allers-retours "
-        "outil+LLM, plus 1 appel de synthese forcee si la limite est atteinte sans reponse finale.\n"
+        "- `documentation` (simple RAG) is the comparison floor: 0 hops, 1-2 LLM calls "
+        "(1 for structured generation, +1 only when the raw-text fallback triggers).\n"
+        f"- `system` (function calling) makes up to `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) tool+LLM round trips, "
+        "plus 1 forced synthesis call when the limit is reached without a final answer.\n"
     )
 
     return "\n".join(lines)
@@ -141,7 +139,7 @@ def print_trace(trace_id: str, log_filepath: Path = None) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description=" / J48 LLM call budget report.")
+    parser = argparse.ArgumentParser(description="LLM call budget report.")
     parser.add_argument("--trace-id", help="Print the full reasoning path for one trace_id instead of the aggregate report.")
     parser.add_argument("--log-file", help="Override the reasoning_trace.jsonl path.")
     args = parser.parse_args()
@@ -155,10 +153,8 @@ def main():
     report = build_budget_report(log_filepath=log_filepath)
     print(report)
 
-    root_dir = Path(__file__).resolve().parent.parent
-    todo_dir = root_dir / "todo"
-    todo_dir.mkdir(exist_ok=True)
-    out_path = todo_dir / ".md"
+    out_path = project_root / "captures" / "llm_call_budget.md"
+    out_path.parent.mkdir(exist_ok=True)
     out_path.write_text(report, encoding="utf-8")
     print(f"\nSaved report to: {out_path}")
 

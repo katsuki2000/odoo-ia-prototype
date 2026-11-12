@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 class AskRequestV1(BaseModel):
-    """Request body for /api/v1/ask."""
+    """Question asked to the assistant."""
     question: str = Field(..., min_length=1)
     session_id: str
     company_id: int
@@ -22,7 +22,7 @@ class AskRequestV1(BaseModel):
 
 
 class AskResponseV1(BaseModel):
-    """Response body for /api/v1/ask."""
+    """Answer returned once an ask job is done."""
     answer: str
     question: str
     session_id: str

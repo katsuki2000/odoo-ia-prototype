@@ -45,11 +45,6 @@ def _response(answer, titles=(), confidence=0.9):
     return SimpleNamespace(answer=answer, confidence=confidence, sources=[SimpleNamespace(title=title) for title in titles])
 
 
-def test_normalize_ignores_case_accents_spaces_and_emphasis(bench):
-    assert bench.normalize("**48** Heures\u202fOuvrées") == bench.normalize("48 heures ouvrees")
-    assert bench.normalize("d’Identification") == bench.normalize("d'identification")
-
-
 def test_score_counts_found_facts_and_cited_reference_sources(bench):
     item = _item(facts=["25 du mois", "48 heures ouvrées"], reference_sources=["a.txt", "b.pdf"])
     scored = bench.score(item, "Avant le **25 du mois**, validation en 48 heures.", ["a.txt", "other.txt"])

@@ -1,11 +1,13 @@
 """Audit log and history of the MIRO AI requests: question, answer, sources, response time, requester."""
 import json
 import logging
+from datetime import timedelta
 from odoo import models, fields, api
 from odoo.osv.expression import OR
 
 _logger = logging.getLogger(__name__)
 MAX_SESSION_LIST_LIMIT = 1000
+PURGE_BATCH_SIZE = 1000
 
 
 def _parse_json_field(value, field_name, record_id, expected_type, default):
@@ -194,3 +196,15 @@ class MiroAiLog(models.Model):
                 'confidence': metadata.get('confidence'),
             })
         return history
+
+    @api.autovacuum
+    def _gc_old_logs(self):
+        """Delete requests older than the configured retention, archived ones included (daily, by Odoo's autovacuum)."""
+        days = self.env['miro.ai.settings'].sudo().get_active_settings().log_retention_days
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        logs = self.sudo().with_context(active_test=False)
+        while True:
+            batch = logs.search([('create_date', '<', cutoff)], limit=PURGE_BATCH_SIZE)
+            if not batch:
+                return
+            batch.unlink()

@@ -10,7 +10,6 @@ Chunks documents with RecursiveCharacterTextSplitter (sizes from config.settings
 from __future__ import annotations
 
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
-import hashlib
 import logging
 import re
 from pathlib import Path
@@ -33,6 +32,7 @@ except ImportError:
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from document_rag.hashing import content_hash
 from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
@@ -200,7 +200,7 @@ class PDFLoader:
                 {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    "content_hash": self._compute_hash(chunk),
+                    "content_hash": content_hash(chunk),
                     "ocr_processed": ocr_used,
                     "ocr_quality": ocr_quality,
                 }
@@ -223,7 +223,3 @@ class PDFLoader:
     @staticmethod
     def _assess_ocr_quality(text: str) -> str:
         return assess_ocr_quality(text)
-
-    @staticmethod
-    def _compute_hash(text: str) -> str:
-        return hashlib.sha256(text.encode()).hexdigest()[:12]

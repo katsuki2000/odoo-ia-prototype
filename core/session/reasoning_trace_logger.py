@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from config.settings import OBSERVATION_PREVIEW_CHARS, QUESTION_PREVIEW_CHARS
+from config.settings import OBSERVATION_PREVIEW_CHARS, QUESTION_PREVIEW_CHARS, REASONING_TRACE_ENABLED
 
 _logger = logging.getLogger(__name__)
 
@@ -51,9 +51,13 @@ def new_trace_id() -> str:
 class ReasoningTraceLogger:
     def __init__(self, log_filepath: Path | None = None):
         self.log_filepath = Path(log_filepath or DEFAULT_LOG_PATH)
-        self.log_filepath.parent.mkdir(parents=True, exist_ok=True)
+        self.enabled = log_filepath is not None or REASONING_TRACE_ENABLED
+        if self.enabled:
+            self.log_filepath.parent.mkdir(parents=True, exist_ok=True)
 
     def _write(self, record_type: str, record: Any) -> None:
+        if not self.enabled:
+            return
         try:
             line = json.dumps({"record_type": record_type, **asdict(record)}, ensure_ascii=False, default=str)
             with open(self.log_filepath, "a", encoding="utf-8") as file:

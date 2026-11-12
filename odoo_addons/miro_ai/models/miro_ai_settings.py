@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 
 MIN_SIGNING_SECRET_BYTES = 32
 DEFAULT_API_URL = 'http://127.0.0.1:8000'
+DEFAULT_LOG_RETENTION_DAYS = 30
 
 
 class MiroAiSettings(models.Model):
@@ -31,6 +32,13 @@ class MiroAiSettings(models.Model):
         help='Maximum time to wait for the answer to a question. '
              'Beyond it, the question is reported as too slow.'
     )
+    log_retention_days = fields.Integer(
+        string='Log retention (days)',
+        required=True,
+        default=DEFAULT_LOG_RETENTION_DAYS,
+        help='Requests older than this are deleted automatically every day, '
+             'from the users\' history and from the audit log alike.'
+    )
     api_token = fields.Char(
         string='API secret token (JWT secret)',
         default=lambda self: secrets.token_urlsafe(48),
@@ -44,6 +52,8 @@ class MiroAiSettings(models.Model):
     _sql_constraints = [
         ('request_timeout_min', 'CHECK(request_timeout >= 10)',
          'The maximum response time must be at least 10 seconds.'),
+        ('log_retention_days_min', 'CHECK(log_retention_days >= 1)',
+         'The retention period must be at least 1 day.'),
     ]
 
     def get_signing_secret(self):

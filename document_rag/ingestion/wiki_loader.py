@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from pathlib import Path
@@ -11,6 +10,7 @@ from typing import Any, Optional
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
+from document_rag.hashing import content_hash
 from document_rag.ingestion.docx_reader import docx_to_markdown
 from document_rag.ingestion.scan_root import compute_source
 
@@ -113,7 +113,7 @@ class WikiLoader:
                 {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    "content_hash": self._compute_hash(chunk),
+                    "content_hash": content_hash(chunk),
                     "section": section,
                     "has_code_block": "```" in chunk,
                 }
@@ -139,7 +139,3 @@ class WikiLoader:
         if h3_match:
             return h3_match.group(1).strip()
         return None
-
-    @staticmethod
-    def _compute_hash(text: str) -> str:
-        return hashlib.sha256(text.encode()).hexdigest()[:12]

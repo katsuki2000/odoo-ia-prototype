@@ -9,6 +9,7 @@ from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
 from config.settings import CHAT_HISTORY_MAX_MESSAGES
 from config.settings import OUT_OF_SCOPE_ANSWER
+from core.markdown_format import MARKDOWN_FORMAT_RULES
 
 
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
@@ -60,8 +61,8 @@ N'utilise jamais la confiance pour masquer une absence de preuve.
 
 # Formatage du texte
 
-Le champ "answer" doit être rédigé exclusivement en Markdown standard : **gras**, *italique*, listes à puces ("- item"), titres ("##", "###"), liens ("[texte](url)").
-N'utilise JAMAIS de balise HTML brute (aucune séquence "<...>" du type <strong>, <br>, <div>, <em>, <ul>, etc.), même en complément du Markdown. Le moteur d'affichage interprète uniquement du Markdown -- toute balise HTML serait affichée littéralement à l'écran, illisible pour l'utilisateur.
+Pour le champ "answer" :
+{markdown_format_rules}
 
 Exemple de format attendu pour une réponse structurée (titre + étapes numérotées + gras) :
 
@@ -101,7 +102,11 @@ def build_rag_messages(
     if chat_history is None:
         chat_history = []
 
-    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context=context_text, out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
+    system_prompt = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(
+        context=context_text,
+        out_of_scope_answer=OUT_OF_SCOPE_ANSWER,
+        markdown_format_rules=MARKDOWN_FORMAT_RULES,
+    )
     messages = [SystemMessage(content=system_prompt)]
 
     messages.extend(chat_history[-CHAT_HISTORY_MAX_MESSAGES:])

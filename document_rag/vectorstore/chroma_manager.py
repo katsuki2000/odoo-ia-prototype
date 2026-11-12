@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from pathlib import Path
 from threading import Lock
@@ -10,6 +9,7 @@ from typing import Any, Optional
 
 import chromadb
 from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
+from document_rag.hashing import content_hash
 from document_rag.vectorstore.embedding_functions import resolve_embedding_function
 from document_rag.vectorstore.chroma_helpers import clean_metadata, format_query_results
 
@@ -39,7 +39,7 @@ class ChromaManager:
         if len(texts) != len(metadatas):
             raise ValueError('texts and metadatas must have the same length')
         if ids is None:
-            ids = [f"{metadata.get('source', 'unknown')}_{index}_{hashlib.sha256(text.encode()).hexdigest()[:12]}"
+            ids = [f"{metadata.get('source', 'unknown')}_{index}_{content_hash(text)}"
                    for index, (text, metadata) in enumerate(zip(texts, metadatas))]
         self.collection.add(ids=ids, documents=texts, metadatas=[clean_metadata(metadata) for metadata in metadatas])
         return ids

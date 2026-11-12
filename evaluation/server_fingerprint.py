@@ -37,7 +37,7 @@ def _model_entry(item: Any) -> Dict[str, Any]:
 
 
 def _ollama_details(base_url: Optional[str], model: Optional[str], http_get: Any, timeout: float) -> Dict[str, Any]:
-    """Details natifs d'Ollama (lecture seule, au mieux) : version, digest / quantification, contexte charge."""
+    """Native Ollama details (read-only, best effort): version, digest / quantization, loaded context."""
     root = (base_url or "").rstrip("/")
     root = root[:-3] if root.endswith("/v1") else root
     from config import settings
@@ -98,7 +98,7 @@ def get_inference_fingerprint(
     http_get: Any = None,
     timeout: float = 20.0,
 ) -> Dict[str, Any]:
-    """Interroge le serveur (liste des modeles + un appel d'un token) et retourne l'empreinte."""
+    """Probe the server (model list + a one-token call) and return its fingerprint."""
     from config import settings
 
     base_url = base_url or settings.LLM_BASE_URL
@@ -119,7 +119,7 @@ def get_inference_fingerprint(
             from openai import OpenAI
             client = OpenAI(base_url=base_url, api_key=api_key or settings.LLM_API_KEY, timeout=timeout, max_retries=0)
         stage = "models"
-        try:  # certains serveurs d'inference n'exposent pas /models : non bloquant
+        try:  # some inference servers do not expose /models: not blocking
             llm["served_models"] = sorted((_model_entry(m) for m in client.models.list().data), key=lambda e: str(e.get("id")))
         except Exception as error:  # noqa: BLE001
             llm["models_error"] = type(error).__name__
@@ -127,7 +127,7 @@ def get_inference_fingerprint(
         reply = client.chat.completions.create(
             model=model, messages=[{"role": "user", "content": _CANARY_PROMPT}], max_tokens=1, temperature=0)
         llm["canary"] = {"model": getattr(reply, "model", None), "system_fingerprint": getattr(reply, "system_fingerprint", None)}
-    except Exception as error:  # noqa: BLE001 - l'empreinte ne doit jamais interrompre une mesure
+    except Exception as error:  # noqa: BLE001 - a fingerprint must never interrupt a measurement
         llm["error"] = type(error).__name__
         llm["error_stage"] = stage
     if http_get is not None or not client_injected:
@@ -138,15 +138,3 @@ def get_inference_fingerprint(
     result["fingerprint_id"] = compute_fingerprint_id(result)
     result["reachable"] = "error" not in llm
     return result
-
-
-def describe(fingerprint: Dict[str, Any]) -> str:
-    llm = fingerprint.get("llm") or {}
-    canary = llm.get("canary") or {}
-    state = f"en erreur ({llm.get('error')} a l'etape {llm.get('error_stage')})" if llm.get("error") else "ok"
-    ollama = fingerprint.get("ollama") or {}
-    extra = (f" | ollama {ollama.get('version')} {ollama.get('quantization_level')} ctx={ollama.get('loaded_context_length')} "
-             f"digest={str(ollama.get('digest'))[:10]}") if ollama else ""
-    return (f"serveur {fingerprint.get('fingerprint_id')} | modele configure={llm.get('configured_model')}{extra} | "
-            f"modele servi={canary.get('model')} | system_fingerprint={canary.get('system_fingerprint')} | "
-            f"embeddings={(fingerprint.get('embedding') or {}).get('configured_model')} | {state}")

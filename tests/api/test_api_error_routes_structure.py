@@ -6,7 +6,6 @@ import unittest
 
 root_path = Path(__file__).resolve().parents[2]
 
-
 def load_tree(relative_path):
     return ast.parse((root_path / relative_path).read_text(encoding='utf-8'))
 

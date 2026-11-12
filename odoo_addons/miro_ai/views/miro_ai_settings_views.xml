@@ -19,6 +19,9 @@
                                  groups="base.group_system,miro_ai.group_miro_ai_admin"/>
                         <field name="request_timeout"/>
                     </group>
+                    <group string="Data retention">
+                        <field name="log_retention_days"/>
+                    </group>
                 </sheet>
             </form>
         </field>

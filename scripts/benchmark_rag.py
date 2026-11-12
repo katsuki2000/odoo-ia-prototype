@@ -2,12 +2,12 @@
 """
 scripts/benchmark_rag.py
 
-Script de benchmark rapide pour vérifier le bon fonctionnement du RAG documentaire.
-Teste les 4 formats de documents (.txt, .md, .docx, .pdf) ainsi que les cas hors-périmètre.
+Quick benchmark of the documentation RAG: the four document formats (.txt, .md, .docx, .pdf)
+and out-of-scope questions.
 
 Usage:
-    python scripts/benchmark_rag.py                 # Test complet (retrieval + réponse LLM)
-    python scripts/benchmark_rag.py --retrieval     # Test ultra-rapide (retrieval seul, sans LLM)
+    python scripts/benchmark_rag.py                 # full run (retrieval + LLM answer)
+    python scripts/benchmark_rag.py --retrieval     # retrieval only, no LLM
 """
 
 import argparse
@@ -16,14 +16,13 @@ import sys
 import time
 from pathlib import Path
 
-# Ajouter la racine du projet
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.schemas import source_display_title
 from document_rag.retrieval.search import quick_retrieve
 
-# Jeu de test couvrant l'ensemble des formats et cas d'usage
+# Questions are in French because the indexed corpus is French.
 BENCHMARK_CASES = [
     {
         "id": "TXT-01",
@@ -89,18 +88,24 @@ BENCHMARK_CASES = [
         "expected_fact": "rapprochement bancaire",
     },
     {
-        "id": "HORS-01",
-        "format": "PIÈGE",
+        "id": "OOS-01",
+        "format": "TRAP",
         "question": "Quelle est la marque de la machine à café de la salle de pause ?",
         "expected_source": None,
         "expected_fact": None,
     },
 ]
 
+# French refusal wordings: the system answers out-of-scope questions in French.
+REFUSAL_MARKERS = [
+    "pas de source", "non mentionné", "ne dispose pas", "hors périmètre",
+    "je ne peux pas", "inconnu", "pas trouvé cette information",
+]
+
 
 def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
     print("\n" + "=" * 80)
-    print(f"LANCEMENT DU BENCHMARK RAG ({'Retrieval seul' if retrieval_only else 'Complet avec Génération'})")
+    print(f"RAG BENCHMARK ({'retrieval only' if retrieval_only else 'full, with generation'})")
     print("=" * 80 + "\n")
 
     generate_fn = None
@@ -109,7 +114,7 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
             from document_rag.generation.generate_node import generate
             generate_fn = generate
         except Exception as e:
-            print(f"Impossible d'importer generate_node ({e}). Passage en mode retrieval seul.\n")
+            print(f"Cannot import generate_node ({e}). Falling back to retrieval only.\n")
             retrieval_only = True
 
     results = []
@@ -124,80 +129,61 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
 
         print(f"[{idx}/{len(BENCHMARK_CASES)}] [{fmt}] {q}")
 
-        # 1. Test Retrieval
         t0 = time.time()
         chunks = quick_retrieve(q, top_k=top_k)
         retrieval_duration = time.time() - t0
         total_retrieval_time += retrieval_duration
 
         retrieved_sources = [source_display_title(c["metadata"]) for c in chunks if c.get("metadata")]
-        first_src = retrieved_sources[0] if retrieved_sources else "Aucun"
+        retrieval_ok = exp_src is None or exp_src in retrieved_sources
 
-        retrieval_ok = False
-        if exp_src is None:
-            # Pour une question hors-périmètre, on ne s'attend pas à trouver une source spécifique
-            retrieval_ok = True
-        else:
-            retrieval_ok = exp_src in retrieved_sources
-
-        # Rang (1-based, premiere occurrence) de la source attendue parmi les top_k resultats
+        # 1-based rank of the first occurrence of the expected source in the top_k results
         source_rank = (retrieved_sources.index(exp_src) + 1) if (exp_src is not None and exp_src in retrieved_sources) else None
 
-        # 2. Test Génération (optionnel)
         ans_text = ""
         gen_ok = None
         if not retrieval_only and generate_fn:
-            t_gen0 = time.time()
             try:
                 state = {"question": q, "retrieved_chunks": chunks, "timing": {}}
                 res = generate_fn(state)
                 ans_text = res.get("response").answer if res.get("response") else ""
             except Exception as ex:
-                ans_text = f"Erreur génération: {ex}"
-            gen_duration = time.time() - t_gen0
+                ans_text = f"Generation error: {ex}"
 
             if exp_fact is None:
-                # Vérifie refus poli / absence de source fiable
                 lower_ans = ans_text.lower()
-                gen_ok = any(w in lower_ans for w in ["pas de source", "non mentionné", "ne dispose pas", "hors périmètre", "je ne peux pas", "inconnu", "pas trouvé cette information"])
+                gen_ok = any(w in lower_ans for w in REFUSAL_MARKERS)
             else:
                 gen_ok = exp_fact.lower() in ans_text.lower()
 
-        # Statut global
         status = "PASS" if (retrieval_ok and (gen_ok is None or gen_ok)) else "FAIL"
 
         results.append({
             "id": cid,
             "format": fmt,
-            "question": q,
             "expected_source": exp_src,
-            "retrieved_sources": retrieved_sources,
             "retrieval_ok": retrieval_ok,
             "source_rank": source_rank,
             "retrieval_time": retrieval_duration,
             "gen_ok": gen_ok,
-            "answer_snippet": ans_text.replace("\n", " ")[:120] if ans_text else "",
-            "answer": ans_text,
             "status": status,
         })
 
-        # Affichage résultat unitaire
-        rank_txt = f"rang {source_rank}/{len(retrieved_sources)}" if source_rank else ("sans objet" if exp_src is None else f"ABSENTE du top {top_k}")
-        print(f"       -> Sources trouvées : {retrieved_sources} | source attendue : {rank_txt}")
+        rank_txt = f"rank {source_rank}/{len(retrieved_sources)}" if source_rank else ("n/a" if exp_src is None else f"MISSING from top {top_k}")
+        print(f"       -> Sources found    : {retrieved_sources} | expected source: {rank_txt}")
         if ans_text and (status != "PASS" or exp_src is None):
-            print(f"       -> Réponse générée  : {ans_text.replace(chr(10), ' ')[:600]}")
-        print(f"       -> Temps retrieval  : {retrieval_duration * 1000:.1f} ms | Résultat : {status}\n")
+            print(f"       -> Generated answer : {ans_text.replace(chr(10), ' ')[:600]}")
+        print(f"       -> Retrieval time   : {retrieval_duration * 1000:.1f} ms | Result: {status}\n")
 
-    # Rapport synthétique
     print("=" * 80)
-    print("SYNTHÈSE DES RÉSULTATS DU BENCHMARK")
+    print("BENCHMARK SUMMARY")
     print("=" * 80)
-    print(f"{'ID':<10} | {'Format':<6} | {'Retrieval':<10} | {'Rang':<5} | {'Génération':<10} | {'Statut':<8} | Source attendue")
+    print(f"{'ID':<10} | {'Format':<6} | {'Retrieval':<10} | {'Rank':<5} | {'Generation':<10} | {'Status':<8} | Expected source")
     print("-" * 80)
     for r in results:
         r_ok = "OK" if r["retrieval_ok"] else "FAIL"
         g_ok = "N/A" if r["gen_ok"] is None else ("OK" if r["gen_ok"] else "FAIL")
-        src_name = r["expected_source"] or "Hors-périmètre"
+        src_name = r["expected_source"] or "Out of scope"
         rank = "-" if r["source_rank"] is None else str(r["source_rank"])
         print(f"{r['id']:<10} | {r['format']:<6} | {r_ok:<10} | {rank:<5} | {g_ok:<10} | {r['status']:<8} | {src_name}")
 
@@ -206,20 +192,20 @@ def run_benchmark(retrieval_only: bool = False, top_k: int = 4):
     avg_latency = (total_retrieval_time / len(results)) * 1000
 
     print("-" * 80)
-    print(f"Score global         : {nb_ok}/{len(results)} réussis ({nb_ok / len(results) * 100:.1f}%)")
-    print(f"Précision Retrieval  : {retrieval_accuracy:.1f}%")
+    print(f"Overall score        : {nb_ok}/{len(results)} passed ({nb_ok / len(results) * 100:.1f}%)")
+    print(f"Retrieval accuracy   : {retrieval_accuracy:.1f}%")
     with_source = [r for r in results if r["expected_source"] is not None]
     hit_at_1 = sum(1 for r in with_source if r["source_rank"] == 1)
     median_latency = statistics.median(r["retrieval_time"] for r in results) * 1000
-    print(f"Source attendue en rang 1 (Hit@1) : {hit_at_1}/{len(with_source)}")
-    print(f"Latence moyenne Retr.: {avg_latency:.1f} ms / requête | médiane : {median_latency:.1f} ms")
+    print(f"Expected source at rank 1 (Hit@1): {hit_at_1}/{len(with_source)}")
+    print(f"Mean retrieval latency: {avg_latency:.1f} ms / query | median: {median_latency:.1f} ms")
     print("=" * 80 + "\n")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Benchmark RAG")
-    parser.add_argument("--retrieval", action="store_true", help="Tester uniquement la recherche documentaire (ultra-rapide)")
-    parser.add_argument("--top-k", type=int, default=4, help="Nombre de chunks retournés")
+    parser = argparse.ArgumentParser(description="RAG benchmark")
+    parser.add_argument("--retrieval", action="store_true", help="Run retrieval only (fast, no LLM)")
+    parser.add_argument("--top-k", type=int, default=4, help="Number of chunks retrieved")
     args = parser.parse_args()
 
     run_benchmark(retrieval_only=args.retrieval, top_k=args.top_k)
