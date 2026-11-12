@@ -44,7 +44,7 @@ fait : page 21 tableau retirer la colonne numero et remplacer "Désignation" par
 
 fait : page 23 : Tableau 9. Chronogramme prévisionnel de réalisation du projet faire un diagramme de gantt plutot que le tableau
 
-page 28 ; 431 proposition des solutions
+fait : page 28 ; 431 proposition des solutions
 solution 1 :achat logiciel 
 solution 2: téléchargement gratuit logiciel
 solution 3: thème
@@ -64,10 +64,9 @@ pas satisfait : 4.1.2 tableau 10 inventaire des infras matérielles : faire comm
 fait : 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
    Mettre un tableau users stories : en tant que - je veux - afin de 
 
-page 50 5.6 règles de gestion à refaire
-page 51 rg3 rg8 retirer
+fait : page 50 5.6 règles de gestion à refaire, page 51 rg3 rg8 retirer
 
-page 56 : fig 5 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
+page 56 : fig 6 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
 
 
 page 65 : fig 12(diag de concep glob) on construit ce diagramme à l'aide de la règle de gestion, chaque classe doit comporter 3 compartiments (nom classe, attribut, methode)
