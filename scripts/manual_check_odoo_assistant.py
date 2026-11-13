@@ -62,14 +62,14 @@ def print_audit_entry(session, session_id):
     """Return False only when Odoo refuses the lookup; a missing entry is a warning."""
     data = audit_log_entries(session, session_id)
     if "error" in data:
-        print(f"Audit log lookup failed: {data['error']}")
+        print(f"History lookup failed: {data['error']}")
         return False
     entries = data.get("result", [])
     if not entries:
         print(" -> WARNING: no miro.ai.log entry for this session; check that the module is up to date.")
         return True
     entry = entries[0]
-    print(f" -> Audit log: id={entry['id']}, duration={entry['response_time_ms']} ms, "
+    print(f" -> History entry: id={entry['id']}, duration={entry['response_time_ms']} ms, "
           f"sources={entry['sources_count']}, state={entry['state']}")
     print(f" -> Recorded question: {entry['question']}")
     return True
@@ -93,7 +93,7 @@ def main(login, password):
     print(f" -> Answer: {result.get('answer')}")
     print(f" -> Sources: {len(result.get('sources', []))}")
 
-    print("\n[3] Audit log of the simple question...")
+    print("\n[3] History entry of the simple question...")
     if not print_audit_entry(session, SIMPLE_SESSION_ID):
         return False
 
@@ -111,11 +111,11 @@ def main(login, password):
     for index, source in enumerate(sources[:SOURCES_SHOWN], 1):
         print(f"    - {index}: {source.get('filepath', 'unknown')} (score: {source.get('score', 'N/A')})")
 
-    print("\n[5] Audit log of the technical question...")
+    print("\n[5] History entry of the technical question...")
     if not print_audit_entry(session, TECHNICAL_SESSION_ID):
         return False
 
-    print("\nAll checks passed (authentication, proxy, RAG sources, audit log).")
+    print("\nAll checks passed (authentication, proxy, RAG sources, history).")
     return True
 
 

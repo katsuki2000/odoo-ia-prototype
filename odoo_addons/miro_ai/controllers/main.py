@@ -45,7 +45,7 @@ def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='s
             metadata=metadata,
         )
     except Exception as log_err:
-        _logger.warning("Miro AI: audit log write failed: %s", log_err)
+        _logger.warning("Miro AI: history write failed: %s", log_err)
 
 
 def _verify_link_payload(evidence_dossier):
@@ -211,8 +211,3 @@ class MiroAiController(http.Controller):
         if not session_id:
             return []
         return request.env['miro.ai.log'].get_session_history(session_id)
-
-    @http.route('/miro_ai/archive_session', type='json', auth='user', methods=['POST'])
-    def archive_session(self, session_id=None, **kwargs):
-        """Delete one conversation from the history of the current user; the audit log keeps it."""
-        return request.env['miro.ai.log'].archive_session(session_id)

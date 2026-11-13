@@ -6,15 +6,6 @@
               sequence="50"
               groups="base.group_user"/>
 
-    <!-- AI request log sub-menu -->
-    <menuitem id="menu_miro_ai_log"
-              name="Request Log"
-              parent="menu_miro_ai_root"
-              action="action_miro_ai_log"
-              sequence="20"
-              groups="base.group_user"/>
-
-
     <!-- Configuration sub-menu -->
     <menuitem id="menu_miro_ai_config"
               name="Configuration"

@@ -83,11 +83,6 @@ msgid "Archived"
 msgstr ""
 
 #. module: miro_ai
-#: model:ir.model.fields,help:miro_ai.field_miro_ai_log__active
-msgid "Cleared when the user deletes the conversation: hidden from the history, kept in the audit log."
-msgstr ""
-
-#. module: miro_ai
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
@@ -163,21 +158,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_tree
 msgid "Date"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Delete"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
-#, python-format
-msgid "Delete conversation"
 msgstr ""
 
 #. module: miro_ai
@@ -280,7 +260,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model,name:miro_ai.model_miro_ai_log
-msgid "MIRO AI - RAG Request Audit Log"
+msgid "MIRO AI - Request History"
 msgstr ""
 
 #. module: miro_ai
@@ -563,13 +543,6 @@ msgid "This answer is no longer available. Please ask the question again."
 msgstr ""
 
 #. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "This conversation will be removed from your history."
-msgstr ""
-
-#. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__response_time_ms
 msgid "Time taken to query the FastAPI RAG backend, in milliseconds."
 msgstr ""
@@ -577,13 +550,6 @@ msgstr ""
 #. module: miro_ai
 #: model_terms:ir.ui.view,arch_db:miro_ai.view_miro_ai_log_search
 msgid "Today"
-msgstr ""
-
-#. module: miro_ai
-#. odoo-javascript
-#: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
-#, python-format
-msgid "Unable to delete this conversation."
 msgstr ""
 
 #. module: miro_ai
@@ -639,7 +605,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__log_retention_days
-msgid "Requests older than this are deleted automatically every day, from the users' history and from the audit log alike."
+msgid "Requests older than this are deleted automatically every day, from the users' history."
 msgstr ""
 
 #. module: miro_ai

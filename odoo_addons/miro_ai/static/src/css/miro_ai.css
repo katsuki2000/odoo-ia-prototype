@@ -229,11 +229,6 @@
     margin-bottom: 6px;
 }
 
-.miro-history-delete {
-    flex-shrink: 0;
-    margin-left: 8px;
-}
-
 /* Systray item and drawer */
 .miro-systray-container {
     position: relative;

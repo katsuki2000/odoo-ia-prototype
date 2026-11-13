@@ -168,30 +168,48 @@ class TestPDFLoader(unittest.TestCase):
             if os.path.exists(pdf_path):
                 os.unlink(pdf_path)
 
-    def test_load_and_chunk_ocr_threshold(self):
-        """Test OCR triggering based on extraction threshold."""
+    def _pdf_of_size(self, size):
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-            pdf_path = f.name
+            f.write(b"0" * size)
+        self.addCleanup(os.unlink, f.name)
+        return f.name
 
-        try:
-            loader = PDFLoader(ocr_threshold=0.5)  # Higher threshold
+    @staticmethod
+    def _reader_with_text(text):
+        page = MagicMock()
+        page.extract_text.return_value = text
+        reader = MagicMock()
+        reader.pages = [page]
+        return reader
 
-            mock_reader = MagicMock()
-            mock_page = MagicMock()
-            # Return very little text
-            mock_page.extract_text.return_value = "x" * 10
+    def test_ocr_runs_and_replaces_text_below_the_threshold(self):
+        loader = PDFLoader(chunk_size=200, chunk_overlap=20, ocr_threshold=0.5)
+        pdf_path = self._pdf_of_size(1000)
+        ocr_text = "Texte reconnu par OCR sur la page scannee. " * 3
+        with patch("document_rag.ingestion.pdf_loader.PdfReader", return_value=self._reader_with_text("x" * 10)), \
+                patch("document_rag.ingestion.pdf_loader.pytesseract", MagicMock()), \
+                patch("document_rag.ingestion.pdf_loader.Image", MagicMock()), \
+                patch.object(loader, "_extract_text_via_ocr", return_value=ocr_text) as ocr:
+            result = loader.load_and_chunk(pdf_path)
 
-            with patch(
-                "document_rag.ingestion.pdf_loader.PdfReader", return_value=mock_reader
-            ):
-                with patch.object(
-                    loader, "_extract_text_via_ocr", return_value="OCR text"
-                ):
-                    loader.load_and_chunk(pdf_path)
+        ocr.assert_called_once()
+        self.assertTrue(result["ocr_used"])
+        self.assertIsNotNone(result["ocr_quality"])
+        self.assertIn("Texte reconnu par OCR", result["chunks"][0])
+        self.assertTrue(all(metadata["ocr_processed"] for metadata in result["metadatas"]))
 
-        finally:
-            if os.path.exists(pdf_path):
-                os.unlink(pdf_path)
+    def test_ocr_is_skipped_at_or_above_the_threshold(self):
+        loader = PDFLoader(chunk_size=200, chunk_overlap=20, ocr_threshold=0.5)
+        pdf_path = self._pdf_of_size(100)
+        with patch("document_rag.ingestion.pdf_loader.PdfReader", return_value=self._reader_with_text("y" * 80)), \
+                patch("document_rag.ingestion.pdf_loader.pytesseract", MagicMock()), \
+                patch("document_rag.ingestion.pdf_loader.Image", MagicMock()), \
+                patch.object(loader, "_extract_text_via_ocr", return_value="OCR") as ocr:
+            result = loader.load_and_chunk(pdf_path)
+
+        ocr.assert_not_called()
+        self.assertFalse(result["ocr_used"])
+        self.assertIn("y" * 80, result["chunks"][0])
 
     def test_file_not_found(self):
         """Test handling of non-existent PDF files."""

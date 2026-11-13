@@ -5,15 +5,10 @@ import { Component, useState, useRef, onPatched, onMounted } from "@odoo/owl";
 import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ConnectionAbortedError } from "@web/core/network/rpc_service";
-import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import {
     cancelledContent,
     communicationErrorLabel,
     connectionErrorLabel,
-    deleteSessionBody,
-    deleteSessionErrorLabel,
-    deleteSessionLabel,
-    deleteSessionTitle,
     exchangeCountLabel,
     loadHistoryErrorLabel,
     loadSessionErrorLabel,
@@ -116,7 +111,6 @@ export class MiroAiSystray extends Component {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
         this.action = useService("action");
-        this.dialog = useService("dialog");
         this.pendingRequest = null;
 
         this.state = useState({
@@ -194,30 +188,6 @@ export class MiroAiSystray extends Component {
     startNewConversation() {
         this.resetConversation();
         this.state.showHistory = false;
-    }
-
-    confirmDeleteSession(sessionId) {
-        this.dialog.add(ConfirmationDialog, {
-            title: deleteSessionTitle(),
-            body: deleteSessionBody(),
-            confirmLabel: deleteSessionLabel(),
-            confirm: () => this.deleteSession(sessionId),
-            cancel: () => {},
-        });
-    }
-
-    async deleteSession(sessionId) {
-        try {
-            await this.rpc("/miro_ai/archive_session", { session_id: sessionId });
-        } catch (error) {
-            console.error("MIRO AI Systray: deleting the session failed:", error);
-            this.notification.add(deleteSessionErrorLabel(), { type: "danger" });
-            return;
-        }
-        this.state.sessions = this.state.sessions.filter((session) => session.session_id !== sessionId);
-        if (sessionId === this.state.sessionId) {
-            this.resetConversation();
-        }
     }
 
     toggleHistory() {

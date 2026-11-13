@@ -34,15 +34,6 @@ from erp_data.runtime.validation import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _reset_connector():
-    read_tools._connector = None
-    read_tools._field_cache.clear()
-    yield
-    read_tools._connector = None
-    read_tools._field_cache.clear()
-
-
 @pytest.fixture
 def requester_uid():
     token = odoo_uid_ctx.set(7)

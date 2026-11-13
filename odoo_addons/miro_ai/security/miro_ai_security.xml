@@ -13,25 +13,17 @@
             <field name="name">MIRO AI Administrator</field>
             <field name="category_id" ref="module_category_miro_ai"/>
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">Can configure the API and view all logs.</field>
+            <field name="comment">Can configure the API.</field>
         </record>
     </data>
 
     <data>
-        <!-- Log visibility rule: a user sees their own requests within their companies -->
+        <!-- Log visibility rule: a user sees only their own requests within their companies (nobody else, administrators included) -->
         <record id="rule_miro_ai_log_user" model="ir.rule">
             <field name="name">MIRO AI Log: own requests</field>
             <field name="model_id" ref="model_miro_ai_log"/>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
             <field name="domain_force">['&amp;', ('user_id', '=', user.id), ('company_id', 'in', company_ids)]</field>
-        </record>
-
-        <!-- Log visibility rule: an admin sees all requests of the allowed companies -->
-        <record id="rule_miro_ai_log_admin" model="ir.rule">
-            <field name="name">MIRO AI Log: admin sees all</field>
-            <field name="model_id" ref="model_miro_ai_log"/>
-            <field name="groups" eval="[(4, ref('group_miro_ai_admin'))]"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         </record>
     </data>
 </odoo>

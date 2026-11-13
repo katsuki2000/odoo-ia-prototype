@@ -18,13 +18,6 @@ from erp_data.tools.read_tools import orm_search_count
 from erp_data.runtime.validation import assert_domain_within_companies
 
 
-@pytest.fixture(autouse=True)
-def _reset_connector():
-    read_tools._connector = None
-    yield
-    read_tools._connector = None
-
-
 def test_resolve_company_scope_defaults_ids_to_active():
     t1 = odoo_company_id_ctx.set(2)
     t2 = odoo_company_ids_ctx.set(None)

@@ -51,8 +51,6 @@ solution 3: thème
 faire un tableau : 1ère colonne solution (solution 1, solutionn 2, solution 2), 2e avantages, 3e inconvenients
 puis paragraphe choix et justification de la solution choisie
 
-4.2 critique de l'existant : faire un tableau : points forts - points faibles
-
 
 à revoir : page 28-29 : pour le choix des outils (page 29-34)
 1-faire tableau de comparaison méthodes/outils
@@ -66,10 +64,8 @@ fait : 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
 
 fait : page 50 5.6 règles de gestion à refaire, page 51 rg3 rg8 retirer
 
-page 56 : fig 6 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
 
 
-page 65 : fig 12(diag de concep glob) on construit ce diagramme à l'aide de la règle de gestion, chaque classe doit comporter 3 compartiments (nom classe, attribut, methode)
 
 fait : page 89 : chap 8 : à mettre à la page suivante
 
@@ -78,5 +74,9 @@ page 107-108 : conclusion  à refaire
 2 solution(Methode+IA+approches)+outils+resultats
 3-conclusion et perspectives
 
+page 65 : fig 12(diag de concep glob) on construit ce diagramme à l'aide de la règle de gestion, chaque classe doit comporter 3 compartiments (nom classe, attribut, methode)
+
+page 56 : fig 6 on concstruit ce modele à partir de la regle de gestion, chaque classe doit avoir (nom classe, attribut)
 
 
+4.2 critique de l'existant : faire un tableau : points forts - points faibles

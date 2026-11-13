@@ -7,6 +7,7 @@ from config.settings import (
     LLM_MODEL,
     LLM_API_KEY,
     LLM_MAX_RETRIES,
+    LLM_TEMPERATURE,
     LLM_REQUEST_TIMEOUT_SECONDS,
     require_inference_server,
 )
@@ -19,7 +20,7 @@ def get_chat_llm(
     model: str | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
-    temperature: float = 0.2,
+    temperature: float = LLM_TEMPERATURE,
     max_tokens: int | None = None,
     max_retries: int = LLM_MAX_RETRIES,
     reasoning_effort: str | None = None,

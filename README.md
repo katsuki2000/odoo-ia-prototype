@@ -1,15 +1,25 @@
-# MIRO AI - Odoo 17 Assistant PoC
+## 1. Objectif
 
-MIRO AI is a proof of concept for a private assistant connected to an Odoo 17 instance. It has two response modes:
+MIRO AI est un assistant privé qui aide les utilisateurs métier à consulter les données auxquelles ils ont accès. Les réponses doivent être vérifiables.
 
-- **Documentation**: retrieve internal procedures and documents with the existing RAG pipeline (ChromaDB).
-- **Odoo system**: answer questions about current business data with one agent that queries Odoo through typed, read-only ORM tools, under the identity of the requesting user.
+Il distingue deux modes :
+- **Selon le système Odoo** : investiguer les données runtime de l'instance.
+- **D'après la documentation** : chercher dans les documents internes et répondre à partir des passages retrouvés.
 
-The LLM helps select tools and explain the observations. The objective is to reduce unsupported answers, make the basis of responses inspectable, and state uncertainty when the available evidence is insufficient. The Code Intelligence agent (source-code analysis through an Odoo knowledge graph) is not part of this branch: it is kept on `main`.
+L'utilisateur peut choisir le mode dans l'interface. il n'a qu'un seul choix
 
-Inference uses a privately controlled Ollama- or vLLM-compatible endpoint. The endpoint is configured in `.env`; there is no implicit cloud-provider fallback.
+## 2. Périmètre fonctionnel
 
----
+### 2.1 Données ERP
+
+Les questions portant sur des valeurs actuelles — statut, nombre, liste ou agrégation — doivent utiliser les outils ORM existants en lecture seule. Les opérations de création, modification et suppression sont hors périmètre du PoC.
+
+La lecture d'une donnée métier s'effectue sous l'identité authentifiée du demandeur. L'identité et les permissions ne proviennent jamais du LLM. 
+
+### 2.2 Documentation interne
+
+La branche documentaire utilise drive . Une réponse doit être fondée sur les passages récupérés.
+
 
 ## Prerequisites
 

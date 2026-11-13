@@ -22,11 +22,6 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def start_timer() -> float:
-    """Return a monotonic timestamp for elapsed-time measurement."""
-    return time.perf_counter()
-
-
 def write_ingestion_event(
     event_type: str,
     result: dict[str, Any] | None = None,

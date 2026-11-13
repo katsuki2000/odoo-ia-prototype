@@ -135,44 +135,6 @@ def test_sessions_skip_incomplete_group_results(log_module):
     assert log_module.MiroAiLog.get_sessions(model) == []
 
 
-class _Logs:
-    def __init__(self, count):
-        self.count = count
-        self.written = []
-
-    def __len__(self):
-        return self.count
-
-    def sudo(self):
-        return self
-
-    def write(self, values):
-        self.written.append(values)
-
-
-def test_archive_session_archives_the_requester_turns_with_an_elevated_write(log_module):
-    logs = _Logs(2)
-    domains = []
-    model = types.SimpleNamespace(
-        env=types.SimpleNamespace(uid=7),
-        search=lambda domain: domains.append(domain) or logs,
-    )
-
-    assert log_module.MiroAiLog.archive_session(model, "session") == 2
-
-    assert domains == [[("session_id", "=", "session"), ("user_id", "=", 7)]]
-    assert logs.written == [{"active": False}]
-
-
-def test_archive_session_without_session_id_touches_nothing(log_module):
-    model = types.SimpleNamespace(
-        env=types.SimpleNamespace(uid=7),
-        search=lambda domain: pytest.fail("search must not run without a session id"),
-    )
-
-    assert log_module.MiroAiLog.archive_session(model, None) == 0
-
-
 class _PurgeBatch:
     def __init__(self, count):
         self.count = count
@@ -189,38 +151,35 @@ def _purge_model(log_module, retention_days, batches):
     now = datetime(2026, 11, 12, 10, 0, 0)
     log_module.fields.Datetime.now.return_value = now
     searches = []
-    context = []
     remaining = list(batches)
 
     def search(domain, limit=None):
         searches.append((domain, limit))
         return remaining.pop(0)
 
-    scoped = types.SimpleNamespace(search=search)
-    elevated = types.SimpleNamespace(with_context=lambda **kwargs: context.append(kwargs) or scoped)
+    elevated = types.SimpleNamespace(search=search)
     settings = types.SimpleNamespace(log_retention_days=retention_days)
     settings_model = types.SimpleNamespace(
         sudo=lambda: types.SimpleNamespace(get_active_settings=lambda: settings)
     )
     model = types.SimpleNamespace(env={"miro.ai.settings": settings_model}, sudo=lambda: elevated)
-    return model, now, searches, context
+    return model, now, searches
 
 
 def test_gc_old_logs_deletes_everything_older_than_the_retention_in_batches(log_module):
     first, second, empty = _PurgeBatch(1000), _PurgeBatch(3), _PurgeBatch(0)
-    model, now, searches, context = _purge_model(log_module, 30, [first, second, empty])
+    model, now, searches = _purge_model(log_module, 30, [first, second, empty])
 
     log_module.MiroAiLog._gc_old_logs(model)
 
     cutoff = now - timedelta(days=30)
     assert searches == [([("create_date", "<", cutoff)], 1000)] * 3
-    assert context == [{"active_test": False}]
     assert (first.unlinked, second.unlinked, empty.unlinked) == (True, True, False)
 
 
 def test_gc_old_logs_with_nothing_old_deletes_nothing(log_module):
     empty = _PurgeBatch(0)
-    model, _, searches, _ = _purge_model(log_module, 90, [empty])
+    model, _, searches = _purge_model(log_module, 90, [empty])
 
     log_module.MiroAiLog._gc_old_logs(model)
 

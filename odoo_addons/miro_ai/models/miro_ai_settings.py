@@ -5,7 +5,7 @@ from odoo.exceptions import UserError
 
 MIN_SIGNING_SECRET_BYTES = 32
 DEFAULT_API_URL = 'http://127.0.0.1:8000'
-DEFAULT_LOG_RETENTION_DAYS = 30
+DEFAULT_LOG_RETENTION_DAYS = 7
 
 
 class MiroAiSettings(models.Model):
@@ -37,7 +37,7 @@ class MiroAiSettings(models.Model):
         required=True,
         default=DEFAULT_LOG_RETENTION_DAYS,
         help='Requests older than this are deleted automatically every day, '
-             'from the users\' history and from the audit log alike.'
+             'from the users\' history.'
     )
     api_token = fields.Char(
         string='API secret token (JWT secret)',

@@ -1,4 +1,4 @@
-"""Audit log and history of the MIRO AI requests: question, answer, sources, response time, requester."""
+"""Private history of the MIRO AI requests: question, answer, sources, response time, requester."""
 import json
 import logging
 from datetime import timedelta
@@ -26,7 +26,7 @@ def _parse_json_field(value, field_name, record_id, expected_type, default):
 
 class MiroAiLog(models.Model):
     _name = 'miro.ai.log'
-    _description = 'MIRO AI - RAG Request Audit Log'
+    _description = 'MIRO AI - Request History'
     _order = 'create_date desc, id desc'
     _rec_name = 'question'
 
@@ -84,11 +84,6 @@ class MiroAiLog(models.Model):
         ('success', 'Success'),
         ('error', 'Error')
     ], string='Status', default='success', readonly=True, index=True)
-    active = fields.Boolean(
-        default=True,
-        readonly=True,
-        help='Cleared when the user deletes the conversation: hidden from the history, kept in the audit log.'
-    )
 
     @api.depends('sources_text')
     def _compute_sources_count(self):
@@ -98,7 +93,7 @@ class MiroAiLog(models.Model):
 
     @api.model
     def log_query(self, question, answer, session_id, response_time_ms, sources, state='success', metadata=None):
-        """Record one request. Elevated so the audit trail is kept even without write access to the log."""
+        """Record one request. Elevated so the history is kept even without write access to the log."""
         sources_str = json.dumps(sources, ensure_ascii=False) if isinstance(sources, (list, dict)) else str(sources or '')
         metadata_str = json.dumps(metadata, ensure_ascii=False) if isinstance(metadata, dict) else ''
         return self.sudo().create({
@@ -168,15 +163,6 @@ class MiroAiLog(models.Model):
         return sessions
 
     @api.model
-    def archive_session(self, session_id):
-        """Hide one of the requester's own conversations from the history. Archived, not erased: the audit trail keeps it. Elevated write: users only read the log."""
-        if not session_id:
-            return 0
-        logs = self.search([('session_id', '=', session_id), ('user_id', '=', self.env.uid)])
-        logs.sudo().write({'active': False})
-        return len(logs)
-
-    @api.model
     def get_session_history(self, session_id):
         """Rebuild the full history of a session as an ordered list of question/answer turns (not elevated, like get_sessions)."""
         if not session_id:
@@ -199,10 +185,10 @@ class MiroAiLog(models.Model):
 
     @api.autovacuum
     def _gc_old_logs(self):
-        """Delete requests older than the configured retention, archived ones included (daily, by Odoo's autovacuum)."""
+        """Delete requests older than the configured retention (daily, by Odoo's autovacuum)."""
         days = self.env['miro.ai.settings'].sudo().get_active_settings().log_retention_days
         cutoff = fields.Datetime.now() - timedelta(days=days)
-        logs = self.sudo().with_context(active_test=False)
+        logs = self.sudo()
         while True:
             batch = logs.search([('create_date', '<', cutoff)], limit=PURGE_BATCH_SIZE)
             if not batch:

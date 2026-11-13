@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from config.settings import RAG_CHUNK_OVERLAP, RAG_CHUNK_SIZE
 import logging
-import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -37,9 +36,6 @@ from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
 
-PAGE_MARKER = re.compile(r"^--- Page \d+(?: \(OCR\))? ---\n", re.MULTILINE)
-
-
 def extract_pages_text(reader: Any) -> str:
     """Return the native text of every page of an open PDF, each page preceded by a marker."""
     text_parts = []
@@ -51,18 +47,6 @@ def extract_pages_text(reader: Any) -> str:
         except Exception as e:
             logger.warning("Error extracting text from page %d: %s", page_num + 1, e)
     return "\n\n".join(text_parts)
-
-
-def extract_native_text(pdf_path: str | Path) -> str:
-    """Return the text a PDF carries natively, as the ingestion indexes it, without OCR."""
-    if not PdfReader:
-        raise ImportError("pypdf is required for PDF loading")
-    return extract_pages_text(PdfReader(str(pdf_path)))
-
-
-def strip_page_markers(text: str) -> str:
-    """Remove the page markers added at extraction time."""
-    return PAGE_MARKER.sub("", text)
 
 
 def extract_text_via_ocr(pdf_path: Path) -> str:

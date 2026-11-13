@@ -50,19 +50,6 @@ class ChromaManager:
             arguments['where'] = where
         return format_query_results(self.collection.query(**arguments))
 
-    def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
-        try:
-            rows = self.collection.get(ids=[chunk_id])
-            if rows and rows['ids']:
-                return {'id': rows['ids'][0], 'document': rows['documents'][0], 'metadata': rows['metadatas'][0]}
-        except Exception as error:
-            logger.error('Chunk lookup failed (%s).', type(error).__name__)
-        return None
-
-    def delete_by_source(self, source_path: str) -> int:
-        rows = self.collection.get(where={'source': {'$eq': source_path}}, include=[])
-        return self.delete_by_ids(rows.get('ids', []) if rows else [])
-
     def delete_by_ids(self, ids: list[str]) -> int:
         if ids:
             self.collection.delete(ids=ids)

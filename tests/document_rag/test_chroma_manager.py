@@ -163,51 +163,6 @@ class TestChromaManager(unittest.TestCase):
             self.assertEqual(result["metadata"]["type"], "code_python")
 
     @pytest.mark.embedding_server
-    def test_get_by_id(self):
-        """Test retrieving a chunk by ID."""
-        texts = ["Test chunk content"]
-        metadatas = [{"source": "test.pdf", "type": "doc_pdf"}]
-        ids = ["test_id_123"]
-
-        self.manager.add_chunks(texts, metadatas, ids)
-
-        result = self.manager.get_by_id("test_id_123")
-
-        self.assertIsNotNone(result)
-        self.assertEqual(result["id"], "test_id_123")
-        self.assertEqual(result["document"], "Test chunk content")
-
-    def test_get_by_id_not_found(self):
-        """Test getting a non-existent chunk."""
-        result = self.manager.get_by_id("non_existent_id")
-        self.assertIsNone(result)
-
-    @pytest.mark.embedding_server
-    def test_delete_by_source(self):
-        """Test deleting chunks by source."""
-        texts = [
-            "Chunk 1 from file1",
-            "Chunk 2 from file1",
-            "Chunk 1 from file2",
-        ]
-        metadatas = [
-            {"source": "file1.pdf", "type": "doc_pdf"},
-            {"source": "file1.pdf", "type": "doc_pdf"},
-            {"source": "file2.pdf", "type": "doc_pdf"},
-        ]
-
-        self.manager.add_chunks(texts, metadatas)
-
-        # Delete file1
-        deleted_count = self.manager.delete_by_source("file1.pdf")
-
-        self.assertEqual(deleted_count, 2)
-
-        # Verify file2 still exists
-        results = self.manager.query("file2", top_k=10)
-        self.assertGreater(results["count"], 0)
-
-    @pytest.mark.embedding_server
     def test_delete_by_ids(self):
         """Test deleting chunks by ID."""
         texts = ["Chunk 1", "Chunk 2", "Chunk 3"]
@@ -225,8 +180,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertEqual(deleted_count, 2)
 
         # Verify third chunk still exists
-        result = self.manager.get_by_id(ids[2])
-        self.assertIsNotNone(result)
+        self.assertEqual(self.manager.collection.get(ids=[ids[2]])["ids"], [ids[2]])
 
     def test_delete_by_ids_empty(self):
         """Test delete_by_ids with empty list."""

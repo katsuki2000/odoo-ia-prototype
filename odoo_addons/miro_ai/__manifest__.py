@@ -1,6 +1,6 @@
 {
     'name': 'MIRO AI Assistant',
-    'version': '17.0.1.0.2',
+    'version': '17.0.1.0.3',
     'category': 'Productivity/AI',
     'summary': 'Intelligent AI Assistant for Odoo (RAG + ORM)',
     'author': 'RAILALA Mahalahatse',
@@ -11,7 +11,6 @@
         'security/miro_ai_security.xml',
         'security/ir.model.access.csv',
         'views/miro_ai_settings_views.xml',
-        'views/miro_ai_log_views.xml',
         'views/miro_ai_menus.xml',
     ],
     'assets': {

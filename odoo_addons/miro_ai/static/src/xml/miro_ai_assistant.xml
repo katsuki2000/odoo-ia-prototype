@@ -49,11 +49,6 @@
                                     <span t-esc="getExchangeCountLabel(session.message_count)"/>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-sm btn-link text-muted miro-history-delete" title="Delete conversation"
-                                    t-att-disabled="state.loading"
-                                    t-on-click.stop="() => this.confirmDeleteSession(session.session_id)">
-                                <i class="fa fa-trash"/>
-                            </button>
                         </div>
                     </t>
                     <div class="text-muted text-center small px-3 py-2">

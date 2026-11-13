@@ -19,13 +19,6 @@ from erp_data.tools import read_tools
 
 
 @pytest.fixture(autouse=True)
-def _reset_connector():
-    read_tools._connector = None
-    yield
-    read_tools._connector = None
-
-
-@pytest.fixture(autouse=True)
 def _turn_evidence():
     start_evidence_collection()
     yield
@@ -36,6 +29,18 @@ def _record_read(claim="res.partner.search_count -> 2", method="search_count"):
     record_evidence(make_evidence(
         EvidenceSourceType.ORM, claim=claim, source=f"orm_runtime.{method}", value=2, scope={"method": method},
     ))
+
+
+def _scripted_invoke(replies, seen):
+    def invoke(_llm, messages):
+        seen.append(messages[-1].content)
+        return next(replies)
+    return invoke
+
+
+def _fake_read_execute(tool_call, _tools, _plan=None):
+    _record_read(method=tool_call["name"])
+    return tool_call["name"], {}, "observation", True
 
 
 def test_resolve_orm_tools_exposes_only_generic_read_primitives():
@@ -670,12 +675,8 @@ def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer
     replies = iter([AIMessage(content="  "), AIMessage(content="Il y a 2 partenaires.")])
     seen = []
 
-    def fake_invoke(_llm, messages):
-        seen.append(messages[-1].content)
-        return next(replies)
-
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
-    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "invoke_llm", _scripted_invoke(replies, seen))
     result = node.orm_agent_loop({"question": "Combien de partenaires ?"})
     assert result["response"].answer == "Il y a 2 partenaires."
     assert seen[1] == EMPTY_REPLY_REMINDER
@@ -740,20 +741,12 @@ def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkey
     ])
     seen = []
 
-    def fake_invoke(_llm, messages):
-        seen.append(messages[-1].content)
-        return next(replies)
-
-    def fake_execute(tool_call, _tools, _plan=None):
-        _record_read(method=tool_call["name"])
-        return tool_call["name"], {}, "observation", True
-
     plan = QueryPlan(subject="dépenses", result_kind=kind, answer_language="English")
     monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
-    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
-    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "invoke_llm", _scripted_invoke(replies, seen))
+    monkeypatch.setattr(node, "execute_tool_call", _fake_read_execute)
     monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
 
     result = node.orm_agent_loop({"question": "Combien a-t-on dépensé le mois dernier ?"})
@@ -797,20 +790,12 @@ def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
     ])
     seen = []
 
-    def fake_invoke(_llm, messages):
-        seen.append(messages[-1].content)
-        return next(replies)
-
-    def fake_execute(tool_call, _tools, _plan=None):
-        _record_read(method=tool_call["name"])
-        return tool_call["name"], {}, "observation", True
-
     plan = QueryPlan(subject="factures", result_kind="count", answer_language="French")
     monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
-    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
-    monkeypatch.setattr(node, "execute_tool_call", fake_execute)
+    monkeypatch.setattr(node, "invoke_llm", _scripted_invoke(replies, seen))
+    monkeypatch.setattr(node, "execute_tool_call", _fake_read_execute)
     monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
 
     result = node.orm_agent_loop({"question": "Existe-t-il une facture brouillon et publiee ?"})
@@ -838,10 +823,6 @@ def test_a_concept_without_model_is_answered_as_unavailable_without_source(monke
     ])
     seen = []
 
-    def fake_invoke(_llm, messages):
-        seen.append(messages[-1].content)
-        return next(replies)
-
     def fake_execute(tool_call, _tools, _plan=None):
         _record_read(method="get_available_models")
         return tool_call["name"], {}, "models matching -> 0 models", False
@@ -850,7 +831,7 @@ def test_a_concept_without_model_is_answered_as_unavailable_without_source(monke
     monkeypatch.setattr(node, "plan_orm_question", lambda *_a: (plan, 1))
     monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
-    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "invoke_llm", _scripted_invoke(replies, seen))
     monkeypatch.setattr(node, "execute_tool_call", fake_execute)
     monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
 

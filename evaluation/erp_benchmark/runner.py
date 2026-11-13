@@ -204,21 +204,6 @@ def result_from_record(record: dict[str, Any]) -> OracleResult:
     )
 
 
-def summarize_oracle(records: list[dict[str, Any]]) -> dict[str, Any]:
-    applicable = [record for record in records if record.get("oracle_status") == "ok"]
-    skipped = [record for record in records if record.get("oracle_status") != "ok"]
-    return {
-        "selected": len(records),
-        "applicable": len(applicable),
-        "not_evaluable": len(skipped),
-        "coverage": len(applicable) / len(records) if records else 0.0,
-        "reasons": {
-            reason: sum(item.get("oracle_reason") == reason for item in skipped)
-            for reason in sorted({item.get("oracle_reason") for item in skipped if item.get("oracle_reason")})
-        },
-    }
-
-
 def build_profile(login: str, password_env: str = "ODOO_BENCH_PASSWORD") -> tuple[str, str]:
     password = os.getenv(password_env, "")
     if not password:
