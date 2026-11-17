@@ -1,9 +1,4 @@
 """Evidence: the fact an ORM tool produced while it worked, with its provenance.
-
-Distinct from SourceReference (core/schemas.py), which is the UI-facing citation of a RAG chunk.
-The turn-scoped accumulator is the side channel through which ORM tool wrappers hand their Evidence over:
-LangChain tools can only return a str. query_graph starts it once per turn and drains it into
-AssistantResponse.evidence_dossier.
 """
 
 import contextvars
