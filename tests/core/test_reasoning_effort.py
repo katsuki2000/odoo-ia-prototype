@@ -1,5 +1,7 @@
 """The reasoning effort reaches the LLM request only when it is set."""
 
+from unittest.mock import patch
+
 from langchain_core.messages import HumanMessage
 
 import config.settings as settings
@@ -8,7 +10,8 @@ from document_rag.generation import generate_node
 
 
 def request_payload(**kwargs):
-    llm = get_chat_llm(base_url="http://127.0.0.1:11434/v1", model="m", api_key="k", **kwargs)
+    with patch("core.llm.LLM_BASE_URL", "http://127.0.0.1:11434/v1"):
+        llm = get_chat_llm(**kwargs)
     return llm._get_request_payload([HumanMessage(content="question")])
 
 

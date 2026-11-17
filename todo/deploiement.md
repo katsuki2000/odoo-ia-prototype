@@ -218,7 +218,6 @@ chmod 600 .env
 Valeurs a renseigner :
 
 ```dotenv
-LLM_TARGET=aws
 OLLAMA_HOST=http://127.0.0.1:11434
 ODOO_URL=http://127.0.0.1:8069
 ODOO_DB=<base>
@@ -383,7 +382,3 @@ Dans le navigateur :
 - Mode documentation sans source : `GOOGLE_DRIVE_APPROVED_FOR_RAG` a `false`, identifiants Drive manquants, ou premiere synchro encore en cours (`journalctl -u miro-api`).
 - Liens en `http://` ou boucle de redirection : `proxy_mode` absent ou en-tete `X-Forwarded-Proto` manquant dans nginx.
 - Certificat refuse : le DNS ne pointe pas encore sur la VM ou le port 80 est ferme.
-
-## 17. Plan B pour le LLM : Kaggle
-
-Utilisable pour une demonstration ponctuelle seulement (session limitee, URL qui change). Dans le `.env` : `LLM_TARGET=kaggle` et `KAGGLE_OLLAMA_HOST=https://<tunnel-ngrok>`, puis `sudo systemctl restart miro-api`. Le notebook doit exposer Ollama par un tunnel sortant (ngrok ou cloudflared), car Kaggle n'accepte aucune connexion entrante.

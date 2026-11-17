@@ -47,9 +47,8 @@ def pending_answers(answers, results, retry_errors):
 
 
 def build_metrics(judge):
-    llm_client = AsyncOpenAI(base_url=settings.LLM_BASE_URL, api_key=settings.LLM_API_KEY, default_headers=settings.LLM_EXTRA_HEADERS)
-    embedding_client = AsyncOpenAI(base_url=settings.EMBEDDING_BASE_URL, api_key=settings.EMBEDDING_API_KEY,
-                                   default_headers=settings.LLM_EXTRA_HEADERS)
+    llm_client = AsyncOpenAI(base_url=settings.LLM_BASE_URL, api_key=settings.LLM_API_KEY)
+    embedding_client = AsyncOpenAI(base_url=settings.EMBEDDING_BASE_URL, api_key=settings.EMBEDDING_API_KEY)
     llm = llm_factory(judge, client=llm_client, temperature=0)
     embeddings = embedding_factory('openai', model=settings.EMBEDDING_MODEL, client=embedding_client)
     return Faithfulness(llm=llm), AnswerRelevancy(llm=llm, embeddings=embeddings)

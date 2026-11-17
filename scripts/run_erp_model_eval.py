@@ -14,7 +14,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from config import settings
-from evaluation import run_store
+from evaluation import run_store, settings as eval_settings
 from evaluation.bench_common import (
     contains_fact,
     execute_runs,
@@ -35,7 +35,7 @@ from erp_data.connector.odoo_connector import OdooConnectorError
 
 QUESTIONS_PATH = project_root / "evaluation" / "data" / "erp_eval_questions.json"
 RESULTS_PATH = project_root / "captures" / "erp_model_eval.jsonl"
-QUESTION_TIMEOUT_SECONDS = settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS
+QUESTION_TIMEOUT_SECONDS = eval_settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS
 ODOO_ERRORS = (BackendUnavailable, OSError, xmlrpc.client.Error, OdooConnectorError)
 
 
@@ -364,7 +364,7 @@ def main(argv=None):
         parser.error("--passes must be at least 1")
     if args.context_length < 1:
         parser.error("--context-length must be at least 1")
-    password = settings.ODOO_BENCH_PASSWORD
+    password = eval_settings.ODOO_BENCH_PASSWORD
     if not password:
         parser.error("ODOO_BENCH_PASSWORD must be set in the backend .env")
 

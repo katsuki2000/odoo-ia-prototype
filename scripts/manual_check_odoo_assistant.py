@@ -11,7 +11,8 @@ import time
 
 import requests
 
-from config.settings import ODOO_DB, ODOO_BENCH_PASSWORD, ODOO_URL
+from config.settings import ODOO_DB, ODOO_URL
+from evaluation.settings import ODOO_BENCH_PASSWORD
 
 ASK_TIMEOUT_SECONDS = 600
 POLL_INTERVAL_SECONDS = 2

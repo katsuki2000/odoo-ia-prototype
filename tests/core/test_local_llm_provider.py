@@ -8,13 +8,6 @@ from langchain_openai import ChatOpenAI
 from core.llm import get_chat_llm
 
 
-def test_get_chat_llm_explicit_endpoint():
-    llm = get_chat_llm(base_url="http://127.0.0.1:11434/v1", model="llama3.1", api_key="ollama")
-    assert isinstance(llm, ChatOpenAI)
-    assert "127.0.0.1:11434" in str(llm.openai_api_base)
-    assert llm.model_name == "llama3.1"
-
-
 def test_get_chat_llm_uses_configured_server():
     with patch("core.llm.LLM_BASE_URL", "http://127.0.0.1:8000/v1"), \
          patch("core.llm.LLM_MODEL", "meta-llama/Llama-3-8b-instruct"):

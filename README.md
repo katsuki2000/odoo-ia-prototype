@@ -33,7 +33,7 @@ La branche documentaire utilise drive . Une réponse doit être fondée sur les 
 
 ### LLM and Embedding Providers
 
-Inference uses private OpenAI-compatible endpoints configured in `.env` (Ollama or vLLM on the AWS instance or reachable from it; the Kaggle endpoint is optional). There is no cloud-provider fallback.
+Inference uses private OpenAI-compatible endpoints configured in `.env` (Ollama or vLLM on the AWS instance or reachable from it). There is no cloud-provider fallback.
 
 
 ## Complete Setup Guide (New Machine)
@@ -81,7 +81,6 @@ The `.env` holds **secrets, service addresses, and paths that vary by machine or
 ```dotenv
 OLLAMA_HOST=http://<aws-instance-address>:11434
 ```
-To use the temporary Kaggle host instead, set `LLM_TARGET=kaggle` and `KAGGLE_OLLAMA_HOST=https://<ngrok-tunnel>`.
 
 ### Step 4 : Install Odoo 17 (if not already present)
 
@@ -296,6 +295,7 @@ odoo-ia-prototype/
 │       ├── orm_agent_helpers.py    #     Agent utilities (plan, synthesis)
 │       └── prompts.py              #     ERP system prompts
 ├── evaluation/                     # Model comparison and benchmarking
+│   ├── settings.py                 #   Settings read by benchmarks and scripts only
 │   └── data/                       #   Question banks (JSON)
 ├── odoo_addons/miro_ai/            # Odoo 17 module
 │   ├── __manifest__.py             #   Module manifest (v17.0.1.0.2)
@@ -337,10 +337,7 @@ The system mode runs one agent loop over the typed, read-only ORM tools (`fields
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LLM_TARGET` | No | `aws` | Inference host: `aws` (production) or `kaggle` (temporary dev host) |
-| `OLLAMA_HOST` | Yes | none | Ollama server address (`KAGGLE_OLLAMA_HOST` when `LLM_TARGET=kaggle`; every inference variable takes the `KAGGLE_` prefix on that target) |
-| `LLM_BASE_URL` / `LLM_API_KEY` | No | `<host>/v1` / `ollama` | Optional overrides of the chat endpoint and its key |
-| `EMBEDDING_BASE_URL` | No | `<host>/v1` | Embedding server URL |
+| `OLLAMA_HOST` | Yes | none | Ollama server address, used for chat and embeddings; the only value to change to move the inference server |
 | `ODOO_SOURCE_PATH` | No | `../odoo-17.0` | Odoo source checkout; the answer verifier reads the native ORM method names from `odoo/models.py` |
 | `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
 | `ODOO_DB` | For the health check and scripts | none | Odoo database for calls made outside a user request; a request only uses the database signed into its JWT by the Odoo addon, never this value |

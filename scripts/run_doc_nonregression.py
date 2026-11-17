@@ -19,6 +19,7 @@ from config import settings
 from core.graph.graph import query_graph
 from core.schemas import QueryRoute
 from erp_data.connector.odoo_connector import OdooConnectorError
+from evaluation import settings as eval_settings
 from evaluation.odoo_auth import authenticate_odoo
 from evaluation.preflight import BackendUnavailable
 
@@ -142,7 +143,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Documentary non-regression of the question benchmark.")
     parser.add_argument("--login", required=True, help="Odoo user login the questions are asked as")
     args = parser.parse_args(argv)
-    password = settings.ODOO_BENCH_PASSWORD
+    password = eval_settings.ODOO_BENCH_PASSWORD
     if not password:
         parser.error("ODOO_BENCH_PASSWORD must be set in the backend .env")
     questions = load_questions()

@@ -52,6 +52,11 @@ def offline_odoo_runtime():
 
 
 @pytest.fixture(autouse=True)
+def _no_reasoning_trace_file(monkeypatch):
+    monkeypatch.setattr("core.session.reasoning_trace_logger.REASONING_TRACE_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def _isolate_odoo_runtime(request, monkeypatch):
     if request.node.get_closest_marker("integration") is None:
         monkeypatch.setattr(settings, "ODOO_URL", UNREACHABLE_ODOO_URL)

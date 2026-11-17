@@ -15,6 +15,9 @@ ENGINES = ("document_rag", "erp_data")
 KERNEL = ("core.llm", "core.session", "core.schemas", "core.evidence")
 ORCHESTRATION = ("core.graph", "core.verification")
 
+PRODUCTION = ("api", "config", "core", *ENGINES)
+TOOLING = ("evaluation", "scripts", "tests")
+
 KNOWN_VIOLATIONS = frozenset()
 
 
@@ -80,3 +83,14 @@ def test_no_new_layer_violation():
 
 def test_known_violations_are_still_present():
     assert KNOWN_VIOLATIONS - _current_violations() == set()
+
+
+def test_production_never_imports_the_tooling():
+    found = {
+        (_module_name(path), module)
+        for package in PRODUCTION
+        for path in sorted((ROOT / package).rglob("*.py"))
+        for module in _imported_modules(path)
+        if _is_under(module, TOOLING)
+    }
+    assert found == set()

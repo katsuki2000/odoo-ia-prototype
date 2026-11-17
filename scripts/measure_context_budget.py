@@ -11,8 +11,7 @@ sizes per role and the size of any "thinking" output.
 Interpretation criteria (fixed BEFORE measuring). The window
 is considered limiting if, on at least one call:
   - prompt + completion >= 90 % of the window, or
-  - finish_reason == "length", or
-  - llm_client logged a "contexte reduit" event (silent context reduction).
+  - finish_reason == "length".
 Otherwise the window is not the bottleneck on the measured questions.
 Known caveat: a server may truncate an over-long prompt without any error, so a
 prompt_tokens value glued to the window is suspect even without other signals.
@@ -27,7 +26,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import logging
 import re
 import sys
 import tempfile
@@ -71,7 +69,6 @@ class Recorder:
     def __init__(self) -> None:
         self.calls: List[Dict[str, Any]] = []
         self.current_id: Optional[str] = None
-        self.context_reductions: Dict[str, int] = {}
 
     def record(self, messages, result, elapsed: float, error: Optional[str]) -> None:
         entry: Dict[str, Any] = {
@@ -118,20 +115,6 @@ class Recorder:
         self.calls.append(entry)
 
 
-class _ReductionHandler(logging.Handler):
-    """Counts the 'contexte reduit' warnings emitted by core.llm."""
-
-    def __init__(self, recorder: Recorder) -> None:
-        super().__init__(level=logging.WARNING)
-        self.recorder = recorder
-
-    def emit(self, record: logging.LogRecord) -> None:
-        text = record.getMessage().lower()
-        if "contexte r" in text and "duit" in text:
-            key = self.recorder.current_id or "?"
-            self.recorder.context_reductions[key] = self.recorder.context_reductions.get(key, 0) + 1
-
-
 def install_probe(recorder: Recorder) -> None:
     from langchain_openai import ChatOpenAI
 
@@ -160,7 +143,6 @@ def install_probe(recorder: Recorder) -> None:
 
     ChatOpenAI._generate = wrapped_sync
     ChatOpenAI._agenerate = wrapped_async
-    logging.getLogger("core.llm").addHandler(_ReductionHandler(recorder))
 
 
 def resolve_window(requested: Optional[int]) -> tuple[int, str]:
@@ -174,7 +156,7 @@ def resolve_window(requested: Optional[int]) -> tuple[int, str]:
     return int(loaded), "server"
 
 
-def summarize(question_id: str, calls: List[Dict[str, Any]], reductions: int, window: int) -> Dict[str, Any]:
+def summarize(question_id: str, calls: List[Dict[str, Any]], window: int) -> Dict[str, Any]:
     ok = [c for c in calls if c.get("prompt_tokens") is not None]
     max_prompt = max((c["prompt_tokens"] for c in ok), default=None)
     max_total = max(
@@ -189,7 +171,7 @@ def summarize(question_id: str, calls: List[Dict[str, Any]], reductions: int, wi
     chars = sum(sum(c["chars_by_role"].values()) for c in ok)
     prompt_total = sum(c["prompt_tokens"] for c in ok)
     limiting = bool(
-        (ratio is not None and ratio >= LIMITING_RATIO) or length_cuts > 0 or reductions > 0
+        (ratio is not None and ratio >= LIMITING_RATIO) or length_cuts > 0
     )
     return {
         "question_id": question_id,
@@ -204,7 +186,6 @@ def summarize(question_id: str, calls: List[Dict[str, Any]], reductions: int, wi
         "sum_reasoning_tokens": sum((c.get("reasoning_tokens") or 0) for c in ok),
         "think_chars_total": sum(c.get("think_chars", 0) for c in calls),
         "finish_reason_length": length_cuts,
-        "context_reductions_logged": reductions,
         "suspect_silent_truncation_calls": suspect,
         "approx_chars_per_token": round(chars / prompt_total, 2) if prompt_total else None,
         "window_is_limiting": limiting,
@@ -254,14 +235,13 @@ def main() -> int:
             error = f"{type(exc).__name__}: {exc}"[:300]
             print(f"[error] agent raised: {error}")
         calls = recorder.calls[start:]
-        summary = summarize(q["id"], calls, recorder.context_reductions.get(q["id"], 0), window)
+        summary = summarize(q["id"], calls, window)
         summary["agent_error"] = error
         summaries.append(summary)
         print(
             f"[done] calls={summary['llm_calls']} max_prompt={summary['max_prompt_tokens']} "
             f"max_total={summary['max_prompt_plus_completion_tokens']} "
-            f"({summary['max_pct_of_window']} % of window) length_cuts={summary['finish_reason_length']} "
-            f"reductions={summary['context_reductions_logged']} -> "
+            f"({summary['max_pct_of_window']} % of window) length_cuts={summary['finish_reason_length']} -> "
             f"{'LIMITING' if summary['window_is_limiting'] else 'not limiting'}"
         )
         if summary["llm_calls"] == 0 and error:

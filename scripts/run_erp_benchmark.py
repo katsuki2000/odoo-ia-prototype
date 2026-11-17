@@ -14,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from config import settings
+from evaluation import settings as eval_settings
 from evaluation.bench_common import latency_percentiles, mean, pct, run_on_model, seconds_text
 from evaluation.erp_benchmark.bank import BankError, load_bank
 from evaluation.erp_benchmark.plans import PLANS
@@ -187,7 +187,7 @@ def report(path: Path) -> None:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--bank", type=Path, default=settings.ERP_BENCHMARK_BANK_PATH)
+    parser.add_argument("--bank", type=Path, required=True)
     parser.add_argument("--ids", nargs="+")
     parser.add_argument("--login")
     parser.add_argument("--password-env", default="ODOO_BENCH_PASSWORD")
@@ -195,8 +195,8 @@ def parse_args(argv=None):
     parser.add_argument("--reasoning-effort")
     parser.add_argument("--passes", type=int, default=1)
     parser.add_argument("--context-length", type=int, default=32768)
-    parser.add_argument("--max-rows", type=int, default=settings.ERP_BENCHMARK_MAX_ROWS)
-    parser.add_argument("--output", type=Path, default=settings.ERP_BENCHMARK_CAPTURE_PATH)
+    parser.add_argument("--max-rows", type=int, default=eval_settings.ERP_BENCHMARK_MAX_ROWS)
+    parser.add_argument("--output", type=Path, default=eval_settings.ERP_BENCHMARK_CAPTURE_PATH)
     parser.add_argument("--oracle-only", action="store_true")
     parser.add_argument("--validate", action="store_true")
     parser.add_argument("--report", action="store_true")
@@ -251,7 +251,7 @@ def main(argv=None):
         args.passes,
         args.output,
         run_id,
-        settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS,
+        eval_settings.ERP_MODEL_EVAL_TIMEOUT_SECONDS,
         args.context_length,
     )
     return exit_code

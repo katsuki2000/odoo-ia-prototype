@@ -1,8 +1,4 @@
 """Environment and instance configuration.
-
-.env supplies only what varies per machine or deployment: secrets, addresses
-(LLM server, Odoo instance, API bind) and locations of external installs.
-Everything else is a constant defined here.
 """
 
 import os
@@ -13,50 +9,32 @@ _ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / '.env')
 
 # ---------------------------------------------------------------------------
-# LLM inference target
+# LLM inference server
 # ---------------------------------------------------------------------------
-# The default target reads unprefixed env vars (OLLAMA_HOST, ...); kaggle,
-# a temporary dev host, reads KAGGLE_*: delete its entry to drop it.
-LLM_TARGETS = {
-    'aws': {'prefix': '', 'headers': {}},
-    'kaggle': {'prefix': 'KAGGLE_', 'headers': {'ngrok-skip-browser-warning': '1'}},
-}
-LLM_TARGET = os.getenv('LLM_TARGET', 'aws').strip().lower()
-if LLM_TARGET not in LLM_TARGETS:
-    raise ValueError(f'LLM_TARGET must be one of {sorted(LLM_TARGETS)}, got {LLM_TARGET!r}.')
-LLM_EXTRA_HEADERS = LLM_TARGETS[LLM_TARGET]['headers']
-LLM_TARGET_PREFIX = LLM_TARGETS[LLM_TARGET]['prefix']
-
-
-def _target_setting(name, default=''):
-    return os.getenv(f'{LLM_TARGET_PREFIX}{name}') or default
-
-
 def require_inference_server(url):
     if not url:
-        raise ValueError(f'No inference server configured: set {LLM_TARGET_PREFIX}OLLAMA_HOST in .env.')
+        raise ValueError('No inference server configured: set OLLAMA_HOST in .env.')
     return url
 
 
-OLLAMA_HOST = _target_setting('OLLAMA_HOST')
+OLLAMA_HOST = os.getenv('OLLAMA_HOST', '')
 _ollama_url = f'{OLLAMA_HOST}/v1' if OLLAMA_HOST else ''
-LLM_BASE_URL = _target_setting('LLM_BASE_URL', _ollama_url)
+LLM_BASE_URL = _ollama_url
 LLM_MODEL = 'gemma4:26b'
-LLM_API_KEY = _target_setting('LLM_API_KEY', 'ollama')
+LLM_API_KEY = 'ollama'
 LLM_TEMPERATURE = 0.2
 # 'none' switches reasoning off on models that support it; None keeps the model default.
 RAG_REASONING_EFFORT = None
 ERP_REASONING_EFFORT = None
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
 LLM_MAX_RETRIES = 1
-ERP_MODEL_EVAL_TIMEOUT_SECONDS = 180
 
 # ---------------------------------------------------------------------------
 # Embedding
 # ---------------------------------------------------------------------------
-EMBEDDING_BASE_URL = _target_setting('EMBEDDING_BASE_URL', _ollama_url)
+EMBEDDING_BASE_URL = _ollama_url
 EMBEDDING_MODEL = 'bge-m3:latest'
-EMBEDDING_API_KEY = _target_setting('EMBEDDING_API_KEY', 'ollama')
+EMBEDDING_API_KEY = 'ollama'
 EMBEDDING_TIMEOUT = 30.0
 
 # ---------------------------------------------------------------------------
@@ -83,7 +61,6 @@ ODOO_URL = os.getenv('ODOO_URL') or 'http://localhost:8069'
 ODOO_DB = os.getenv('ODOO_DB', '')
 ODOO_ADMIN_LOGIN = os.getenv('ODOO_ADMIN_LOGIN') or 'admin'
 ODOO_ADMIN_PASSWORD = os.getenv('ODOO_ADMIN_PASSWORD', '')
-ODOO_BENCH_PASSWORD = os.getenv('ODOO_BENCH_PASSWORD', '')
 ODOO_ALLOWED_MODELS = frozenset()
 
 # ---------------------------------------------------------------------------
@@ -137,8 +114,8 @@ ASK_JOB_TTL_SECONDS = 1800
 SESSION_MAX_COUNT = 1000
 QUESTION_PREVIEW_CHARS = 80
 OBSERVATION_PREVIEW_CHARS = 300
-# Diagnostic file of the agent's reasoning hops (question preview, tool arguments, result excerpts): off unless asked.
-REASONING_TRACE_ENABLED = os.getenv('REASONING_TRACE_ENABLED', '').lower() == 'true'
+# Diagnostic file of the agent's reasoning hops (question preview, tool arguments, result excerpts): on unless disabled.
+REASONING_TRACE_ENABLED = os.getenv('REASONING_TRACE_ENABLED', 'true').lower() == 'true'
 CHAT_HISTORY_MAX_MESSAGES = 10
 
 # ---------------------------------------------------------------------------
@@ -148,10 +125,3 @@ OUT_OF_SCOPE_ANSWER = (
     "Cette question est hors de mon périmètre. "
     "Je suis spécialisé dans l'assistance interne et les procédures."
 )
-
-# ---------------------------------------------------------------------------
-# Benchmarking
-# ---------------------------------------------------------------------------
-ERP_BENCHMARK_MAX_ROWS = 50
-ERP_BENCHMARK_BANK_PATH = _ROOT / '.scratch' / 'miro_ai_eval_authoring' / 'draft_erp_questions.jsonl'
-ERP_BENCHMARK_CAPTURE_PATH = _ROOT / 'captures' / 'erp_benchmark_eval.jsonl'

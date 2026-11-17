@@ -40,13 +40,11 @@ def _ollama_details(base_url: Optional[str], model: Optional[str], http_get: Any
     """Native Ollama details (read-only, best effort): version, digest / quantization, loaded context."""
     root = (base_url or "").rstrip("/")
     root = root[:-3] if root.endswith("/v1") else root
-    from config import settings
-    headers = dict(settings.LLM_EXTRA_HEADERS)
     details: Dict[str, Any] = {}
 
     def fetch(path: str) -> Optional[Dict[str, Any]]:
         try:
-            response = http_get(root + path, timeout=timeout, headers=headers)
+            response = http_get(root + path, timeout=timeout)
             return response.json() if response.status_code == 200 else None
         except Exception:  # noqa: BLE001
             return None
