@@ -16,6 +16,48 @@ from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
 
+HEADING_RE = re.compile(r"^(#{1,6}) +(.+?) *$", re.MULTILINE)
+TABLE_RULE_RE = re.compile(r"^\|(\s*:?-+:?\s*\|)+\s*$")
+
+
+def _chunk_starts(content: str, chunks: list[str]) -> list[int]:
+    """Offset of each chunk in the content (-1 if not found); chunks come in order and may overlap."""
+    starts, cursor = [], 0
+    for chunk in chunks:
+        start = content.find(chunk, cursor)
+        starts.append(start)
+        if start >= 0:
+            cursor = start + 1
+    return starts
+
+
+def _heading_path(content: str, start: int) -> str:
+    """Titles of the headings that govern the offset, outermost first, joined by ' > '."""
+    stack: list[tuple[int, str]] = []
+    for heading in HEADING_RE.finditer(content, 0, max(start, 0)):
+        level = len(heading.group(1))
+        while stack and stack[-1][0] >= level:
+            stack.pop()
+        stack.append((level, heading.group(2)))
+    opening = HEADING_RE.match(content, start) if start > 0 else None
+    while opening and stack and stack[-1][0] >= len(opening.group(1)):
+        stack.pop()
+    return " > ".join(title for _, title in stack)
+
+
+def _table_header(content: str, start: int) -> str:
+    """Header and rule rows of the table a chunk starts inside, so that its rows keep their column names."""
+    if start <= 0 or content[start - 1] != "\n" or not content.startswith("|", start):
+        return ""
+    rows: list[str] = []
+    for line in reversed(content[:start].split("\n")[:-1]):
+        if not line.startswith("|"):
+            break
+        rows.append(line)
+    if len(rows) >= 2 and TABLE_RULE_RE.match(rows[-2]):
+        return f"{rows[-1]}\n{rows[-2]}"
+    return ""
+
 
 class WikiLoader:
     """Loads and processes wiki and documentation files."""
@@ -105,37 +147,36 @@ class WikiLoader:
         chunks = self.splitter.split_text(content)
         logger.info("Created %d chunks from %s", len(chunks), file_path)
 
-        metadatas = []
+        starts = _chunk_starts(content, chunks) if is_markdown else []
+        texts, metadatas = [], []
         for i, chunk in enumerate(chunks):
             chunk_metadata = base_metadata.copy()
-            section = self._extract_markdown_section(chunk) if is_markdown else self._extract_section(chunk)
+            text = chunk
+            if is_markdown:
+                section = _heading_path(content, starts[i]) or None
+                context = [f"[{section}]" if section else "", _table_header(content, starts[i]), chunk]
+                text = "\n".join(filter(None, context))
+            else:
+                section = self._extract_section(chunk)
             chunk_metadata.update(
                 {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    "content_hash": content_hash(chunk),
+                    "content_hash": content_hash(text),
                     "section": section,
                     "has_code_block": "```" in chunk,
                 }
             )
             if is_markdown:
                 chunk_metadata["has_table"] = "|" in chunk and "-" in chunk
+            texts.append(text)
             metadatas.append(chunk_metadata)
 
-        return {"chunks": chunks, "metadatas": metadatas}
+        return {"chunks": texts, "metadatas": metadatas}
 
     def _extract_section(self, text: str) -> Optional[str]:
         for line in text.split("\n"):
             line = line.strip()
             if line.isupper() and len(line) > 5:
                 return line
-        return None
-
-    def _extract_markdown_section(self, text: str) -> Optional[str]:
-        h2_match = re.search(r"^## (.+)$", text, re.MULTILINE)
-        if h2_match:
-            return h2_match.group(1).strip()
-        h3_match = re.search(r"^### (.+)$", text, re.MULTILINE)
-        if h3_match:
-            return h3_match.group(1).strip()
         return None

@@ -95,7 +95,7 @@ def refresh_documents(client, records, manager, loader=None, chunk_size=RAG_CHUN
     if loader is None:
         loader = load_document
     result = {'added': [], 'updated': [], 'skipped': [], 'failed': {}, 'chunks_added': 0, 'chunks_deleted': 0}
-    profile = f'google-drive-v1:{chunk_size}:{chunk_overlap}'
+    profile = f'google-drive-v2:{chunk_size}:{chunk_overlap}'
     for record in records:
         source = _source_url(validate_drive_id(record['id']))
         try:

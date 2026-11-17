@@ -36,21 +36,54 @@ class TestWikiLoader(unittest.TestCase):
 
         self.assertIn(section, ["INTRODUCTION", "MORE CONTENT"])
 
-    def test_extract_markdown_section(self):
-        """Test section extraction from markdown."""
-        text = "## Installation\nSome installation steps\n### Prerequisites"
+    def _chunk_markdown(self, markdown, chunk_size=60):
+        loader = WikiLoader(chunk_size=chunk_size, chunk_overlap=0)
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "doc.md")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(markdown)
+            return loader.load_markdown_file(path)
 
-        section = self.loader._extract_markdown_section(text)
+    def test_every_chunk_carries_the_titles_that_govern_it(self):
+        markdown = "# Guide\n\n## Debouches\n\n### Par mention\n\n" + "Texte du paragraphe. " * 40
 
-        self.assertEqual(section, "Installation")
+        result = self._chunk_markdown(markdown)
 
-    def test_extract_markdown_section_h3(self):
-        """Test h3 extraction from markdown."""
-        text = "### Advanced Usage\nMore details here"
+        paragraphs = [c for c in result["chunks"] if "Texte du paragraphe" in c]
+        self.assertGreater(len(paragraphs), 1)
+        for chunk in paragraphs:
+            self.assertTrue(chunk.startswith("[Guide > Debouches > Par mention]\n"))
+        self.assertEqual(result["metadatas"][-1]["section"], "Guide > Debouches > Par mention")
 
-        section = self.loader._extract_markdown_section(text)
+    def test_a_chunk_opening_with_a_heading_does_not_inherit_its_sibling(self):
+        markdown = "# Guide\n\n## A\n\n" + "alpha " * 30 + "\n\n## B\n\n" + "beta " * 60
 
-        self.assertEqual(section, "Advanced Usage")
+        result = self._chunk_markdown(markdown)
+        by_start = {c.split("\n", 1)[-1][:4]: m["section"] for c, m in zip(result["chunks"], result["metadatas"])}
+        sections = [m["section"] for m in result["metadatas"]]
+
+        self.assertEqual(by_start["## B"], "Guide")
+        self.assertIn("Guide > B", sections)
+        self.assertNotIn("Guide > A > B", sections)
+
+    def test_a_split_table_repeats_its_header_in_every_chunk(self):
+        rows = "\n".join(f"| Row{i} | Value{i} |" for i in range(20))
+        markdown = "## Table\n\n| Name | Outcome |\n| --- | --- |\n" + rows + "\n"
+
+        chunks = self._chunk_markdown(markdown, chunk_size=40)["chunks"]
+
+        self.assertGreater(len(chunks), 2)
+        for chunk in chunks:
+            if "| Row" in chunk:
+                self.assertIn("| Name | Outcome |\n| --- | --- |", chunk)
+        self.assertEqual(chunks[1].count("| Name | Outcome |"), 1)
+
+    def test_a_document_without_headings_is_left_unchanged(self):
+        markdown = "Texte simple. " * 40
+
+        chunks = self._chunk_markdown(markdown)["chunks"]
+
+        self.assertFalse(any(chunk.startswith("[") for chunk in chunks))
 
     def test_load_text_file_not_found(self):
         """Test loading non-existent text file."""
