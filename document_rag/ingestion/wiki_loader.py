@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 HEADING_RE = re.compile(r"^(#{1,6}) +(.+?) *$", re.MULTILINE)
 TABLE_RULE_RE = re.compile(r"^\|(\s*:?-+:?\s*\|)+\s*$")
+TABLE_ROW_RE = re.compile(r"^\|", re.MULTILINE)
 
 
 def _chunk_starts(content: str, chunks: list[str]) -> list[int]:
@@ -168,7 +169,7 @@ class WikiLoader:
                 }
             )
             if is_markdown:
-                chunk_metadata["has_table"] = "|" in chunk and "-" in chunk
+                chunk_metadata["has_table"] = bool(TABLE_ROW_RE.search(chunk))
             texts.append(text)
             metadatas.append(chunk_metadata)
 

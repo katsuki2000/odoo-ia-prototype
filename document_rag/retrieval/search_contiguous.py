@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from config.settings import RAG_DOCUMENT_EXPANSION_MAX_CHUNKS, RAG_DOCUMENT_EXPANSION_MIN_CHUNKS
 
@@ -92,67 +92,59 @@ def expand_dominant_documents(
     return expanded
 
 
+def _adjacent_indexes(meta: Mapping[str, Any], available: Mapping[int, Mapping[str, Any]]) -> Iterator[int]:
+    """
+    Indexes of the chunks to add around a chunk holding a list or a table: its two neighbours, and, for a
+    table, the following chunks of the same table (same section, table rows) in each direction.
+    """
+    in_table = bool(meta.get("has_table"))
+    for step in (-1, 1):
+        for distance in range(1, RAG_DOCUMENT_EXPANSION_MAX_CHUNKS + 1):
+            index = meta["chunk_index"] + step * distance
+            if index not in available:
+                break
+            yield index
+            neighbour = available[index]["metadata"]
+            if not (in_table and neighbour.get("has_table") and neighbour.get("section") == meta.get("section")):
+                break
+
+
 def expand_contiguous_chunks(
     results: Sequence[Mapping[str, Any]],
     chroma_manager: Any = None,
 ) -> list[dict[str, Any]]:
     """
-    Ensure complete list and table retrieval by pulling adjacent chunks
-    (chunk_index - 1, chunk_index + 1) for any chunk containing lists or tables.
+    Ensure complete list and table retrieval: a chunk containing a list or a table brings its two neighbours,
+    and a table is followed to its end, so that a table found by one of its chunks is returned whole.
     """
     if not results or chroma_manager is None:
         return [dict(item) for item in results]
 
-    has_any_list = any(contains_list_or_table(item.get("document", "")) for item in results)
-    if not has_any_list:
-        return [dict(item) for item in results]
+    chunks_by_source: dict[str, dict[int, dict[str, Any]]] = {}
+    for item in results:
+        meta = item.get("metadata") or {}
+        if meta.get("source") and meta.get("chunk_index") is not None:
+            chunks_by_source.setdefault(meta["source"], {})[meta["chunk_index"]] = dict(item)
 
-    expanded_by_source: dict[str, dict[int, dict[str, Any]]] = {}
-    known_keys = set()
     source_cache: dict[str, dict[int, dict[str, Any]]] = {}
-
     for item in results:
         meta = item.get("metadata") or {}
         source = meta.get("source")
-        idx = meta.get("chunk_index")
-        if source and idx is not None:
-            known_keys.add((source, idx))
-            expanded_by_source.setdefault(source, {})[idx] = dict(item)
-
-    for item in results:
-        doc = item.get("document", "")
-        if not contains_list_or_table(doc):
+        if not source or meta.get("chunk_index") is None or not contains_list_or_table(item.get("document", "")):
             continue
-
-        meta = item.get("metadata") or {}
-        source = meta.get("source")
-        idx = meta.get("chunk_index")
-        total = meta.get("total_chunks")
-        if not source or idx is None:
-            continue
-
         if source not in source_cache:
             source_cache[source] = fetch_source_chunks(chroma_manager, source)
         available = source_cache[source]
-
-        for adjacent_idx in (idx - 1, idx + 1):
-            if 0 <= adjacent_idx and (total is None or adjacent_idx < total):
-                if (source, adjacent_idx) not in known_keys and adjacent_idx in available:
-                    adj_chunk = dict(available[adjacent_idx])
-                    adj_chunk["is_contiguous_expansion"] = True
-                    expanded_by_source.setdefault(source, {})[adjacent_idx] = adj_chunk
-                    known_keys.add((source, adjacent_idx))
+        for index in _adjacent_indexes(meta, available):
+            chunks_by_source[source].setdefault(index, {**available[index], "is_contiguous_expansion": True})
 
     final_results = []
     seen_sources = set()
     for item in results:
-        src = (item.get("metadata") or {}).get("source")
-        if src and src in expanded_by_source:
-            if src not in seen_sources:
-                seen_sources.add(src)
-                for idx in sorted(expanded_by_source[src].keys()):
-                    final_results.append(expanded_by_source[src][idx])
-        else:
+        source = (item.get("metadata") or {}).get("source")
+        if source not in chunks_by_source:
             final_results.append(dict(item))
-
+        elif source not in seen_sources:
+            seen_sources.add(source)
+            final_results.extend(chunks_by_source[source][index] for index in sorted(chunks_by_source[source]))
     return final_results

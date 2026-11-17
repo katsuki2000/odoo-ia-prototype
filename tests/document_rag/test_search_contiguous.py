@@ -1,6 +1,7 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
-from document_rag.retrieval.search_contiguous import expand_dominant_documents
+from document_rag.retrieval.search_contiguous import expand_contiguous_chunks, expand_dominant_documents
 
 
 def _chunk(source, index, score=None, total=4):
@@ -75,3 +76,58 @@ def test_an_unreadable_document_is_left_as_is():
 def test_without_a_collection_the_results_are_returned_unchanged():
     results = [_chunk("manual", 3, 1.0)]
     assert expand_dominant_documents(results, None) == results
+
+
+def _part(index, kind="table", section="Debouches", source="guide", total=10):
+    document = {"table": f"| Row{index} | Value{index} |", "list": f"- item {index}", "prose": f"Paragraph {index}."}[kind]
+    metadata = {"source": source, "chunk_index": index, "total_chunks": total, "section": section, "has_table": kind == "table"}
+    return {"id": f"{source}:{index}", "document": document, "metadata": metadata}
+
+
+def _expand(retrieved_indexes, parts):
+    results = [parts[index] for index in retrieved_indexes]
+    return [item["metadata"]["chunk_index"] for item in expand_contiguous_chunks(results, _chroma(guide=parts))]
+
+
+def test_a_table_found_by_one_chunk_is_returned_whole():
+    parts = [_part(index) for index in range(6)]
+    assert _expand([2], parts) == [0, 1, 2, 3, 4, 5]
+
+
+def test_a_table_is_not_followed_into_another_section():
+    parts = [_part(0, section="A"), _part(1, section="A"), _part(2, section="B"), _part(3, section="B"), _part(4, section="B")]
+    assert _expand([2], parts) == [1, 2, 3, 4]
+
+
+def test_a_table_is_not_followed_past_a_chunk_without_rows():
+    parts = [_part(0), _part(1), _part(2), _part(3, kind="prose"), _part(4)]
+    assert _expand([0], parts) == [0, 1, 2, 3]
+
+
+def test_a_list_only_brings_its_two_neighbours():
+    parts = [_part(index, kind="list") for index in range(5)]
+    assert _expand([2], parts) == [1, 2, 3]
+
+
+def test_a_chunk_without_list_or_table_is_not_expanded():
+    parts = [_part(index, kind="prose") for index in range(4)]
+    assert _expand([1], parts) == [1]
+
+
+def test_a_table_is_followed_for_at_most_the_expansion_limit_in_each_direction():
+    parts = [_part(index) for index in range(10)]
+    with patch("document_rag.retrieval.search_contiguous.RAG_DOCUMENT_EXPANSION_MAX_CHUNKS", 2):
+        assert _expand([5], parts) == [3, 4, 5, 6, 7]
+
+
+def test_only_the_added_chunks_are_marked_as_expansions():
+    parts = [_part(index) for index in range(3)]
+    expanded = expand_contiguous_chunks([parts[1]], _chroma(guide=parts))
+    assert [item.get("is_contiguous_expansion", False) for item in expanded] == [True, False, True]
+
+
+def test_chunks_of_other_sources_are_left_in_place():
+    parts = [_part(index) for index in range(3)]
+    other = _part(0, kind="prose", source="faq")
+    expanded = expand_contiguous_chunks([other, parts[1]], _chroma(guide=parts, faq=[other]))
+    assert _indexes(expanded) == [("faq", 0), ("guide", 0), ("guide", 1), ("guide", 2)]

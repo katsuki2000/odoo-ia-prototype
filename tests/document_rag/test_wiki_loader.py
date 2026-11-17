@@ -78,6 +78,18 @@ class TestWikiLoader(unittest.TestCase):
                 self.assertIn("| Name | Outcome |\n| --- | --- |", chunk)
         self.assertEqual(chunks[1].count("| Name | Outcome |"), 1)
 
+    def test_has_table_is_true_only_for_chunks_holding_table_rows(self):
+        prose = "Choix a | b - c. " * 20
+        table = "| Name | Outcome |\n| --- | --- |\n" + "\n".join(f"| Row{i} | Value{i} |" for i in range(10))
+        markdown = f"## Prose\n\n{prose}\n\n## Table\n\n{table}\n"
+
+        result = self._chunk_markdown(markdown, chunk_size=40)
+
+        for chunk, metadata in zip(result["chunks"], result["metadatas"]):
+            self.assertEqual(metadata["has_table"], "Row" in chunk or "| Name |" in chunk)
+        self.assertTrue(any(m["has_table"] for m in result["metadatas"]))
+        self.assertTrue(any(not m["has_table"] for m in result["metadatas"]))
+
     def test_a_document_without_headings_is_left_unchanged(self):
         markdown = "Texte simple. " * 40
 
