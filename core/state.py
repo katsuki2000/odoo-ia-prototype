@@ -10,7 +10,6 @@ from core.schemas import AssistantResponse
 class RAGState(TypedDict, total=False):
     question: str
     chat_history: list[BaseMessage]
-    uid: int | None
     timing: dict
     retrieved_chunks: list[dict]
     response: AssistantResponse | None

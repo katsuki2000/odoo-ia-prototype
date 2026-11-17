@@ -110,6 +110,16 @@ def verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
     return verified
 
 
+def cited_chunks(used_source_aliases: list, alias_map: dict) -> list:
+    """Chunks behind the aliases the LLM declared, unknown aliases ignored."""
+    return [alias_map[alias] for alias in used_source_aliases if alias in alias_map]
+
+
+def has_low_quality_ocr(chunks: list) -> bool:
+    """True if one of the chunks comes from a scan whose OCR reading quality is low."""
+    return any((chunk.get("metadata") or {}).get("ocr_quality") == "low" for chunk in chunks)
+
+
 def compute_rag_confidence(chunks: list) -> float:
     """Compute confidence score (0.0 to 1.0) deterministically for documentary branch."""
     if not chunks:

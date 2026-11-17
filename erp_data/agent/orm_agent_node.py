@@ -15,7 +15,7 @@ from config.settings import (
 from core.evidence import filter_disclosed_evidence, peek_turn_evidence
 from core.llm import invoke_llm
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
-from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+from core.session.reasoning_trace_logger import ReasoningTraceLogger, finish_branch, new_trace_id
 from core.state import RAGState
 from erp_data.agent.orm_agent_helpers import (
     DOMAIN_QUERY_TOOLS,
@@ -176,14 +176,9 @@ def orm_agent_loop(state: RAGState) -> dict:
     )
     response, extra_calls = _build_response(question, result)
 
-    timing = state.get("timing", {}).copy()
-    timing["generation_time"] = time.time() - start_time
-    timing["llm_call_count"] = result.llm_calls + extra_calls
-    timing["hop_count"] = result.hops
-    trace_logger.log_summary(
-        trace_id=trace_id, branch=QueryRoute.ERP_DATA.value, question=question,
-        hop_count=result.hops, llm_call_count=timing["llm_call_count"],
-        total_time_ms=timing["generation_time"] * 1000, hop_cap=REACT_RECURSION_LIMIT,
+    timing = finish_branch(
+        trace_logger, trace_id, QueryRoute.ERP_DATA.value, question, state, start_time,
+        result.llm_calls + extra_calls, hops=result.hops, hop_cap=REACT_RECURSION_LIMIT,
     )
     return {
         "response": response,

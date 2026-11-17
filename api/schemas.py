@@ -4,6 +4,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from core.schemas import QueryRoute
+
+
 class AskRequestV1(BaseModel):
     """Question asked to the assistant."""
     question: str = Field(..., min_length=1)
@@ -13,7 +16,7 @@ class AskRequestV1(BaseModel):
         default=None,
         description='Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.',
     )
-    source_mode: Literal['documentation', 'system'] = Field(
+    source_mode: QueryRoute = Field(
         description=(
             "Source chosen by the user: 'documentation' searches the internal documents, "
             "'system' investigates this Odoo instance."

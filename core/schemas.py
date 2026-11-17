@@ -102,7 +102,7 @@ class AssistantResponse(BaseModel):
     answer: str = Field(..., description="The main text of the assistant's answer in French")
     sources: list[SourceReference] = Field(default_factory=list, description="List of sources cited in the answer")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
-    ocr_warning: bool = Field(default=False, description="True if any of the sources come from a low-quality OCR scan")
+    ocr_warning: bool = Field(default=False, description="True if a source used for the answer comes from a low-quality OCR scan")
     route: str | None = Field(
         default=None,
         description="Which QueryRoute branch handled this turn",

@@ -61,7 +61,7 @@ def query_graph(
         raise ValueError(f'source_mode must be one of {sorted(SOURCE_MODES)}, got {source_mode!r}.')
     start_time = time.time()
     initial_state = {
-        'question': question, 'chat_history': chat_history or [], 'uid': uid,
+        'question': question, 'chat_history': chat_history or [],
         'timing': {}, 'retrieved_chunks': [], 'response': None,
         'source_mode': source_mode, 'language': language,
     }

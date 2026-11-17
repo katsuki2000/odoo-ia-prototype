@@ -50,14 +50,12 @@ class VerificationTests(unittest.TestCase):
 
 
 class OwnershipAndRetirementTests(unittest.TestCase):
-    def test_retrieval_uses_its_owner_not_a_compatibility_patch(self):
-        owned = Mock(return_value=('chroma', 'bm25'))
-        search = Mock(return_value=[{'document': 'actual'}])
-        ns = load('core/graph/graph_nodes.py', {'retrieve'}, {
-            'get_retriever': owned, 'search_retrieve': search, 'RAG_TOP_K': 10})
+    def test_retrieval_is_delegated_to_its_owner_not_a_compatibility_patch(self):
+        owned = Mock(return_value=[{'document': 'actual'}])
+        ns = load('core/graph/graph_nodes.py', {'retrieve'}, {'quick_retrieve': owned, 'RAG_TOP_K': 10})
         fake_graph = ModuleType('core.graph.graph')
         fake_graph.get_retriever = Mock(side_effect=AssertionError('compatibility target used'))
         with patch.dict('sys.modules', {fake_graph.__name__: fake_graph}):
             self.assertTrue(ns['retrieve']({'question': 'policy'})['retrieved_chunks'])
-        owned.assert_called_once()
+        owned.assert_called_once_with('policy', top_k=10)
         fake_graph.get_retriever.assert_not_called()

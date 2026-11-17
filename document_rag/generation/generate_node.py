@@ -7,9 +7,12 @@ from core.schemas import AssistantResponse, LLMResponse, QueryRoute
 import config.settings as settings
 from core.state import RAGState
 from core.llm import get_chat_llm, invoke_llm
+from core.session.reasoning_trace_logger import ReasoningTraceLogger, finish_branch, new_trace_id
 from document_rag.generation.generate_helpers import (
     build_source_aliases as _build_source_aliases,
+    cited_chunks,
     format_context as _format_context,
+    has_low_quality_ocr,
     verify_used_sources as _verify_used_sources,
     compute_rag_confidence,
     parse_raw_json_answer as _parse_raw_json_answer,
@@ -33,9 +36,7 @@ def generate(state: RAGState) -> dict:
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
-    from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
-    _trace_id = new_trace_id()
-    _trace_logger = ReasoningTraceLogger()
+    trace_logger, trace_id = ReasoningTraceLogger(), new_trace_id()
 
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
@@ -44,12 +45,7 @@ def generate(state: RAGState) -> dict:
             sources=[],
             confidence=0.0,
         )
-        timing = state.get("timing", {}).copy()
-        timing["generation_time"] = time.time() - start_time
-        _trace_logger.log_summary(
-            trace_id=_trace_id, branch=QueryRoute.DOCUMENTARY.value, question=question,
-            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
-        )
+        timing = finish_branch(trace_logger, trace_id, QueryRoute.DOCUMENTARY.value, question, state, start_time, 0)
         return {"response": response, "timing": timing}
 
     from document_rag.generation.prompts import build_rag_messages as build_messages
@@ -70,6 +66,7 @@ def generate(state: RAGState) -> dict:
             answer=_strip_source_aliases(llm_resp.answer),
             confidence=llm_resp.confidence,
             sources=_verify_used_sources(llm_resp.used_sources, alias_map),
+            ocr_warning=has_low_quality_ocr(cited_chunks(llm_resp.used_sources, alias_map) or chunks),
         )
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
@@ -81,6 +78,7 @@ def generate(state: RAGState) -> dict:
                 answer=_strip_source_aliases(parsed_answer if parsed_answer is not None else raw_resp.content),
                 confidence=compute_rag_confidence(chunks),
                 sources=[],
+                ocr_warning=has_low_quality_ocr(chunks),
             )
             structured_failed = True
         except Exception as e2:
@@ -91,16 +89,6 @@ def generate(state: RAGState) -> dict:
                 confidence=0.0,
             )
 
-    timing = state.get("timing", {}).copy()
-    timing["generation_time"] = time.time() - start_time
-    timing["llm_call_count"] = _llm_call_count
-    _trace_logger.log_summary(
-        trace_id=_trace_id, branch=QueryRoute.DOCUMENTARY.value, question=question,
-        hop_count=0, llm_call_count=_llm_call_count,
-        total_time_ms=timing["generation_time"] * 1000,
-    )
-    return {
-        "response": response,
-        "timing": timing,
-        "structured_failed": structured_failed,
-    }
+    timing = finish_branch(
+        trace_logger, trace_id, QueryRoute.DOCUMENTARY.value, question, state, start_time, _llm_call_count)
+    return {"response": response, "timing": timing, "structured_failed": structured_failed}

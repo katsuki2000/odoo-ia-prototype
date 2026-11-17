@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.schemas import AssistantResponse, SourceReference
+from core.schemas import AssistantResponse, LLMResponse, SourceReference
 from core.graph.graph_nodes import format_output, retrieve
 from document_rag.generation.generate_node import generate, _parse_raw_json_answer
 from document_rag.generation.generate_helpers import verify_used_sources
@@ -18,8 +18,7 @@ def test_generate_without_context_returns_no_source_answer():
 
 
 def test_retrieve_node_lets_a_backend_failure_reach_the_pipeline():
-    with patch('core.graph.graph_nodes.get_retriever', return_value=(MagicMock(), MagicMock())), \
-         patch('core.graph.graph_nodes.search_retrieve', side_effect=ConnectionError('embedding server unreachable')):
+    with patch('core.graph.graph_nodes.quick_retrieve', side_effect=ConnectionError('embedding server unreachable')):
         with pytest.raises(ConnectionError):
             retrieve({'question': 'Comment déployer un module ?'})
 
@@ -55,25 +54,40 @@ def test_raw_invoke_response_is_parsed_after_structured_call_fails(mock_build_ll
     assert result['response'].answer == 'Réponse issue des observations.'
 
 
-def test_format_output_without_ocr_warning():
-    state = {
-        'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=[]),
-        'retrieved_chunks': [{'document': 'test doc', 'metadata': {'source': 'wiki.md', 'type': 'wiki'}}],
-    }
-    result = format_output(state)
-    assert not result['response'].ocr_warning
-    assert 'reading quality is limited' not in result['response'].answer
+def _generate_with(chunks, used_sources):
+    with patch('document_rag.generation.generate_node._build_llm') as build_llm:
+        llm = build_llm.return_value
+        llm.with_structured_output.return_value.invoke.return_value = LLMResponse(
+            answer='Voici la réponse.', confidence=0.8, used_sources=used_sources)
+        return generate({'question': 'q', 'chat_history': [], 'retrieved_chunks': chunks})['response']
 
 
-def test_format_output_flags_a_low_quality_scan_without_changing_the_answer():
-    state = {
-        'source_mode': 'documentation',
-        'response': AssistantResponse(answer='Voici la réponse.', confidence=0.8, sources=[]),
-        'retrieved_chunks': [{'document': 'scan', 'metadata': {'source': 'scan.pdf', 'type': 'pdf', 'ocr_quality': 'low'}}],
-    }
-    result = format_output(state)
-    assert result['response'].ocr_warning
-    assert result['response'].answer == 'Voici la réponse.'
+SCAN = {'document': 'scan', 'metadata': {'source': 'scan.pdf', 'type': 'doc_pdf', 'ocr_quality': 'low'}}
+WIKI = {'document': 'wiki', 'metadata': {'source': 'wiki.md', 'type': 'doc_wiki'}}
+
+
+def test_a_cited_low_quality_scan_raises_the_ocr_warning():
+    response = _generate_with([WIKI, SCAN], ['S2'])
+    assert response.ocr_warning
+    assert response.answer == 'Voici la réponse.'
+
+
+def test_a_low_quality_scan_that_is_not_cited_does_not_raise_the_ocr_warning():
+    assert not _generate_with([SCAN, WIKI], ['S2']).ocr_warning
+
+
+def test_without_declared_sources_any_retrieved_low_quality_scan_raises_the_ocr_warning():
+    assert _generate_with([WIKI, SCAN], []).ocr_warning
+    assert not _generate_with([WIKI], []).ocr_warning
+
+
+@patch('document_rag.generation.generate_node._build_llm')
+def test_the_ocr_warning_survives_the_raw_invoke_fallback(mock_build_llm):
+    llm = mock_build_llm.return_value
+    llm.with_structured_output.return_value.invoke.side_effect = RuntimeError('structured output unavailable')
+    llm.invoke.return_value = SimpleNamespace(content='Réponse libre.')
+    state = {'question': 'q', 'chat_history': [], 'retrieved_chunks': [WIKI, SCAN]}
+    assert generate(state)['response'].ocr_warning
 
 
 def _source(title, source):

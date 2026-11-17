@@ -11,6 +11,7 @@ from api.language import request_language
 from api.public_errors import public_http_exception
 from api.schemas import AskJobAcceptedV1, AskJobRequestV1, AskJobStatusV1, AskRequestV1, AskResponseV1
 from core.graph.graph import query_graph
+from core.schemas import QueryRoute
 from core.session.session_store import get_session, update_session
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
         company_id = request.company_id if token_company_id is None else int(token_company_id)
         if not api_key:
             logger.warning('No Odoo API key in the JWT for uid=%s: ERP calls will be refused.', uid)
-            if request.source_mode == 'system':
+            if request.source_mode is QueryRoute.ERP_DATA:
                 raise HTTPException(
                     status_code=403,
                     detail='The Odoo user identity is unavailable for this system request.',
@@ -43,7 +44,7 @@ def _answer_question(request: AskRequestV1, accept_language: str | None, user: d
             chat_history=chat_history,
             uid=uid,
             api_key=api_key,
-            source_mode=request.source_mode,
+            source_mode=request.source_mode.value,
             language=request_language(request.language, accept_language),
             company_id=company_id,
             company_ids=[company_id],

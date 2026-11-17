@@ -3,6 +3,7 @@
 import datetime
 import json
 import logging
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -46,6 +47,28 @@ def _now() -> str:
 
 def new_trace_id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+def finish_branch(
+    trace_logger: "ReasoningTraceLogger",
+    trace_id: str,
+    branch: str,
+    question: str,
+    state: dict,
+    started: float,
+    llm_calls: int,
+    hops: int | None = None,
+    hop_cap: int | None = None,
+) -> dict:
+    """Timing of a branch node (the state's timing plus this node's figures), logged as the trace summary."""
+    timing = {**state.get("timing", {}), "generation_time": time.time() - started, "llm_call_count": llm_calls}
+    if hops is not None:
+        timing["hop_count"] = hops
+    trace_logger.log_summary(
+        trace_id=trace_id, branch=branch, question=question, hop_count=hops or 0, llm_call_count=llm_calls,
+        total_time_ms=timing["generation_time"] * 1000, hop_cap=hop_cap,
+    )
+    return timing
 
 
 class ReasoningTraceLogger:
