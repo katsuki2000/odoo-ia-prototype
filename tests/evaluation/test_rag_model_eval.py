@@ -187,13 +187,14 @@ def test_a_reasoning_effort_variant_is_recorded_under_its_own_label(bench):
 
 def test_execute_sets_the_reasoning_effort_only_during_the_run_when_asked(monkeypatch, bench):
     seen = []
+    monkeypatch.setattr(bench.settings, "RAG_REASONING_EFFORT", "medium")
     monkeypatch.setattr(bench, "run_once", lambda item, chunks: seen.append(bench.settings.RAG_REASONING_EFFORT) or {
         "error": None, "seconds": 1.0, "fact_recall": 1.0, "source_recall": 1.0, "abstained": False})
     todo = [(_item(id="Q1"), 1)]
     for effort in (None, "none"):
         bench.execute(todo, {}, "m1", {"vram_fraction": 1.0}, {"Q1": []}, effort)
     assert seen == [None, "none"]
-    assert bench.settings.RAG_REASONING_EFFORT is None
+    assert bench.settings.RAG_REASONING_EFFORT == "medium"
 
 
 def test_resume_skips_done_runs_and_retries_errors_on_request(bench):

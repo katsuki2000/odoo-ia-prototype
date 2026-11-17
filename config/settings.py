@@ -24,7 +24,7 @@ LLM_MODEL = 'gemma4:26b'
 LLM_API_KEY = 'ollama'
 LLM_TEMPERATURE = 0.2
 # 'none' switches reasoning off on models that support it; None keeps the model default.
-RAG_REASONING_EFFORT = None
+RAG_REASONING_EFFORT = 'none'
 ERP_REASONING_EFFORT = None
 LLM_REQUEST_TIMEOUT_SECONDS = 90.0
 LLM_MAX_RETRIES = 1
