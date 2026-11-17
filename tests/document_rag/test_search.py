@@ -30,6 +30,7 @@ from document_rag.retrieval.search import (
     retrieve,
     vector_search,
 )
+from document_rag.retrieval.search_ranking import select_top
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
@@ -141,6 +142,30 @@ class TestRRF(unittest.TestCase):
         for r in fused:
             self.assertGreaterEqual(r["rrf_score"], 0.0)
             self.assertLessEqual(r["rrf_score"], 1.0)
+
+    def test_rrf_records_the_bm25_rank(self):
+        vec = [self._make_result("a")]
+        bm25 = [self._make_result("c"), self._make_result("a")]
+
+        ranks = {r["id"]: r["bm25_rank"] for r in reciprocal_rank_fusion(vec, bm25, relevance_threshold=0.0)}
+
+        self.assertEqual(ranks, {"a": 2, "c": 1})
+
+    def test_select_top_keeps_the_best_lexical_hits(self):
+        fused = [{"id": f"v{i}", "bm25_rank": None} for i in range(10)]
+        fused += [{"id": "rare_term", "bm25_rank": 1}, {"id": "third", "bm25_rank": 3}]
+
+        ids = [r["id"] for r in select_top(fused, 10, lexical_slots=2)]
+
+        self.assertEqual(len(ids), 10)
+        self.assertEqual(ids[:9], [f"v{i}" for i in range(9)])
+        self.assertEqual(ids[9], "rare_term")
+        self.assertNotIn("third", ids)
+
+    def test_select_top_is_the_plain_cut_without_lexical_hits(self):
+        fused = [{"id": f"v{i}", "bm25_rank": None} for i in range(12)]
+
+        self.assertEqual(select_top(fused, 10, lexical_slots=2), fused[:10])
 
 
 @pytest.mark.embedding_server

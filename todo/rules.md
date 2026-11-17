@@ -24,3 +24,5 @@ commit ; sens toi libre, mais le nom du commit doit etre explicite
 
 
 pour les diagrammes, mets le code (par ex puml) dans le dossier diagramme avant de les generer dans le doc
+
+RESPECte la separation et la structuration des dossiers, supprimer test par exemple ne devrait pas avoir un impact sur 

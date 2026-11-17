@@ -15,7 +15,7 @@ from config.settings import (
 from document_rag.retrieval.bm25_index import _STOP_WORDS, _tokenize, BM25Index, bm25_search
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.retrieval.search_hybrid import hybrid_search, vector_search
-from document_rag.retrieval.search_ranking import reciprocal_rank_fusion
+from document_rag.retrieval.search_ranking import reciprocal_rank_fusion, select_top
 from document_rag.retrieval.search_contiguous import expand_contiguous_chunks, expand_dominant_documents
 from document_rag.retrieval.drive_guard import filter_current_drive_chunks
 
@@ -39,7 +39,7 @@ def retrieve(query: str, top_k: int = 5, chroma_manager: ChromaManager | list[Ch
     if not fused_results:
         logger.warning('No results after hybrid search for query: %s', query[:QUESTION_PREVIEW_CHARS])
         return []
-    final_results = expand_dominant_documents(fused_results[:top_k], chroma_manager=chroma_manager)
+    final_results = expand_dominant_documents(select_top(fused_results, top_k), chroma_manager=chroma_manager)
     final_results = expand_contiguous_chunks(final_results, chroma_manager=chroma_manager)
     final_results = filter_current_drive_chunks(final_results, chroma_manager)
     logger.info("Retrieval complete: %d results for query '%s'", len(final_results), query[:QUESTION_PREVIEW_CHARS])

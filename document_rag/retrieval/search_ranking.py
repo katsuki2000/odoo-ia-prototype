@@ -5,7 +5,7 @@ Ranking and Fusion Module — Reciprocal Rank Fusion (RRF).
 from __future__ import annotations
 
 from typing import Any
-from config.settings import RAG_BM25_WEIGHT, RAG_RELEVANCE_THRESHOLD, RAG_VECTOR_WEIGHT
+from config.settings import RAG_BM25_WEIGHT, RAG_LEXICAL_SLOTS, RAG_RELEVANCE_THRESHOLD, RAG_VECTOR_WEIGHT
 
 
 def reciprocal_rank_fusion(
@@ -22,6 +22,7 @@ def reciprocal_rank_fusion(
     """
     doc_map: dict[str, dict[str, Any]] = {}
     rrf_scores: dict[str, float] = {}
+    bm25_ranks: dict[str, int] = {}
 
     for rank, result in enumerate(vector_results):
         doc_id = result["id"]
@@ -32,6 +33,7 @@ def reciprocal_rank_fusion(
     for rank, result in enumerate(bm25_results):
         doc_id = result["id"]
         rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + bm25_weight / (k + rank + 1)
+        bm25_ranks[doc_id] = rank + 1
         if doc_id not in doc_map:
             doc_map[doc_id] = result
 
@@ -48,7 +50,17 @@ def reciprocal_rank_fusion(
         if score >= relevance_threshold:
             result = doc_map[doc_id].copy()
             result["rrf_score"] = score
+            result["bm25_rank"] = bm25_ranks.get(doc_id)
             fused.append(result)
 
     fused.sort(key=lambda x: x["rrf_score"], reverse=True)
     return fused
+
+
+def select_top(fused: list[dict[str, Any]], top_k: int, lexical_slots: int = RAG_LEXICAL_SLOTS) -> list[dict[str, Any]]:
+    """
+    First top_k fused results, except that the best BM25 hits cut off by the vector weight keep a place.
+    A rare exact term (a name, a code) often has no vector neighbour, so fusion alone drops it.
+    """
+    lexical = [r for r in fused[top_k:] if r.get("bm25_rank") and r["bm25_rank"] <= lexical_slots]
+    return fused[: top_k - len(lexical)] + lexical
