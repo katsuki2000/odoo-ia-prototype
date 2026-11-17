@@ -1,4 +1,4 @@
-"""Both answer prompts carry the Markdown rules that the assistant panel renders."""
+"""Both answer prompts carry the format rules that the assistant panel renders."""
 
 from core.markdown_format import MARKDOWN_FORMAT_RULES
 from document_rag.generation.prompts import build_rag_messages

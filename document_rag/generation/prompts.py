@@ -64,19 +64,6 @@ N'utilise jamais la confiance pour masquer une absence de preuve.
 Pour le champ "answer" :
 {markdown_format_rules}
 
-Exemple de format attendu pour une réponse structurée (titre + étapes numérotées + gras) :
-
-### Procédure Odoo
-
-1. **Première étape**
-   - Ouvrez le menu correspondant.
-   - Cliquez sur le bouton d'action.
-
-2. **Deuxième étape**
-   - Remplissez les informations requises, puis confirmez.
-
-Aucune balise HTML n'apparaît dans cet exemple -- uniquement du Markdown standard ("###", "**...**", "- "). Respecte STRICTEMENT ce format.
-
 # Format de réponse
 
 Réponds TOUJOURS avec un JSON valide :

@@ -157,36 +157,6 @@
     color: #ffffff;
 }
 
-.miro-heading {
-    color: #1e293b;
-    border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 3px;
-}
-
-.user-message .miro-heading {
-    color: #ffffff;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.miro-list {
-    padding-left: 20px;
-    margin-bottom: 8px;
-}
-
-.miro-list .miro-list {
-    margin-bottom: 0;
-}
-
-.miro-table-wrapper {
-    overflow-x: auto;
-    margin-bottom: 8px;
-}
-
-.miro-table {
-    font-size: 0.85em;
-    margin-bottom: 0;
-}
-
 .miro-link {
     color: #0284c7;
     text-decoration: underline;
