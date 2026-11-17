@@ -128,6 +128,15 @@
       "facts": ["Core i7", "27", "Casque", "36 mois"]
     },
     {
+      "id": "TABLE-03",
+      "category": "table_lookup",
+      "answerable": true,
+      "question": "Quels sont les débouchés des parcours à l'ENI ?",
+      "reference": "Le tableau des débouchés donne, pour chacune des trois mentions, la liste des métiers de chaque parcours : Informatique (ILSI, ISRI), Intelligence Artificielle (GID, OCC) et Expertise Digitale (MDi, ASI). Une réponse complète couvre les trois mentions, pas seulement celle dont la ligne est la mieux classée.",
+      "reference_sources": ["MASTER_ENI_paulite_v3.docx"],
+      "facts": ["Architecte logiciel", "Ingénieur DevOps", "Data Scientist", "Ingénieur IoT", "Analyste UX/UI", "Auditeur des Systèmes d'Information"]
+    },
+    {
       "id": "MULTI-01",
       "category": "multi_document",
       "answerable": true,
