@@ -25,12 +25,9 @@ def _settings_and_secret():
     return settings, settings.get_signing_secret()
 
 
-def _unreachable_message(api_url):
-    return _("Cannot reach the server (%s). Check that the backend is running.", api_url)
-
-
-def _server_error_message(status_code):
-    return _("Miro AI server error (code %s). Please check that the service is running.", status_code)
+def _unavailable_message():
+    return _("The assistant is temporarily unavailable. Please try again in a moment; "
+             "if the problem persists, contact the administrator.")
 
 
 def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='success', metadata=None):
@@ -117,10 +114,10 @@ class MiroAiController(http.Controller):
             if resp.status_code == 429:
                 message = _("The assistant is busy answering other questions. Please try again in a moment.")
             else:
-                message = _server_error_message(resp.status_code)
+                message = _unavailable_message()
         except BackendError as error:
             _logger.exception("Backend unreachable: %s", error)
-            message = _unreachable_message(api_url)
+            message = _unavailable_message()
         revoke_requester_keys(request.env, job_id)
         _log_exchange(question, message, effective_session, int((time.time() - start_time) * 1000), state='error')
         return {'answer': message, 'sources': []}
@@ -148,18 +145,18 @@ class MiroAiController(http.Controller):
                 api_url, f"/api/v1/ask/jobs/{job_id}", headers, BACKEND_REPLY_TIMEOUT_SECONDS)
         except BackendError as error:
             _logger.exception("Backend unreachable: %s", error)
-            return {'answer': _unreachable_message(api_url), 'sources': []}
+            return {'answer': _unavailable_message(), 'sources': []}
         if resp.status_code == 404:
             return {'answer': _("This answer is no longer available. Please ask the question again."), 'sources': []}
         if resp.status_code != 200:
             _logger.error("Backend HTTP error %s: %s", resp.status_code, resp.text)
-            return {'answer': _server_error_message(resp.status_code), 'sources': []}
+            return {'answer': _unavailable_message(), 'sources': []}
 
         try:
             job = job_response_object(resp)
         except BackendInvalidResponse as error:
             _logger.error("Invalid backend job response: %s", error)
-            return {'answer': _server_error_message(502), 'sources': []}
+            return {'answer': _unavailable_message(), 'sources': []}
 
         question = job.get('question')
         elapsed_ms = job.get('elapsed_ms')
@@ -167,7 +164,7 @@ class MiroAiController(http.Controller):
         if status == 'done':
             result = job.get('result')
             if not isinstance(result, dict):
-                return {'answer': _server_error_message(502), 'sources': []}
+                return {'answer': _unavailable_message(), 'sources': []}
             payload = _answer_payload(result, session_id)
             _log_exchange(
                 question, payload.get('answer'), payload.get('session_id'), elapsed_ms,
@@ -180,9 +177,9 @@ class MiroAiController(http.Controller):
             if elapsed_ms <= timeout * 1000:
                 return {'status': 'pending'}
             message = _(
-                "The server (%(url)s) did not answer within %(timeout)s s: the answer is too slow. "
-                "Try again, or increase the timeout in the MIRO AI settings.",
-                url=api_url, timeout=timeout,
+                "The server did not answer within %(timeout)s s: the answer is too slow. "
+                "Try again, or ask your admin to increase the timeout in the MIRO AI settings.",
+                timeout=timeout,
             )
         elif status == 'error':
             error_status = job.get('error_status')
@@ -193,10 +190,10 @@ class MiroAiController(http.Controller):
                 "Backend job failed with HTTP %s: %s",
                 error_status, job.get('error_detail', ''),
             )
-            message = _server_error_message(error_status)
+            message = _unavailable_message()
         else:
             _logger.error("Backend returned unknown job status: %r", status)
-            message = _server_error_message(502)
+            message = _unavailable_message()
         _log_exchange(question, message, session_id, elapsed_ms, state='error')
         return {'answer': message, 'sources': []}
 

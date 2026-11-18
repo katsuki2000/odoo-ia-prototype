@@ -3,6 +3,7 @@
 import logging
 import time
 
+from core.messages import GENERATION_ERROR_ANSWER, NO_SOURCE_ANSWER
 from core.schemas import AssistantResponse, LLMResponse, QueryRoute
 import config.settings as settings
 from core.state import RAGState
@@ -41,7 +42,7 @@ def generate(state: RAGState) -> dict:
     if not chunks:
         logger.info("Node [generate]: No chunks retrieved, falling back.")
         response = AssistantResponse(
-            answer="I have no reliable source to answer this question.",
+            answer=NO_SOURCE_ANSWER,
             sources=[],
             confidence=0.0,
         )
@@ -84,7 +85,7 @@ def generate(state: RAGState) -> dict:
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
-                answer=f"Sorry, an error occurred during generation. Details: {str(e2)}",
+                answer=GENERATION_ERROR_ANSWER,
                 sources=[],
                 confidence=0.0,
             )

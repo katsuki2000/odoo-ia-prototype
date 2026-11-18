@@ -48,12 +48,12 @@ from evaluation.bench_common import (
 )
 from evaluation.preflight import BackendUnavailable
 from core.graph.graph_nodes import retrieve
+from core.messages import GENERATION_ERROR_ANSWER
 from document_rag.generation.generate_node import generate
 
 QUESTIONS_PATH = project_root / 'evaluation' / 'data' / 'rag_eval_questions.json'
 CONTEXTS_PATH = project_root / 'captures' / 'rag_eval_contexts.json'
 RESULTS_PATH = project_root / 'captures' / 'rag_model_eval.jsonl'
-GENERATION_ERROR_PREFIX = 'Sorry, an error'
 
 
 # Matched on normalize() output: lowercase, no accent, no space. Models word a refusal in their own way
@@ -114,7 +114,7 @@ def run_once(item, chunks):
         cited_sources = [source.title for source in response.sources]
         llm_calls = result['timing'].get('llm_call_count', 0)
         structured_failed = bool(result.get('structured_failed'))
-        error = answer if answer.startswith(GENERATION_ERROR_PREFIX) else None
+        error = answer if answer == GENERATION_ERROR_ANSWER else None
     except Exception as exc:
         error = f'{type(exc).__name__}: {exc}'
     return {

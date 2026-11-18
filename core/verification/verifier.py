@@ -2,6 +2,7 @@ import logging
 import re
 from collections import Counter
 
+from core.messages import RETIREMENT_NOTICE
 from core.verification.checkers import CHECKERS
 from core.schemas import ClaimType, UnsupportedClaim, VerificationReport, VerifierMode
 from core.verification.context import VerificationContext
@@ -9,8 +10,6 @@ from core.verification.extractors import SOURCE_FOOTER_RE, SYSTEM_BLOCK_RE, Clai
 from core.verification.sentence_bounds import expand_to_sentence_bounds
 
 logger = logging.getLogger(__name__)
-
-RETIREMENT_NOTICE = "[DETERMINISTIC VERIFICATION] Claim(s) removed for lack of evidence in this turn's data: "
 
 
 def _by_type(claims: list[Claim]) -> dict[ClaimType, int]:

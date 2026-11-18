@@ -5,6 +5,7 @@ import pytest
 
 from core.schemas import AssistantResponse, LLMResponse, SourceReference
 from core.graph.graph_nodes import format_output, retrieve
+from core.messages import GENERATION_ERROR_ANSWER, NO_SOURCE_ANSWER
 from document_rag.generation.generate_node import generate, _parse_raw_json_answer
 from document_rag.generation.generate_helpers import verify_used_sources
 
@@ -12,9 +13,15 @@ from document_rag.generation.generate_helpers import verify_used_sources
 def test_generate_without_context_returns_no_source_answer():
     state = {'question': 'Où est le bureau ?', 'chat_history': [], 'retrieved_chunks': []}
     result = generate(state)
-    assert result['response'].answer == "I have no reliable source to answer this question."
+    assert result['response'].answer == NO_SOURCE_ANSWER
     assert result['response'].confidence == 0.0
     assert not result['response'].sources
+
+def test_generation_failure_does_not_expose_the_exception_to_the_user():
+    state = {'question': 'Où est le bureau ?', 'chat_history': [], 'retrieved_chunks': [{'document': 'd', 'source': 's'}]}
+    with patch('document_rag.generation.generate_node.invoke_llm', side_effect=RuntimeError('secret-host:11434')):
+        result = generate(state)
+    assert result['response'].answer == GENERATION_ERROR_ANSWER
 
 
 def test_retrieve_node_lets_a_backend_failure_reach_the_pipeline():

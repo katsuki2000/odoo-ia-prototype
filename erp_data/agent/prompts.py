@@ -157,6 +157,11 @@ def build_orm_agent_messages(
     ]
 
 
+def build_read_reminder_message(question: str, reminder: str) -> str:
+    """The reminder restated with the question, so the model answers the question instead of acknowledging it."""
+    return f"Question de l'utilisateur : {question}\n\n{reminder}\n\nRéponds maintenant à cette question."
+
+
 __all__ = [
     "EMPTY_REPLY_REMINDER",
     "LIST_READ_REMINDER",
@@ -164,6 +169,7 @@ __all__ = [
     "NO_READ_REMINDER",
     "ORM_AGENT_SYSTEM_PROMPT",
     "build_orm_refusal_prompt",
+    "build_read_reminder_message",
     "build_orm_synthesis_prompt",
     "build_orm_agent_messages",
 ]

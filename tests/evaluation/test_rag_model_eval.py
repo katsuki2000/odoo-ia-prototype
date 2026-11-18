@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.messages import GENERATION_ERROR_ANSWER
 from evaluation import bench_common
 
 SCRIPT = Path(__file__).resolve().parent.parent.parent / "scripts" / "run_rag_model_eval.py"
@@ -145,9 +146,9 @@ def test_run_once_records_the_answer_sources_and_structured_failure(monkeypatch,
 
 
 def test_run_once_flags_the_fallback_answer_of_generate_as_an_error(monkeypatch, bench):
-    failure = {"response": _response(bench.GENERATION_ERROR_PREFIX + "e. Détails: timeout"), "timing": {}}
+    failure = {"response": _response(GENERATION_ERROR_ANSWER), "timing": {}}
     monkeypatch.setattr(bench, "generate", lambda state: failure)
-    assert bench.run_once(_item(), [{"document": "d"}])["error"].startswith(bench.GENERATION_ERROR_PREFIX)
+    assert bench.run_once(_item(), [{"document": "d"}])["error"] == GENERATION_ERROR_ANSWER
 
 
 def test_run_once_flags_an_exception_as_an_error(monkeypatch, bench):

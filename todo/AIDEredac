@@ -79,3 +79,44 @@ page 56 : fig 6 on concstruit ce modele à partir de la regle de gestion, chaque
 4.2 critique de l'existant : faire un tableau : points forts - points faibles
 
 4.1.2 : à verifier avec le bouquin des autres
+
+
+
+
+
+## 4. Question documentaire avec OCR (2 min 30)
+
+**Cas : le bon de commande BC-2025-00142** (`bon_commande_fournisseur_PO2025_00142.pdf`). 
+
+- **Question à poser** : « Quel est le montant total TTC et quel est le fournisseur du bon de commande BC-2025-00142 ? »
+- **Source** : "From the documentation".
+- **Réponse attendue** : 39 600 000 Ar TTC, fournisseur MADAGASCAR INFORMATIQUE SERVICES (MIS) SARL.
+
+
+**Question de secours** (texte natif) : « Quelle remise maximale un commercial peut-il accorder sur un devis sans approbation ? » Réponse : 10 %, au-delà approbation du Directeur Commercial (`wiki_processus_vente.txt`).
+
+## 5. Ajouter une discussion (1 min)
+
+**Cas : une question de suivi qui n'a de sens que grâce à la précédente.**
+
+- **Question à poser, dans le même fil** : « Et à quelle tranche d'approbation relève-t-il ? » Le pronom "il" désigne le bon de commande. L'assistant doit croiser le bon et le guide achats (`guide_achats_fournisseurs.docx`).
+- **Réponse attendue** : 33 000 000 Ar HT, soit plus de 5 000 000 Ar, donc validation par le Directeur Général, délai moyen de 72 heures ouvrées. Le bon est signé par la Direction des Achats et la Direction Générale.
+- **À montrer** : la réponse comprend le "il" sans que tu répètes le numéro du bon, puis les deux sources citées. Ferme le fil, puis rouvre-le depuis l'historique : la conversation est toujours là.
+- **À dire** : « L'assistant garde le contexte de la conversation, et l'historique est stocké dans Odoo. »
+
+Ce cas est celui de `MULTI-03` dans ton banc. Pense à bien utiliser le mot "ajouter" : clique sur la même conversation, ne crée pas un nouveau fil.
+
+## 6. Question sur les données (2 min 30)
+
+**Cas : les commandes de vente confirmées.** Ce sont `ERP-01` et `ERP-02`.
+
+- **Source** : "From the system".
+- **Question 1** : « Combien de commandes de vente sont confirmées (statut "Sales Order") ? »
+- **Vérification en direct** : dans Odoo, Ventes > Commandes > Commandes, filtre "Sales Orders". Compare le nombre affiché avec la réponse.
+- **Question 2** : « Quel est le montant total des commandes de vente confirmées ? » Vérifie avec la somme affichée en bas de la liste.
+- **Question 3 : « Quel client a le montant total le plus élevé en commandes de vente confirmées ? » Vérifie en regroupant la liste par Client.
+
+
+**Cas bonus pour la sécurité** : connecte-toi avec un utilisateur qui ne voit que ses propres commandes et repose la question 1. Le chiffre doit être plus petit, puisque l'assistant lit avec les droits de l'utilisateur connecté.
+
+Vérifie avant que les modules `sale` (et `account`, si tu ajoutes une question sur les factures) sont bien installés sur la base de démo. Sans eux, ces questions n'ont pas de réponse.

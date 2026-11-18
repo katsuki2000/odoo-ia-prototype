@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from config import settings
 from core.llm import get_chat_llm, invoke_llm
+from core.messages import INCOMPLETE_ANSWER
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,7 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
         return _single_answer(build_orm_synthesis_prompt(question, tool_observations)), 1
     except Exception as exc:
         logger.error("Forced synthesis failed: %s", exc)
-        return "Je n'ai pas pu obtenir de réponse complète à partir des observations disponibles.", 1
+        return INCOMPLETE_ANSWER, 1
 
 
 def explain_refusals(question: str, tool_observations: List[str]) -> Tuple[str, int]:

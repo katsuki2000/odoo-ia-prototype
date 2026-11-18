@@ -106,7 +106,8 @@ msgstr ""
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
 msgid ""
-"Cannot reach the server (%s). Check that the FastAPI backend is running."
+"The assistant is temporarily unavailable. Please try again in a moment; if "
+"the problem persists, contact the administrator."
 msgstr ""
 
 #. module: miro_ai
@@ -216,7 +217,7 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
 #, python-format
-msgid "Hello! Ask me your question, or ask about the active document."
+msgid "Hello! Ask me your question"
 msgstr ""
 
 #. module: miro_ai
@@ -395,9 +396,7 @@ msgstr ""
 #. odoo-python
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
-msgid ""
-"RAG server error (code %s). Please check that the FastAPI service is "
-"running."
+msgid "Please choose a source."
 msgstr ""
 
 #. module: miro_ai
@@ -531,8 +530,8 @@ msgstr ""
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
 msgid ""
-"The server (%(url)s) did not answer within %(timeout)s s: the answer is too "
-"slow. Try again, or increase the timeout in the MIRO AI settings."
+"The server did not answer within %(timeout)s s: the answer is too slow. Try "
+"again, or ask your admin to increase the timeout in the MIRO AI settings."
 msgstr ""
 
 #. module: miro_ai

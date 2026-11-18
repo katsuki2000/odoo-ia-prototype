@@ -107,8 +107,9 @@ msgstr "Annuler la question en cours"
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
 msgid ""
-"Cannot reach the server (%s). Check that the FastAPI backend is running."
-msgstr "Impossible de contacter le serveur (%s). Vérifiez que le backend FastAPI est lancé."
+"The assistant is temporarily unavailable. Please try again in a moment; if "
+"the problem persists, contact the administrator."
+msgstr "L'assistant est momentanément indisponible. Réessayez dans un instant ; si le problème persiste, contactez l'administrateur."
 
 #. module: miro_ai
 #. odoo-javascript
@@ -217,8 +218,8 @@ msgstr "Regrouper par"
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/js/miro_ai_labels.js:0
 #, python-format
-msgid "Hello! Ask me your question, or ask about the active document."
-msgstr "Bonjour ! Posez votre question ou interrogez-moi sur le document actif."
+msgid "Hello! Ask me your question"
+msgstr "Bonjour ! Posez votre question"
 
 #. module: miro_ai
 #. odoo-javascript
@@ -396,10 +397,8 @@ msgstr "Question annulée."
 #. odoo-python
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
-msgid ""
-"RAG server error (code %s). Please check that the FastAPI service is "
-"running."
-msgstr "Erreur du serveur RAG (code %s). Veuillez vérifier que le service FastAPI est actif."
+msgid "Please choose a source."
+msgstr "Veuillez choisir une source."
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__sources_text
@@ -532,9 +531,9 @@ msgstr "Le délai maximal de réponse doit être d'au moins 10 secondes."
 #: code:addons/miro_ai/controllers/main.py:0
 #, python-format
 msgid ""
-"The server (%(url)s) did not answer within %(timeout)s s: the answer is too "
-"slow. Try again, or increase the timeout in the MIRO AI settings."
-msgstr "Le serveur (%(url)s) n'a pas répondu en %(timeout)s s : la réponse est trop lente. Réessayez, ou augmentez le délai dans les paramètres MIRO AI."
+"The server did not answer within %(timeout)s s: the answer is too slow. Try "
+"again, or ask your admin to increase the timeout in the MIRO AI settings."
+msgstr "Le serveur n'a pas répondu en %(timeout)s s : la réponse est trop lente. Réessayez, ou demandez à votre administrateur d'augmenter le délai dans les paramètres MIRO AI."
 
 #. module: miro_ai
 #. odoo-python

@@ -14,6 +14,7 @@ from config.settings import (
 )
 from core.evidence import filter_disclosed_evidence, peek_turn_evidence
 from core.llm import invoke_llm
+from core.messages import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER, NO_READ_ANSWER
 from core.schemas import AssistantResponse, QueryRoute, SourceReference
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, finish_branch, new_trace_id
 from core.state import RAGState
@@ -39,20 +40,12 @@ from erp_data.agent.prompts import (
     MEASURE_READ_REMINDER,
     NO_READ_REMINDER,
     build_orm_agent_messages,
+    build_read_reminder_message,
 )
 from erp_data.tools.read_tools import SCHEMA_METHODS
 
 logger = logging.getLogger(__name__)
 
-NO_DATA_ANSWER = "Je n'ai pas de données disponibles pour répondre à cette question."
-LLM_UNAVAILABLE_ANSWER = (
-    "Le modèle de langage est momentanément inaccessible : je ne peux pas répondre pour le moment. "
-    "Réessayez dans un instant ; si le problème persiste, contactez l'administrateur."
-)
-NO_READ_ANSWER = (
-    "Je n'ai pas pu lire les données nécessaires pour répondre : les accès ont été refusés ou ont échoué. "
-    "Précisez le sujet, le statut ou la période, ou reformulez la question."
-)
 
 
 def _missing_read_reminder(plan: QueryPlan | None, tool_names: List[str]) -> Optional[str]:
@@ -106,7 +99,7 @@ def _run_react(
             reminder = _missing_read_reminder(plan, tool_names)
             if reminder and reminder not in reminded:
                 reminded.add(reminder)
-                messages.append(HumanMessage(content=reminder))
+                messages.append(HumanMessage(content=build_read_reminder_message(question, reminder)))
                 continue
             if str(ai_msg.content).strip():
                 return ReactResult(ai_msg.content, observations, llm_calls, hops)

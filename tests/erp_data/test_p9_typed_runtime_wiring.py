@@ -420,7 +420,7 @@ def test_an_answer_after_only_refused_reads_is_replaced_by_the_explanation_and_c
 
 
 def test_the_fixed_message_replaces_the_answer_when_the_explanation_fails(monkeypatch):
-    from erp_data.agent.orm_agent_node import NO_READ_ANSWER
+    from core.messages import NO_READ_ANSWER
 
     out = _run_loop_with_tool_outcome(
         monkeypatch, "Ventes : ABC Corp 5000 EUR.", record_read=False, explanation="", observation=REFUSED,
@@ -495,7 +495,7 @@ def test_repeated_query_refusals_stop_the_react_loop(monkeypatch):
 
     import erp_data.agent.orm_agent_node as node
     from erp_data.agent.orm_agent_helpers import QueryPlan
-    from erp_data.agent.orm_agent_node import NO_READ_ANSWER
+    from core.messages import NO_READ_ANSWER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -726,6 +726,7 @@ def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkey
 
     import erp_data.agent.orm_agent_node as node
     import erp_data.agent.prompts as prompts
+    from erp_data.agent.prompts import build_read_reminder_message
 
     reminder = getattr(prompts, reminder_name)
 
@@ -751,7 +752,7 @@ def test_a_count_answer_is_sent_back_once_to_read_the_measure_or_the_rows(monkey
 
     result = node.orm_agent_loop({"question": "Combien a-t-on dépensé le mois dernier ?"})
     assert result["response"].answer == "Total : 1200."
-    assert seen[2] == reminder
+    assert seen[2] == build_read_reminder_message("Combien a-t-on dépensé le mois dernier ?", reminder)
 
 
 @pytest.mark.parametrize(
@@ -777,7 +778,7 @@ def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
     from langchain_core.messages import AIMessage
 
     import erp_data.agent.orm_agent_node as node
-    from erp_data.agent.prompts import NO_READ_REMINDER
+    from erp_data.agent.prompts import NO_READ_REMINDER, build_read_reminder_message
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -800,7 +801,7 @@ def test_an_answer_without_any_read_is_sent_back_once_to_read(monkeypatch):
 
     result = node.orm_agent_loop({"question": "Existe-t-il une facture brouillon et publiee ?"})
     assert result["response"].answer == "Aucune facture."
-    assert seen[1] == NO_READ_REMINDER
+    assert seen[1] == build_read_reminder_message("Existe-t-il une facture brouillon et publiee ?", NO_READ_REMINDER)
     assert result["timing"]["llm_call_count"] == 4
 
 
@@ -808,7 +809,6 @@ def test_a_concept_without_model_is_answered_as_unavailable_without_source(monke
     from langchain_core.messages import AIMessage
 
     import erp_data.agent.orm_agent_node as node
-    from erp_data.agent.prompts import NO_READ_REMINDER
 
     class FakeLlm:
         def bind_tools(self, _tools):
@@ -840,8 +840,17 @@ def test_a_concept_without_model_is_answered_as_unavailable_without_source(monke
     assert response.answer == absent
     assert response.sources == []
     assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
-    assert seen.count(NO_READ_REMINDER) == 1
+    reminders = [item for item in seen if "Tu réponds sans avoir lu de données" in item]
+    assert len(reminders) == 1
+    assert "Ai-je des demandes de mise a disposition ?" in reminders[0]
     assert result["timing"]["hop_count"] == 2
+
+def test_the_reminder_carries_the_question_so_it_is_not_taken_for_a_standing_instruction():
+    from erp_data.agent.prompts import NO_READ_REMINDER, build_read_reminder_message
+
+    message = build_read_reminder_message("Quel est le dividende ?", NO_READ_REMINDER)
+    assert message.startswith("Question de l'utilisateur : Quel est le dividende ?")
+    assert NO_READ_REMINDER in message
 
 
 def test_the_reminder_to_read_is_sent_only_once(monkeypatch):
@@ -955,13 +964,13 @@ def _run_loop_with_unreachable_llm(monkeypatch, first_replies=()):
 
 
 def test_an_unreachable_model_gets_its_own_message_not_the_no_data_one(monkeypatch):
-    from erp_data.agent.orm_agent_node import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER
+    from core.messages import LLM_UNAVAILABLE_ANSWER, NO_DATA_ANSWER
 
     out, _ = _run_loop_with_unreachable_llm(monkeypatch)
     response = out["response"]
     assert response.answer == LLM_UNAVAILABLE_ANSWER
     assert response.answer != NO_DATA_ANSWER
-    assert "inaccessible" in response.answer
+    assert "unreachable" in response.answer
     assert response.sources == []
     assert response.confidence == ORM_CONFIDENCE_WITHOUT_DATA
     assert out["timing"]["hop_count"] == 0
@@ -970,7 +979,7 @@ def test_an_unreachable_model_gets_its_own_message_not_the_no_data_one(monkeypat
 def test_a_model_lost_after_a_successful_read_cites_no_source_and_says_so(monkeypatch):
     from langchain_core.messages import AIMessage
 
-    from erp_data.agent.orm_agent_node import LLM_UNAVAILABLE_ANSWER
+    from core.messages import LLM_UNAVAILABLE_ANSWER
 
     first = [AIMessage(content="", tool_calls=[{"name": "search_read", "args": {}, "id": "tc1"}])]
     out, _ = _run_loop_with_unreachable_llm(monkeypatch, first_replies=first)
