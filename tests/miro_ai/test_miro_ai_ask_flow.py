@@ -111,13 +111,27 @@ def test_malformed_job_ids_are_refused(ask_flow, job_id):
     assert not ask_flow.is_job_id(job_id)
 
 
-def test_requester_scope_lists_company_and_group_ids(ask_flow):
-    env = types.SimpleNamespace(
+def _scope_env(allowed_company_ids=(4,)):
+    return types.SimpleNamespace(
         company=types.SimpleNamespace(id=4),
-        user=types.SimpleNamespace(groups_id=[types.SimpleNamespace(id=1), types.SimpleNamespace(id=9)]),
+        user=types.SimpleNamespace(
+            company_ids=types.SimpleNamespace(ids=list(allowed_company_ids)),
+            groups_id=[types.SimpleNamespace(id=1), types.SimpleNamespace(id=9)],
+        ),
     )
 
-    assert ask_flow.requester_scope(env) == (4, [1, 9])
+
+def test_requester_scope_lists_company_and_group_ids(ask_flow):
+    assert ask_flow.requester_scope(_scope_env()) == (4, [1, 9])
+
+
+def test_requester_scope_follows_the_company_active_in_the_web_client(ask_flow):
+    assert ask_flow.requester_scope(_scope_env((4, 2)), 2) == (2, [1, 9])
+
+
+@pytest.mark.parametrize("company_id", [3, None, "2", [2]])
+def test_requester_scope_ignores_a_company_the_user_does_not_belong_to(ask_flow, company_id):
+    assert ask_flow.requester_scope(_scope_env((4, 2)), company_id) == (4, [1, 9])
 
 
 def test_requester_key_is_committed_before_it_is_returned(ask_flow):

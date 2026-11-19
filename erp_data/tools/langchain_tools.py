@@ -105,9 +105,29 @@ def _flatten_domain_tokens(value: Any) -> Any:
     return [value]
 
 
+_BOOLEAN_WORDS = {"true": True, "false": False}
+
+
+def _normalize_leaf_value(token: Any) -> Any:
+    """Small models write a boolean as the string 'true' and an empty relation as '' ; Odoo needs
+    True/False (an empty string is the same test as False on a text field, so the change is safe)."""
+    if not _is_domain_leaf(token):
+        return token
+    field, operator, value = token
+    if isinstance(value, str) and operator in ("=", "!="):
+        word = value.strip().lower()
+        if word in _BOOLEAN_WORDS:
+            return type(token)((field, operator, _BOOLEAN_WORDS[word]))
+        if not word:
+            return type(token)((field, operator, False))
+    return token
+
+
 def _coerce_domain(value: Any) -> Any:
     value = _coerce_list(value)
-    return _flatten_domain_tokens(value) if isinstance(value, list) else value
+    if not isinstance(value, list):
+        return value
+    return [_normalize_leaf_value(token) for token in _flatten_domain_tokens(value)]
 
 
 ModelName = Annotated[

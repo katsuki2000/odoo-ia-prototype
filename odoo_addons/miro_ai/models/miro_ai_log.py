@@ -34,7 +34,7 @@ class MiroAiLog(models.Model):
         string='Question asked',
         required=True,
         readonly=True,
-        help='Raw text of the question the user sent to the RAG.'
+        help='Raw text of the question the user sent to the assistant.'
     )
     answer = fields.Text(
         string='Generated answer',
@@ -57,12 +57,12 @@ class MiroAiLog(models.Model):
         string='Session ID',
         readonly=True,
         index=True,
-        help='Unique identifier of the RAG discussion session.'
+        help='Unique identifier of the discussion session.'
     )
     response_time_ms = fields.Integer(
         string='Response time (ms)',
         readonly=True,
-        help='Time taken to query the FastAPI RAG backend, in milliseconds.'
+        help='Time taken to query the FastAPI backend, in milliseconds.'
     )
     sources_text = fields.Text(
         string='Sources (raw JSON)',
@@ -180,6 +180,7 @@ class MiroAiLog(models.Model):
                 'create_date': log.create_date.isoformat() if log.create_date else None,
                 'route': metadata.get('route'),
                 'confidence': metadata.get('confidence'),
+                'verify_link': metadata.get('verify_link'),
             })
         return history
 

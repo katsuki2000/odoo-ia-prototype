@@ -60,3 +60,18 @@ def verify_link(evidence_dossier):
             return None
         return {'model': model, 'domain': [['id', 'in', ids]]}
     return None
+
+
+def stored_verify_link(value):
+    """Return {'model': str, 'domain': list} from a link read back from the history, or None when malformed.
+
+    The history is JSON written earlier: the shape is checked again before it is trusted, and the
+    caller re-applies the access check and the label for the user who reopens the conversation.
+    """
+    if not isinstance(value, dict):
+        return None
+    model = value.get('model')
+    domain = _clean_domain(value.get('domain'))
+    if not isinstance(model, str) or not model or domain is None:
+        return None
+    return {'model': model, 'domain': domain}

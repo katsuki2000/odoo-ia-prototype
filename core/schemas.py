@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class QueryRoute(str, Enum):
     """Branch that answers a question."""
-    DOCUMENTARY = "documentation"
+    DOCUMENTARY = "documents"
     ERP_DATA = "system"
 
 

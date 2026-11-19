@@ -41,7 +41,7 @@ class VerificationTests(unittest.TestCase):
     def setUp(self):
         self.ns = load('core/graph/verify_node.py', {'_build_context'}, {
             '_evidence': lambda state: (('actual evidence',), ()),
-            'answered_by_documents': lambda state: state.get('source_mode') == 'documentation',
+            'answered_by_documents': lambda state: state.get('source_mode') == 'documents',
             'default_base_model_methods': lambda: set(), 'VerificationContext': NS})
 
     def test_user_question_is_not_treated_as_factual_evidence(self):

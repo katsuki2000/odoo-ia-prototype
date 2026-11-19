@@ -20,10 +20,10 @@ class MiroAiSettings(models.Model):
 
     # Backend connection
     api_url = fields.Char(
-        string='MIRO RAG API URL',
+        string='MIRO API URL',
         required=True,
         default=DEFAULT_API_URL,
-        help='Root address of the MIRO RAG FastAPI server (e.g. http://127.0.0.1:8000 or http://miro_rag:8000)'
+        help='Root address of the MIRO FastAPI server (e.g. http://127.0.0.1:8000)'
     )
     request_timeout = fields.Integer(
         string='Maximum response time (s)',
@@ -44,7 +44,7 @@ class MiroAiSettings(models.Model):
         default=lambda self: secrets.token_urlsafe(48),
         groups='base.group_system,miro_ai.group_miro_ai_admin',
         copy=False,
-        help='Secret shared with the RAG backend (the server\'s JWT_SECRET variable): '
+        help='Secret shared with the MIRO backend (the server\'s JWT_SECRET variable): '
              'random, at least 32 bytes, identical on both sides. '
              'Read and write restricted to administrators.'
     )
@@ -62,7 +62,7 @@ class MiroAiSettings(models.Model):
         if len(secret.encode('utf-8')) < MIN_SIGNING_SECRET_BYTES:
             raise UserError(_(
                 "The MIRO AI signing secret is not configured: set a random secret of at least "
-                "%s bytes in the MIRO AI settings, identical to the RAG server's JWT_SECRET.",
+                "%s bytes in the MIRO AI settings, identical to the server's JWT_SECRET.",
                 MIN_SIGNING_SECRET_BYTES,
             ))
         return secret

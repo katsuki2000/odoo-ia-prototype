@@ -12,12 +12,12 @@ from .backend_client import (
     BackendError, BackendInvalidResponse, get_from_backend, job_response_object,
     post_to_backend,
 )
-from .verify_link import verify_link
+from .verify_link import stored_verify_link, verify_link
 
 _logger = logging.getLogger(__name__)
 
 BACKEND_REPLY_TIMEOUT_SECONDS = 10
-METADATA_FIELDS = ('route', 'confidence')
+METADATA_FIELDS = ('route', 'confidence', 'verify_link')
 
 
 def _settings_and_secret():
@@ -45,9 +45,11 @@ def _log_exchange(question, answer, session_id, elapsed_ms, sources=(), state='s
         _logger.warning("Miro AI: history write failed: %s", log_err)
 
 
-def _verify_link_payload(evidence_dossier):
-    """Link to the list the agent read, under the rights of the current user; None when not possible."""
-    link = verify_link(evidence_dossier)
+def _checked_verify_link(link):
+    """Complete {'model', 'domain'} with the label, under the rights and language of the current user.
+
+    None when there is no link, the model is absent from the environment or the user may not read it.
+    """
     if link is None:
         return None
     model = link['model']
@@ -55,6 +57,11 @@ def _verify_link_payload(evidence_dossier):
     if model not in env or not env[model].check_access_rights('read', raise_exception=False):
         return None
     return {'model': model, 'label': env['ir.model']._get(model).name, 'domain': link['domain']}
+
+
+def _verify_link_payload(evidence_dossier):
+    """Link to the list the agent read, under the rights of the current user; None when not possible."""
+    return _checked_verify_link(verify_link(evidence_dossier))
 
 
 def _answer_payload(data, session_id):
@@ -74,11 +81,11 @@ def _answer_payload(data, session_id):
 class MiroAiController(http.Controller):
 
     @http.route('/miro_ai/ask', type='json', auth='user', methods=['POST'])
-    def ask(self, question=None, session_id=None, source_mode=None, **kwargs):
+    def ask(self, question=None, session_id=None, source_mode=None, company_id=None, **kwargs):
         """Start the question on the backend and return its job id; /miro_ai/ask_result returns the answer."""
         if not question or not question.strip():
             return {'answer': _("Please ask a question."), 'sources': []}
-        if source_mode not in ("documentation", "system"):
+        if source_mode not in ("documents", "system"):
             return {'answer': _("Please choose a source."), 'sources': []}
         question = question.strip()
         try:
@@ -87,7 +94,7 @@ class MiroAiController(http.Controller):
             return {'answer': err.args[0], 'sources': []}
 
         user = request.env.user
-        company_id, groups = requester_scope(request.env)
+        company_id, groups = requester_scope(request.env, company_id)
         effective_session = session_id or f"odoo_session_{user.id}_{int(time.time())}"
         job_id = uuid.uuid4().hex
         revoke_requester_keys(request.env)
@@ -207,4 +214,8 @@ class MiroAiController(http.Controller):
         """Return the full history of one conversation."""
         if not session_id:
             return []
-        return request.env['miro.ai.log'].get_session_history(session_id)
+        history = request.env['miro.ai.log'].get_session_history(session_id)
+        for turn in history:
+            # The stored link is re-checked: rights and label are those of the user reopening the conversation.
+            turn['verify_link'] = _checked_verify_link(stored_verify_link(turn.get('verify_link')))
+        return history

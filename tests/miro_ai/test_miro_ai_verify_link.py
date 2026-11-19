@@ -80,3 +80,38 @@ def test_link_never_reads_llm_text(verify_link):
     item["claim"] = "open res.users"
     item["value"] = {"model": "res.users"}
     assert verify_link([item]) == {"model": "product.template", "domain": [["a", "=", 1]]}
+
+
+@pytest.fixture(scope="module")
+def stored_verify_link():
+    spec = importlib.util.spec_from_file_location("miro_verify_link_stored", MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.stored_verify_link
+
+
+def test_stored_link_keeps_model_and_domain_and_drops_the_old_label(stored_verify_link):
+    stored = {"model": "product.template", "label": "Produit", "domain": [["sale_ok", "=", True]]}
+    assert stored_verify_link(stored) == {"model": "product.template", "domain": [["sale_ok", "=", True]]}
+
+
+def test_stored_link_accepts_an_empty_domain(stored_verify_link):
+    assert stored_verify_link({"model": "res.partner", "domain": []}) == {"model": "res.partner", "domain": []}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "res.partner",
+        [],
+        {},
+        {"model": "res.partner"},
+        {"model": "res.partner", "domain": "[]"},
+        {"model": "", "domain": []},
+        {"model": 12, "domain": []},
+        {"domain": []},
+    ],
+)
+def test_stored_link_malformed_gives_none(stored_verify_link, value):
+    assert stored_verify_link(value) is None

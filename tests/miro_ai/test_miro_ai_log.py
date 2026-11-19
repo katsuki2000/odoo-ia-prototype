@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 import types
 from datetime import datetime, timedelta
@@ -79,6 +80,41 @@ def test_history_uses_empty_defaults_for_invalid_json_shapes(log_module):
     assert history[0]["sources"] == []
     assert history[0]["route"] is None
     assert history[0]["confidence"] is None
+
+
+def test_history_returns_the_stored_verify_link(log_module):
+    link = {"model": "product.template", "label": "Produit", "domain": [["sale_ok", "=", True]]}
+    record = types.SimpleNamespace(
+        metadata_text=json.dumps({"route": "system", "confidence": 0.9, "verify_link": link}),
+        sources_text="[]",
+        id=1,
+        question="Question",
+        answer="Answer",
+        state="success",
+        create_date=None,
+    )
+    model = types.SimpleNamespace(search=lambda domain, order: [record])
+
+    history = log_module.MiroAiLog.get_session_history(model, "session")
+
+    assert history[0]["verify_link"] == link
+
+
+def test_history_has_no_verify_link_for_an_older_record(log_module):
+    record = types.SimpleNamespace(
+        metadata_text='{"route": "system", "confidence": 0.9}',
+        sources_text="[]",
+        id=1,
+        question="Question",
+        answer="Answer",
+        state="success",
+        create_date=None,
+    )
+    model = types.SimpleNamespace(search=lambda domain, order: [record])
+
+    history = log_module.MiroAiLog.get_session_history(model, "session")
+
+    assert history[0]["verify_link"] is None
 
 
 def test_sessions_are_grouped_and_fetch_the_latest_preview(log_module):

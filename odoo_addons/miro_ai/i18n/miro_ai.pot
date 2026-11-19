@@ -193,7 +193,7 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/miro_ai/static/src/xml/miro_ai_assistant.xml:0
 #, python-format
-msgid "From the documentation"
+msgid "From the documents"
 msgstr ""
 
 #. module: miro_ai
@@ -313,7 +313,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,field_description:miro_ai.field_miro_ai_settings__api_url
-msgid "MIRO RAG API URL"
+msgid "MIRO API URL"
 msgstr ""
 
 #. module: miro_ai
@@ -406,7 +406,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__question
-msgid "Raw text of the question the user sent to the RAG."
+msgid "Raw text of the question the user sent to the assistant."
 msgstr ""
 
 #. module: miro_ai
@@ -422,8 +422,7 @@ msgstr ""
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__api_url
 msgid ""
-"Root address of the MIRO RAG FastAPI server (e.g. http://127.0.0.1:8000 or "
-"http://miro_rag:8000)"
+"Root address of the MIRO FastAPI server (e.g. http://127.0.0.1:8000)"
 msgstr ""
 
 #. module: miro_ai
@@ -440,7 +439,7 @@ msgstr ""
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_settings__api_token
 msgid ""
-"Secret shared with the RAG backend (the server's JWT_SECRET variable): "
+"Secret shared with the MIRO backend (the server's JWT_SECRET variable): "
 "random, at least 32 bytes, identical on both sides. Read and write "
 "restricted to administrators."
 msgstr ""
@@ -493,7 +492,7 @@ msgstr ""
 #, python-format
 msgid ""
 "The MIRO AI signing secret is not configured: set a random secret of at "
-"least %s bytes in the MIRO AI settings, identical to the RAG server's "
+"least %s bytes in the MIRO AI settings, identical to the server's "
 "JWT_SECRET."
 msgstr ""
 
@@ -543,7 +542,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__response_time_ms
-msgid "Time taken to query the FastAPI RAG backend, in milliseconds."
+msgid "Time taken to query the FastAPI backend, in milliseconds."
 msgstr ""
 
 #. module: miro_ai
@@ -567,7 +566,7 @@ msgstr ""
 
 #. module: miro_ai
 #: model:ir.model.fields,help:miro_ai.field_miro_ai_log__session_id
-msgid "Unique identifier of the RAG discussion session."
+msgid "Unique identifier of the discussion session."
 msgstr ""
 
 #. module: miro_ai

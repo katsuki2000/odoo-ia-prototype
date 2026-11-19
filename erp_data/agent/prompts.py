@@ -69,6 +69,12 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "sur le modèle principal un champ explicite de type booléen, sélection ou pourcentage qui représente cet état. "
     "Ne remplace jamais cet état par des noms d'affichage d'un modèle relationnel (par exemple le nom d'une étape) "
     "sans preuve que ces libellés sont la définition métier demandée. "
+    "Odoo exclut déjà les enregistrements archivés (`active` à faux) de toute lecture : un état « perdu », "
+    "« annulé » ou « clos » est souvent représenté par l'archivage, donc n'ajoute pas de filtre `active` pour "
+    "l'exclure et vérifie ce champ dans fields_get avant de chercher une autre définition. Un état « gagné » ou "
+    "« terminé » se lit sur un champ de pourcentage ou de statut du modèle : applique-le comme filtre explicite. "
+    "Un booléen s'écrit true ou false (jamais une chaîne), et un champ relationnel vide se teste avec false, "
+    "jamais avec une chaîne vide. "
     "Un résultat nul obtenu avec un filtre que tu as supposé (par exemple un champ vide ou une valeur devinée) "
     "est suspect : vérifie le filtre contre la liste des champs avant de conclure qu'il n'y a rien. "
     "Utilise les résultats d'outils comme seule source de faits sur cette instance ; n'invente jamais de valeurs. "
@@ -116,8 +122,9 @@ def build_orm_refusal_prompt(question: str, tool_observations: List[str]) -> str
 
 
 EMPTY_REPLY_REMINDER = (
-    "Ta réponse est vide. Appelle un outil pour lire les données manquantes ou réponds à la question "
-    "à partir des observations obtenues."
+    "Ton dernier appel d'outil n'a pas pu être lu et n'a rien renvoyé. Rappelle l'outil avec des arguments JSON "
+    "valides (`model` est obligatoire ; un domaine est une liste de triplets [champ, opérateur, valeur]), "
+    "ou réponds à la question si tu as déjà les données."
 )
 
 MEASURE_READ_REMINDER = (

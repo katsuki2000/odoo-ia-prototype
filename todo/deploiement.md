@@ -347,7 +347,7 @@ journalctl -u miro-api -n 50 --no-pager   # synchro Drive, erreurs
 Depuis un autre poste : `nc -zv <IP_AZURE> 8069` et `nc -zv <IP_AZURE> 8000` doivent echouer.
 
 Dans le navigateur :
-1. Poser une question en mode « From the documentation » : la reponse doit finir par une ligne `Sources:` avec des liens Drive cliquables.
+1. Poser une question en mode « From the documents » : la reponse doit finir par une ligne `Sources:` avec des liens Drive cliquables.
 2. Poser une question en mode « From the system » (par exemple le nombre de partenaires) : la reponse doit correspondre aux droits de l'utilisateur connecte.
 3. Rouvrir la conversation depuis l'historique : la reponse y est toujours.
 

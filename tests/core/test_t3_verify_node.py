@@ -109,7 +109,7 @@ def test_documentary_branch_is_grounded_in_the_retrieved_chunks_only(run_node):
     state, _ = run_node(
         VerifierMode.REPORT, "Le seuil est de 5 000 euros, puis 9 999.",
         question=DOC_QUESTION,
-        source_mode="documentation",
+        source_mode="documents",
         retrieved_chunks=[{"document": "Le seuil est de 5000 euros."}],
         raw_tool_output="limite 9999",
     )
@@ -143,7 +143,7 @@ def test_verifier_failure_never_breaks_the_answer(run_node, monkeypatch, caplog)
 
 
 @pytest.mark.parametrize("state, expected", [
-    ({"question": DOC_QUESTION, "source_mode": "documentation"}, True),
+    ({"question": DOC_QUESTION, "source_mode": "documents"}, True),
     ({"question": DOC_QUESTION}, False),
     ({"question": PLAIN_QUESTION, "source_mode": "system"}, False),
 ])

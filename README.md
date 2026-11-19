@@ -4,7 +4,7 @@ MIRO AI est un assistant privé qui aide les utilisateurs métier à consulter l
 
 Il distingue deux modes :
 - **Selon le système Odoo** : investiguer les données runtime de l'instance.
-- **D'après la documentation** : chercher dans les documents internes et répondre à partir des passages retrouvés.
+- **D'après les documents** : chercher dans les documents internes et répondre à partir des passages retrouvés.
 
 L'utilisateur peut choisir le mode dans l'interface. il n'a qu'un seul choix
 

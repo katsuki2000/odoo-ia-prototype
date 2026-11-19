@@ -154,6 +154,17 @@ def test_domain_schema_flattens_nested_fragments():
     assert parsed["domain"] == [("move_type", "=", "out_invoice"), UNPAID, POSTED]
 
 
+def test_domain_schema_turns_boolean_words_and_empty_strings_into_odoo_values():
+    from erp_data.tools.langchain_tools import search_count
+
+    parsed = search_count.args_schema.model_validate({
+        "model": "crm.lead",
+        "domain": [["active", "=", "true"], ["lost_reason_id", "=", ""], ["name", "=", "True Lead"]],
+    }).model_dump(exclude_none=True)
+
+    assert parsed["domain"] == [("active", "=", True), ("lost_reason_id", "=", False), ("name", "=", "True Lead")]
+
+
 def test_execute_tool_call_runs_a_domain_that_misses_a_condition_and_reports_it():
     from erp_data.agent.orm_agent_helpers import execute_tool_call
 
@@ -708,6 +719,62 @@ def test_an_empty_reply_is_sent_back_to_the_model_instead_of_becoming_the_answer
     assert result["response"].answer == "Il y a 2 partenaires."
     assert seen[1] == EMPTY_REPLY_REMINDER
     assert result["timing"]["llm_call_count"] == 2
+
+
+def test_consecutive_empty_replies_stop_the_loop_and_trigger_the_synthesis(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.agent.orm_agent_node as node
+    from config.settings import ORM_MAX_EMPTY_REPLIES
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    calls = {"llm": 0}
+
+    def fake_invoke(_llm, _messages):
+        calls["llm"] += 1
+        return AIMessage(content="")
+
+    monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "invoke_llm", fake_invoke)
+    monkeypatch.setattr(node, "force_final_synthesis", lambda _q, _o: ("synthèse", 1))
+    monkeypatch.setattr(node, "ReasoningTraceLogger", lambda: MagicMock())
+
+    node.orm_agent_loop({"question": "Combien de partenaires ?"})
+
+    assert calls["llm"] == ORM_MAX_EMPTY_REPLIES
+
+
+def test_only_the_retry_after_an_empty_reply_runs_warmer_than_the_deterministic_loop(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.agent.orm_agent_node as node
+    from config.settings import ORM_EMPTY_REPLY_RETRY_TEMPERATURE
+
+    class FakeLlm:
+        def __init__(self, temperature):
+            self.temperature = temperature
+
+        def bind_tools(self, _tools):
+            return self
+
+    replies = iter([
+        AIMessage(content=""),
+        AIMessage(content="", tool_calls=[{"name": "search_count", "args": {}, "id": "tc1"}]),
+        AIMessage(content="Il y a 2 partenaires."),
+    ])
+    temperatures = []
+    monkeypatch.setattr(node, "_build_llm", lambda **kwargs: FakeLlm(kwargs.get("temperature")))
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "execute_tool_call", lambda *_a, **_k: ("search_count", {}, "2 records", True))
+    monkeypatch.setattr(node, "invoke_llm", lambda llm, _messages: temperatures.append(llm.temperature) or next(replies))
+
+    node.orm_agent_loop({"question": "Combien de partenaires ?"})
+
+    assert temperatures == [0.0, ORM_EMPTY_REPLY_RETRY_TEMPERATURE, 0.0]
 
 
 @pytest.mark.parametrize(

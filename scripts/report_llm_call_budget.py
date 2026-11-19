@@ -12,11 +12,13 @@ from config.settings import REACT_RECURSION_LIMIT
 from core.session.reasoning_trace_logger import ReasoningTraceLogger
 
 
-BRANCH_ORDER = ["documentation", "system"]
+BRANCH_ORDER = ["documents", "system"]
 BRANCH_LABELS = {
-    "documentation": "Simple RAG (documentation)",
+    "documents": "Simple RAG (documents)",
     "system": "Function Calling (system)",
 }
+# Traces written before the 19/11/2026 rename carry the old branch name; they are counted with the new one.
+LEGACY_BRANCHES = {"documentation": "documents"}
 
 
 def _stats(values):
@@ -51,7 +53,7 @@ def build_budget_report(log_filepath: Path = None) -> str:
 
     if not summaries:
         lines.append(
-            "No trace recorded yet. The report fills up as questions are asked (the documentation and "
+            "No trace recorded yet. The report fills up as questions are asked (the documents and "
             "system branches each log one SUMMARY in `reasoning_trace.jsonl` per call). "
             "Query the pipeline through `core.graph.graph.query_graph()` to populate it.\n"
         )
@@ -59,7 +61,8 @@ def build_budget_report(log_filepath: Path = None) -> str:
 
     by_branch = {}
     for s in summaries:
-        by_branch.setdefault(s.get("branch", "unknown"), []).append(s)
+        branch = s.get("branch", "unknown")
+        by_branch.setdefault(LEGACY_BRANCHES.get(branch, branch), []).append(s)
 
     lines.append("## Comparison by branch\n")
     lines.append("| Branch | Questions | LLM calls (mean/median/max) | Hops (mean/median/max) | Hop cap reached |")
@@ -99,12 +102,12 @@ def build_budget_report(log_filepath: Path = None) -> str:
 
     lines.append(
         f"\n*Hop cap per question: `system` applies "
-        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documentation` never hops (0 by design).*\n"
+        f"`REACT_RECURSION_LIMIT={REACT_RECURSION_LIMIT}`, `documents` never hops (0 by design).*\n"
     )
 
     lines.append("---\n## Reading\n")
     lines.append(
-        "- `documentation` (simple RAG) is the comparison floor: 0 hops, 1-2 LLM calls "
+        "- `documents` (simple RAG) is the comparison floor: 0 hops, 1-2 LLM calls "
         "(1 for structured generation, +1 only when the raw-text fallback triggers).\n"
         f"- `system` (function calling) makes up to `REACT_RECURSION_LIMIT` ({REACT_RECURSION_LIMIT}) tool+LLM round trips, "
         "plus 1 forced synthesis call when the limit is reached without a final answer.\n"

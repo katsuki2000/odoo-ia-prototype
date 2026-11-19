@@ -40,8 +40,14 @@ def is_job_id(value):
     return isinstance(value, str) and JOB_ID_RE.fullmatch(value) is not None
 
 
-def requester_scope(env):
-    return env.company.id, [group.id for group in env.user.groups_id]
+def requester_scope(env, company_id=None):
+    """The company the user works in and their group ids.
+
+    The company is the one active in the web client's switcher when it is one of the user's own;
+    the controller does not receive it otherwise, and falls back on the user's default company.
+    """
+    company = company_id if company_id in env.user.company_ids.ids else env.company.id
+    return company, [group.id for group in env.user.groups_id]
 
 
 def backend_headers(secret_key, user, company_id, groups, api_key=None):

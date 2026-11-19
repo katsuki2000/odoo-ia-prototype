@@ -59,7 +59,9 @@ function buildMessagesFromHistory(history) {
     let nextId = 1;
     for (const turn of history || []) {
         messages.push(createMessage(nextId++, "user", turn.question || ""));
-        messages.push(createMessage(nextId++, "bot", turn.answer || ""));
+        messages.push(createMessage(nextId++, "bot", turn.answer || "", {
+            verifyLink: turn.verify_link || null,
+        }));
     }
     return { messages, nextId };
 }
@@ -111,6 +113,7 @@ export class MiroAiSystray extends Component {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
         this.action = useService("action");
+        this.company = useService("company");
         this.pendingRequest = null;
 
         this.state = useState({
@@ -303,6 +306,7 @@ export class MiroAiSystray extends Component {
             question: question,
             session_id: this.state.sessionId,
             source_mode: this.state.source,
+            company_id: this.company.currentCompany.id,
         };
 
         try {

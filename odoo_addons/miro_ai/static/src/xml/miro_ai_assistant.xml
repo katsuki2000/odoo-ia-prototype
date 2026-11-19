@@ -77,10 +77,10 @@
                 <!-- Drawer Input Area -->
                 <div t-if="!state.showHistory" class="miro-drawer-input p-2 border-top bg-white">
                     <div class="miro-source-toggle mb-1">
-                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.source === 'documentation' ? 'active' : ''}"
-                                t-on-click="() => this.selectSource('documentation')"
-                                title="Search the internal documentation">
-                            <i class="fa fa-book"/> From the documentation
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.source === 'documents' ? 'active' : ''}"
+                                t-on-click="() => this.selectSource('documents')"
+                                title="Search the internal documents">
+                            <i class="fa fa-book"/> From the documents
                         </button>
                         <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.source === 'system' ? 'active' : ''}"
                                 t-on-click="() => this.selectSource('system')"

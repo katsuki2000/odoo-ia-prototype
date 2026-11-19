@@ -18,7 +18,7 @@ class AskRequestV1(BaseModel):
     )
     source_mode: QueryRoute = Field(
         description=(
-            "Source chosen by the user: 'documentation' searches the internal documents, "
+            "Source chosen by the user: 'documents' searches the internal documents, "
             "'system' investigates this Odoo instance."
         ),
     )

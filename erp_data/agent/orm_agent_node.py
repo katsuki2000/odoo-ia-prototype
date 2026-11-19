@@ -9,6 +9,8 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from config.settings import (
     ORM_CONFIDENCE_WITH_DATA,
     ORM_CONFIDENCE_WITHOUT_DATA,
+    ORM_EMPTY_REPLY_RETRY_TEMPERATURE,
+    ORM_MAX_EMPTY_REPLIES,
     ORM_MAX_QUERY_REFUSALS,
     REACT_RECURSION_LIMIT,
 )
@@ -77,6 +79,7 @@ def _run_react(
     """Reason, call an ORM tool, observe, repeat until an answer or the iteration budget is spent."""
     tools = resolve_orm_tools()
     tool_llm = _build_llm(temperature=0.0).bind_tools(tools)
+    retry_llm = None
     messages = build_orm_agent_messages(
         question, chat_history, query_plan=plan and format_query_plan(plan), company_name=active_company_name()
     )
@@ -85,13 +88,19 @@ def _run_react(
     reminded: set[str] = set()
     query_refusals = 0
     contract_refusals = 0
+    empty_reply = False
+    empty_replies = 0
     llm_calls, hops = planning_calls, 0
 
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
         llm_calls += 1
+        llm = tool_llm
+        if empty_reply:
+            retry_llm = retry_llm or _build_llm(temperature=ORM_EMPTY_REPLY_RETRY_TEMPERATURE).bind_tools(tools)
+            llm = retry_llm
         try:
-            ai_msg = invoke_llm(tool_llm, messages)
+            ai_msg = invoke_llm(llm, messages)
         except Exception as error:
             logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, error)
             return ReactResult(None, observations, llm_calls, hops, llm_unavailable=True)
@@ -105,9 +114,19 @@ def _run_react(
                 continue
             if str(ai_msg.content).strip():
                 return ReactResult(ai_msg.content, observations, llm_calls, hops)
+            empty_replies += 1
+            logger.warning(
+                "Node [orm_agent_loop]: empty reply %d/%d, raw message: %.800r",
+                empty_replies, ORM_MAX_EMPTY_REPLIES, ai_msg,
+            )
+            if empty_replies >= ORM_MAX_EMPTY_REPLIES:
+                break
             messages.append(HumanMessage(content=EMPTY_REPLY_REMINDER))
+            empty_reply = True
             continue
 
+        empty_reply = False
+        empty_replies = 0
         for tool_call in ai_msg.tool_calls:
             started = time.time()
             tool_name, tool_args, observation, covers_plan = execute_tool_call(tool_call, tools, plan)
