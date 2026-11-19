@@ -6,7 +6,7 @@ import pytest
 
 from core.evidence import EvidenceSourceType
 from erp_data.connector.odoo_connector import OdooConnectorError
-from erp_data.connector.odoo_context import odoo_uid_ctx
+from erp_data.connector.odoo_context import odoo_company_id_ctx, odoo_uid_ctx
 from erp_data.tools import read_tools
 from erp_data.runtime.errors import OrmRuntimeError
 from erp_data.tools.read_tools import (
@@ -46,6 +46,29 @@ def mock_connector():
     connector = MagicMock()
     read_tools._connector = connector
     return connector
+
+
+@pytest.fixture
+def active_company():
+    token = odoo_company_id_ctx.set(2)
+    yield 2
+    odoo_company_id_ctx.reset(token)
+
+
+def test_active_company_name_reads_the_company_the_requester_works_under(requester_uid, active_company, mock_connector):
+    mock_connector.read.return_value = [{"id": 2, "name": "My Company (Chicago)"}]
+    assert read_tools.active_company_name() == "My Company (Chicago)"
+    mock_connector.read.assert_called_once_with(7, "res.company", [2], fields=["name"])
+
+
+def test_active_company_name_is_none_when_odoo_refuses_the_read(requester_uid, active_company, mock_connector):
+    mock_connector.read.side_effect = OdooConnectorError("access denied")
+    assert read_tools.active_company_name() is None
+
+
+def test_active_company_name_is_none_without_a_company_in_the_session(requester_uid, mock_connector):
+    assert read_tools.active_company_name() is None
+    mock_connector.read.assert_not_called()
 
 
 def test_read_only_tool_registry_covers_first_lot():

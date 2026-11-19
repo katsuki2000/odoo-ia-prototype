@@ -233,6 +233,33 @@ def test_orm_messages_carry_the_current_date():
     assert messages[1].content == f"Date du jour (UTC) : {datetime.now(timezone.utc).date().isoformat()}."
 
 
+def test_orm_messages_state_the_active_company_only_when_known():
+    named = build_orm_agent_messages("Combien de ventes ?", company_name="My Company (Chicago)")
+    assert "Société active : My Company (Chicago)." in [message.content for message in named]
+    unnamed = build_orm_agent_messages("Combien de ventes ?")
+    assert not any(str(message.content).startswith("Société active") for message in unnamed)
+
+
+def test_react_loop_tells_the_model_which_company_it_reads(monkeypatch):
+    from langchain_core.messages import AIMessage
+
+    import erp_data.agent.orm_agent_node as node
+
+    class FakeLlm:
+        def bind_tools(self, _tools):
+            return self
+
+    seen = []
+    monkeypatch.setattr(node, "_build_llm", lambda **_kwargs: FakeLlm())
+    monkeypatch.setattr(node, "resolve_orm_tools", lambda: [])
+    monkeypatch.setattr(node, "active_company_name", lambda: "My Company (Chicago)")
+    monkeypatch.setattr(node, "invoke_llm", lambda _llm, messages: seen.extend(messages) or AIMessage(content="Aucune vente."))
+
+    node._run_react("Combien de ventes ?", [], MagicMock(), "trace")
+
+    assert "Société active : My Company (Chicago)." in [message.content for message in seen]
+
+
 def test_query_planner_returns_structured_business_constraints(monkeypatch):
     class StructuredPlanner:
         def with_structured_output(self, _schema, method):

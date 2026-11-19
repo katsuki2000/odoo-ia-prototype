@@ -50,6 +50,8 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Une question d'existence ou de comptage (« existe-t-il », « combien ») se répond par une lecture : "
     "search_count ou search avec un filtre par condition. Pour un modèle trouvé, ne conclus « aucun » que d'un résultat lu à zéro, "
     "jamais du schéma seul, même si les conditions semblent contradictoires. "
+    "Quand une lecture réussie ne renvoie aucune donnée, réponds qu'il n'y en a pas dans la société active "
+    "indiquée (avec la période demandée), sans laisser croire à une panne. "
     "Le plan indique la portée du sujet : avec `subject_scope=model`, le modèle choisi suffit pour le sujet, sauf si fields_get montre qu'il "
     "regroupe plusieurs sortes d'enregistrements (champ `type`, `move_type`) dont une seule est le sujet : "
     "filtre-la alors aussi ; "
@@ -143,15 +145,18 @@ def build_orm_agent_messages(
     chat_history: Optional[List[BaseMessage]] = None,
     system_prompt: Optional[str] = None,
     query_plan: Optional[str] = None,
+    company_name: Optional[str] = None,
 ) -> List[BaseMessage]:
     """Construct initial message sequence for the ORM agent loop."""
     history = (chat_history or [])[-CHAT_HISTORY_MAX_MESSAGES:]
     plan_message = [SystemMessage(content=query_plan)] if query_plan else []
+    company_message = [SystemMessage(content=f"Société active : {company_name}.")] if company_name else []
     today = datetime.now(timezone.utc).date().isoformat()
     return [
         SystemMessage(content=system_prompt or ORM_AGENT_SYSTEM_PROMPT),
         SystemMessage(content=f"Date du jour (UTC) : {today}."),
         *plan_message,
+        *company_message,
         *history,
         HumanMessage(content=question),
     ]

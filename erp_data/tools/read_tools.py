@@ -55,6 +55,18 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def active_company_name() -> Optional[str]:
+    """Name of the company the requester reads under, None when it cannot be read."""
+    company_id, _ = resolve_company_scope()
+    if company_id is None:
+        return None
+    try:
+        rows = _get_connector().read(require_execution_uid(), "res.company", [company_id], fields=["name"])
+    except (OdooConnectorError, OrmRuntimeError):
+        return None
+    return rows[0]["name"] if rows else None
+
+
 def _window(rows: list, capped: int) -> tuple[list, bool]:
     """Cut rows fetched with capped + 1 to capped; truncated only when a further row exists."""
     return rows[:capped], len(rows) > capped

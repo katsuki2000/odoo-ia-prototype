@@ -42,7 +42,7 @@ from erp_data.agent.prompts import (
     build_orm_agent_messages,
     build_read_reminder_message,
 )
-from erp_data.tools.read_tools import SCHEMA_METHODS
+from erp_data.tools.read_tools import SCHEMA_METHODS, active_company_name
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,9 @@ def _run_react(
     """Reason, call an ORM tool, observe, repeat until an answer or the iteration budget is spent."""
     tools = resolve_orm_tools()
     tool_llm = _build_llm(temperature=0.0).bind_tools(tools)
-    messages = build_orm_agent_messages(question, chat_history, query_plan=plan and format_query_plan(plan))
+    messages = build_orm_agent_messages(
+        question, chat_history, query_plan=plan and format_query_plan(plan), company_name=active_company_name()
+    )
     observations: List[Any] = []
     tool_names: List[str] = []
     reminded: set[str] = set()
