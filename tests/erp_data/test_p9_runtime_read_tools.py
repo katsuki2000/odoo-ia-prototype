@@ -284,7 +284,6 @@ def test_orm_fields_get_and_read_group(requester_uid, mock_connector):
         domain=[],
         fields=["amount_total:sum"],
         groupby=["state"],
-        lazy=False,
     )
     mock_connector.read_group.assert_called_once_with(
         uid=7,
@@ -295,6 +294,13 @@ def test_orm_fields_get_and_read_group(requester_uid, mock_connector):
         lazy=False,
     )
     assert rg.observation.method == "read_group"
+
+
+def test_orm_read_group_returns_one_row_per_combination_of_groupby_fields(requester_uid, mock_connector):
+    mock_connector.read_group.return_value = []
+    orm_read_group("sale.report", domain=[], fields=["price_total:sum"], groupby=["partner_id", "date:month"])
+    assert mock_connector.read_group.call_args.kwargs["groupby"] == ["partner_id", "date:month"]
+    assert mock_connector.read_group.call_args.kwargs["lazy"] is False
 
 
 def test_orm_fields_get_treats_an_empty_name_list_as_the_index(requester_uid, mock_connector):
@@ -465,25 +471,23 @@ def test_odoo_traceback_is_reduced_to_its_last_line(requester_uid, mock_connecto
 
 
 @pytest.mark.parametrize(
-    "metadata, groupby, expected_groupby, expected_lazy",
+    "metadata, groupby, expected_groupby",
     [
-        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, [], ["currency_id"], False),
-        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["partner_id"], ["partner_id", "currency_id"], False),
-        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["currency_id"], ["currency_id"], True),
-        ({"amount_total": {"type": "monetary", "currency_field": "company_currency"}, "company_currency": {"store": False}}, [], [], True),
-        ({"amount_total": {"type": "float"}}, [], [], True),
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, [], ["currency_id"]),
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["partner_id"], ["partner_id", "currency_id"]),
+        ({"amount_total": {"type": "monetary", "currency_field": "currency_id"}, "currency_id": {"store": True}}, ["currency_id"], ["currency_id"]),
+        ({"amount_total": {"type": "monetary", "currency_field": "company_currency"}, "company_currency": {"store": False}}, [], []),
+        ({"amount_total": {"type": "float"}}, [], []),
     ],
 )
 def test_orm_read_group_never_sums_amounts_of_different_currencies(
-    requester_uid, mock_connector, metadata, groupby, expected_groupby, expected_lazy
+    requester_uid, mock_connector, metadata, groupby, expected_groupby
 ):
     mock_connector.fields_get.side_effect = lambda uid, model, names: {names[0]: metadata[names[0]]}
     mock_connector.read_group.return_value = []
     orm_read_group("sale.order", domain=[], fields=["amount_total:sum"], groupby=groupby)
 
-    call = mock_connector.read_group.call_args.kwargs
-    assert call["groupby"] == expected_groupby
-    assert call["lazy"] is expected_lazy
+    assert mock_connector.read_group.call_args.kwargs["groupby"] == expected_groupby
 
 
 def _to_many_connector(mock_connector, name_rows):

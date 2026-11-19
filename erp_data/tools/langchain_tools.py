@@ -259,16 +259,15 @@ def read_group(
     fields: list[str],
     groupby: LooseStrList = None,
     domain: LooseDomain = None,
-    lazy: bool = True,
 ) -> str:
-    """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total."""
+    """Aggregate with read_group. fields may use aggregates like amount_total:sum; omit groupby for one total.
+    Several groupby fields (e.g. partner_id, date:month) give one row per combination."""
     return _invoke(
         lambda: _read_group(
             model,
             domain=domain or [],
             fields=fields,
             groupby=groupby,
-            lazy=lazy,
         )
     )
 

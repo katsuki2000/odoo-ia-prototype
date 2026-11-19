@@ -431,7 +431,6 @@ def orm_read_group(
     domain: Optional[list],
     fields: list[str],
     groupby: Optional[list[str]] = None,
-    lazy: bool = True,
 ) -> OrmToolResult:
     model = validate_model_name(model)
     require_described(model)
@@ -440,16 +439,13 @@ def orm_read_group(
     if not fields:
         raise OrmRuntimeError("fields must be a non-empty list for read_group")
     groupby = validate_groupby(groupby)
-    grouped = _with_currency_groupby(model, fields, groupby)
-    lazy = lazy and grouped == groupby
-    groupby = grouped
+    groupby = _with_currency_groupby(model, fields, groupby)
     uid = require_execution_uid()
     request = {
         "model": model,
         "domain": domain,
         "fields": fields,
         "groupby": groupby,
-        "lazy": lazy,
     }
     rows = _run_validated(
         lambda: _get_connector().read_group(
@@ -458,7 +454,7 @@ def orm_read_group(
             domain=domain,
             fields=fields,
             groupby=groupby,
-            lazy=lazy,
+            lazy=False,
         )
     )
     rows, truncated = _window(rows, cap_row_limit(None))
