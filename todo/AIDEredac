@@ -41,10 +41,10 @@ fait : page 21 tableau retirer la colonne numero et remplacer "Désignation" par
 
 fait : page 23 : Tableau 9. Chronogramme prévisionnel de réalisation du projet faire un diagramme de gantt plutot que le tableau
 
-fait : page 28 ; 431 proposition des solutions
-solution 1 :achat logiciel 
-solution 2: téléchargement gratuit logiciel
-solution 3: thème
+ page 28 ; 431 proposition des solutions
+solution 1 :achat logiciel  (ici module odoo)
+solution 2: téléchargement gratuit logiciel (ici module odoo)
+solution 3: thème (la solution qu'on a choisie)
 faire un tableau : 1ère colonne solution (solution 1, solutionn 2, solution 2), 2e avantages, 3e inconvenients
 puis paragraphe choix et justification de la solution choisie
 
@@ -56,8 +56,8 @@ puis paragraphe choix et justification de la solution choisie
 
 pas satisfait : 4.1.2 tableau 10 inventaire des infras matérielles : faire comme dans la page 20-21 separer les materiels des logiciels
 
-fait : 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
-   Mettre un tableau users stories : en tant que - je veux - afin de 
+ : 5.2 après le paragraphe "Cette Structurationen releases ... SCRUM " :
+   Mettre un tableau users stories : en tant que - je veux - afin de (mets un titre User Story)
 
 fait : page 50 5.6 règles de gestion à refaire, page 51 rg3 rg8 retirer
 
